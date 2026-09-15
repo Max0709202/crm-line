@@ -142,6 +142,14 @@ public class LineAccountService {
         return repository.save(a);
     }
 
+    @Transactional
+    public LineAccount setGroupChatMode(Long id, boolean enabled) {
+        LineAccount a = repository.findById(id)
+                .orElseThrow(() -> new NotFoundException(id));
+        a.setIsGroupChatMode(enabled);
+        return repository.save(a);
+    }
+
     /** Strict 2-level tree: a chosen parent must itself be a parent (no grandparents). */
     private void validateParent(Long parentAccountId, Long selfId) {
         if (parentAccountId == null) return;

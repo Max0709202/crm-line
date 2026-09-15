@@ -10,6 +10,8 @@ import com.crm.entity.Message;
 import com.crm.repository.CarrierAddressPoolRepository;
 import com.crm.repository.CrmUserRepository;
 import com.crm.repository.LineAccountRepository;
+import com.crm.entity.AdminUser;
+import com.crm.repository.AdminUserRepository;
 import com.crm.repository.LineUserRepository;
 import com.crm.repository.MessageRepository;
 import com.crm.util.AesEncryptionUtil;
@@ -60,6 +62,7 @@ public class MessageService {
     private final OutboundLineService outboundLineService;
     private final LineAccountRepository lineAccountRepository;
     private final LineUserRepository lineUserRepository;
+    private final AdminUserRepository adminUserRepository;
     /** Lazy reference — broadcast counter update is optional and avoids a circular dependency. */
     private final org.springframework.context.ApplicationContext ctx;
 
@@ -78,6 +81,7 @@ public class MessageService {
                           OutboundLineService outboundLineService,
                           LineAccountRepository lineAccountRepository,
                           LineUserRepository lineUserRepository,
+                          AdminUserRepository adminUserRepository,
                           org.springframework.context.ApplicationContext ctx) {
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
@@ -94,6 +98,7 @@ public class MessageService {
         this.outboundLineService = outboundLineService;
         this.lineAccountRepository = lineAccountRepository;
         this.lineUserRepository = lineUserRepository;
+        this.adminUserRepository = adminUserRepository;
         this.ctx = ctx;
     }
 
@@ -664,11 +669,24 @@ public class MessageService {
                 retriable = false;
                 errorMessage = "LINEアカウントが見つかりません (id=" + msg.getLineAccountId() + ")";
             } else {
+                // Support-character/group-chat mode: only override the sender name/icon when
+                // the target account has opted in — otherwise send as the Official Account
+                // itself, unchanged from before this feature existed.
+                String senderName = null;
+                String senderIconUrl = null;
+                if (Boolean.TRUE.equals(account.getIsGroupChatMode()) && msg.getAdminUserId() != null) {
+                    AdminUser admin = adminUserRepository.findById(msg.getAdminUserId()).orElse(null);
+                    if (admin != null) {
+                        senderName = (admin.getDisplayName() != null && !admin.getDisplayName().trim().isEmpty())
+                                ? admin.getDisplayName() : admin.getName();
+                        senderIconUrl = admin.getAvatarUrl();
+                    }
+                }
                 OutboundLineService.LineSendRequest req = new OutboundLineService.LineSendRequest(
                         aes.decrypt(account.getAccessToken()),
                         msg.getToAddress(),
                         transmitBody == null ? "" : transmitBody,
-                        null, null); // sender-name/icon override added in the character/group-mode phase
+                        senderName, senderIconUrl);
                 OutboundLineService.SendResult result = outboundLineService.send(req);
                 success = result.success;
                 retriable = result.retriable;

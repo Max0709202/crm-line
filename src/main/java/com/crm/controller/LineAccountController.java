@@ -166,6 +166,25 @@ public class LineAccountController {
         return "redirect:/manager/line-settings";
     }
 
+    @PostMapping("/{id}/toggle-group-mode")
+    public String toggleGroupMode(@PathVariable Long id, HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        Optional<LineAccount> opt = service.findById(id);
+        if (!opt.isPresent()) {
+            ra.addFlashAttribute("flashError", "LINEアカウントが見つかりません");
+            return "redirect:/manager/line-settings";
+        }
+        LineAccount a = opt.get();
+        boolean newValue = !Boolean.TRUE.equals(a.getIsGroupChatMode());
+        service.setGroupChatMode(id, newValue);
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "LineAccount", id,
+                "isGroupChatMode=" + newValue);
+        ra.addFlashAttribute("flashSuccess", newValue ? "グループLINE風モードを有効にしました" : "グループLINE風モードを無効にしました");
+        return "redirect:/manager/line-settings";
+    }
+
     @PostMapping("/{id}/check-connection")
     public String checkConnection(@PathVariable Long id, HttpSession session, RedirectAttributes ra) {
         String denied = denyUnlessAdmin(session, ra);

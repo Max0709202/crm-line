@@ -1,10 +1,12 @@
 package com.crm.service;
 
+import com.crm.entity.AdminUser;
 import com.crm.entity.CarrierAddressPool;
 import com.crm.entity.CrmUser;
 import com.crm.entity.LineAccount;
 import com.crm.entity.LineUser;
 import com.crm.entity.Message;
+import com.crm.repository.AdminUserRepository;
 import com.crm.repository.CarrierAddressPoolRepository;
 import com.crm.repository.CrmUserRepository;
 import com.crm.repository.LineAccountRepository;
@@ -58,6 +60,7 @@ class MessageServiceTest {
     private OutboundLineService outboundLine;
     private LineAccountRepository lineAccountRepo;
     private LineUserRepository lineUserRepo;
+    private AdminUserRepository adminUserRepo;
 
     private MessageService svc;
 
@@ -79,6 +82,7 @@ class MessageServiceTest {
         outboundLine = mock(OutboundLineService.class);
         lineAccountRepo = mock(LineAccountRepository.class);
         lineUserRepo = mock(LineUserRepository.class);
+        adminUserRepo = mock(AdminUserRepository.class);
         // Default: no operator-configured lead text — matches production default (blank column).
         com.crm.entity.ReplyPageSetting defaultSetting = new com.crm.entity.ReplyPageSetting();
         when(replyPageSettingService.getOrCreate()).thenReturn(defaultSetting);
@@ -90,7 +94,7 @@ class MessageServiceTest {
         svc = new MessageService(messageRepo, userRepo, poolRepo, bindingService,
                 placeholderService, outboundMail, outboundSms, smsSettingService,
                 aes, replyPageService, domainSettings, replyPageSettingService,
-                outboundLine, lineAccountRepo, lineUserRepo, ctx);
+                outboundLine, lineAccountRepo, lineUserRepo, adminUserRepo, ctx);
     }
 
     private static Message queued() {
@@ -782,5 +786,87 @@ class MessageServiceTest {
 
         assertThat(saved.getStatus()).isEqualTo(Message.STATUS_QUEUED);
         verify(outboundLine, never()).send(any());
+    }
+
+    private static Message lineQueued() {
+        Message m = new Message();
+        m.setId(2L);
+        m.setUserId(7L);
+        m.setAdminUserId(3L);
+        m.setDirection(Message.DIR_OUT);
+        m.setChannel(Message.CHANNEL_LINE);
+        m.setLineAccountId(9L);
+        m.setToAddress("Uabc");
+        m.setBodyText("こんにちは");
+        m.setStatus(Message.STATUS_QUEUED);
+        m.setSendAttempts(0);
+        return m;
+    }
+
+    @Test
+    void sendNow_line_groupModeOff_sendsWithNoSenderOverride() {
+        LineAccount account = new LineAccount();
+        account.setId(9L);
+        account.setAccessToken("enc-token");
+        account.setIsGroupChatMode(false);
+        when(lineAccountRepo.findById(9L)).thenReturn(java.util.Optional.of(account));
+        when(aes.decrypt("enc-token")).thenReturn("plain-token");
+        when(outboundLine.send(any())).thenReturn(OutboundLineService.SendResult.ok());
+
+        svc.sendNow(lineQueued(), null);
+
+        ArgumentCaptor<OutboundLineService.LineSendRequest> cap = ArgumentCaptor.forClass(OutboundLineService.LineSendRequest.class);
+        verify(outboundLine).send(cap.capture());
+        assertThat(cap.getValue().senderName).isNull();
+        assertThat(cap.getValue().senderIconUrl).isNull();
+        verify(adminUserRepo, never()).findById(any());
+    }
+
+    @Test
+    void sendNow_line_groupModeOn_usesAdminDisplayNameAndAvatar() {
+        LineAccount account = new LineAccount();
+        account.setId(9L);
+        account.setAccessToken("enc-token");
+        account.setIsGroupChatMode(true);
+        when(lineAccountRepo.findById(9L)).thenReturn(java.util.Optional.of(account));
+        when(aes.decrypt("enc-token")).thenReturn("plain-token");
+
+        AdminUser admin = new AdminUser();
+        admin.setId(3L);
+        admin.setName("山田");
+        admin.setDisplayName("サポート太郎");
+        admin.setAvatarUrl("https://avu74g.jp/img/5");
+        when(adminUserRepo.findById(3L)).thenReturn(java.util.Optional.of(admin));
+        when(outboundLine.send(any())).thenReturn(OutboundLineService.SendResult.ok());
+
+        svc.sendNow(lineQueued(), null);
+
+        ArgumentCaptor<OutboundLineService.LineSendRequest> cap = ArgumentCaptor.forClass(OutboundLineService.LineSendRequest.class);
+        verify(outboundLine).send(cap.capture());
+        assertThat(cap.getValue().senderName).isEqualTo("サポート太郎");
+        assertThat(cap.getValue().senderIconUrl).isEqualTo("https://avu74g.jp/img/5");
+    }
+
+    @Test
+    void sendNow_line_groupModeOn_fallsBackToAdminNameWhenDisplayNameBlank() {
+        LineAccount account = new LineAccount();
+        account.setId(9L);
+        account.setAccessToken("enc-token");
+        account.setIsGroupChatMode(true);
+        when(lineAccountRepo.findById(9L)).thenReturn(java.util.Optional.of(account));
+        when(aes.decrypt("enc-token")).thenReturn("plain-token");
+
+        AdminUser admin = new AdminUser();
+        admin.setId(3L);
+        admin.setName("山田");
+        admin.setDisplayName(null);
+        when(adminUserRepo.findById(3L)).thenReturn(java.util.Optional.of(admin));
+        when(outboundLine.send(any())).thenReturn(OutboundLineService.SendResult.ok());
+
+        svc.sendNow(lineQueued(), null);
+
+        ArgumentCaptor<OutboundLineService.LineSendRequest> cap = ArgumentCaptor.forClass(OutboundLineService.LineSendRequest.class);
+        verify(outboundLine).send(cap.capture());
+        assertThat(cap.getValue().senderName).isEqualTo("山田");
     }
 }

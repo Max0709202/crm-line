@@ -10,6 +10,8 @@
     <div class="flex items-center mb-4 gap-2">
         <h1 class="text-2xl font-semibold text-slate-800 flex-1">LINE設定</h1>
         <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md"
+           th:href="@{/manager/line-settings/my-persona}">自分のLINE表示名/アイコン</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md"
            th:href="@{/manager/line-settings/unmatched}">未紐付けの連絡先</a>
         <a class="inline-flex items-center px-3 py-1.5 text-sm text-white rounded-md"
            style="background:#06C755;" th:href="@{/manager/line-settings/new}">＋ 親アカウント新規登録</a>
@@ -18,6 +20,8 @@
     <p class="text-sm text-slate-500 mb-4">
         1つの親LINEアカウントに対し、最大100件程度の子アカウントを登録できます。
         Channel Secret / Access Tokenは常にAES-256で暗号化して保存され、画面には表示されません。
+        「グループモード」を有効にしたアカウントで送信すると、担当者ごとの表示名/アイコンで送信されます
+        （<a class="text-blue-600 hover:underline" th:href="@{/manager/line-settings/my-persona}">自分のLINE表示名/アイコン</a>で設定）。
     </p>
 
     <div th:if="${parents == null or parents.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 text-center text-slate-400">
@@ -32,6 +36,7 @@
                     <th class="px-3 py-2 text-left">Channel ID</th>
                     <th class="px-3 py-2 text-left" style="width:110px;">ステータス</th>
                     <th class="px-3 py-2 text-left" style="width:160px;">最終接続確認</th>
+                    <th class="px-3 py-2 text-left" style="width:110px;">グループモード</th>
                     <th class="px-3 py-2 text-right" style="width:260px;">操作</th>
                 </tr>
             </thead>
@@ -49,6 +54,15 @@
                     </td>
                     <td class="px-3 py-2 text-slate-500 text-xs"
                         th:text="${p.lastConnectionCheckAt != null ? #temporals.format(p.lastConnectionCheckAt, 'yyyy-MM-dd HH:mm') : '未確認'}"></td>
+                    <td class="px-3 py-2">
+                        <form th:id="'groupModeForm' + ${p.id}" method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/toggle-group-mode'}">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="submit"
+                                    th:class="${p.isGroupChatMode} ? 'px-2 py-0.5 text-xs rounded text-white' : 'px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600'"
+                                    th:style="${p.isGroupChatMode} ? 'background:#06C755;' : ''"
+                                    th:text="${p.isGroupChatMode} ? '有効' : '無効'"></button>
+                        </form>
+                    </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <form th:id="'checkForm' + ${p.id}" method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/check-connection'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -75,6 +89,15 @@
                     </td>
                     <td class="px-3 py-2 text-slate-500 text-xs"
                         th:text="${c.lastConnectionCheckAt != null ? #temporals.format(c.lastConnectionCheckAt, 'yyyy-MM-dd HH:mm') : '未確認'}"></td>
+                    <td class="px-3 py-2">
+                        <form th:id="'groupModeForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/toggle-group-mode'}">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="submit"
+                                    th:class="${c.isGroupChatMode} ? 'px-2 py-0.5 text-xs rounded text-white' : 'px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600'"
+                                    th:style="${c.isGroupChatMode} ? 'background:#06C755;' : ''"
+                                    th:text="${c.isGroupChatMode} ? '有効' : '無効'"></button>
+                        </form>
+                    </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <form th:id="'checkForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/check-connection'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -90,7 +113,7 @@
                     </td>
                 </tr>
                 <tr th:if="${childrenByParent.get(p.id) == null or childrenByParent.get(p.id).empty}">
-                    <td colspan="5" class="px-3 py-3 text-center text-slate-400 text-xs">子アカウントはまだ登録されていません</td>
+                    <td colspan="6" class="px-3 py-3 text-center text-slate-400 text-xs">子アカウントはまだ登録されていません</td>
                 </tr>
             </tbody>
         </table>
