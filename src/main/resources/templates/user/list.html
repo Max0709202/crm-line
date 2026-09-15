@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>ユーザー管理</title>
+    <style>
+        /* Full-height single-screen layout: only the table scrolls. */
+        main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; display: flex; flex-direction: column; }
+        .ulist { display:flex; flex-direction:column; height:100vh; overflow:hidden; background:#f8fafc; }
+        .ulist .top-area   { flex-shrink:0; padding:16px 20px 10px; background:#f8fafc; }
+        .ulist .table-area { flex:1; overflow:hidden; padding:0 20px; display:flex; flex-direction:column; min-height:0; }
+        .ulist .table-outer { flex:1; background:#fff; border:1px solid #e2e8f0; border-radius:8px;
+                              box-shadow:0 1px 3px rgba(0,0,0,.05); overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+        .ulist .table-scroll { overflow:auto; flex:1; min-height:0; }
+        .ulist table { border-collapse:collapse; min-width:1100px; width:100%; }
+        .ulist thead th {
+            position:sticky; top:0; z-index:4; background:#f8fafc;
+            font-size:.68rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em;
+            padding:8px 10px; border-bottom:2px solid #e2e8f0; white-space:nowrap; text-align:left;
+        }
+        .ulist thead th:nth-child(1), .ulist tbody td:nth-child(1) {
+            position:sticky; left:0; z-index:5; background:#f8fafc; width:40px; text-align:center;
+        }
+        .ulist tbody td:nth-child(1) { background:#fff; z-index:3; }
+        .ulist thead th:nth-child(2), .ulist tbody td:nth-child(2) {
+            position:sticky; left:40px; z-index:4; background:#f8fafc; border-right:1px solid #e2e8f0; width:52px;
+        }
+        .ulist tbody td:nth-child(2) { background:#fff; z-index:3; }
+        .ulist tbody td { padding:8px 10px; font-size:.81rem; border-bottom:1px solid #f1f5f9;
+                          white-space:nowrap; vertical-align:middle; color:#1e293b; }
+        .ulist tbody tr:hover td { background:#f8fafc; }
+        .ulist tbody tr.selected-row td { background:#eff6ff; }
+        .ulist tbody tr.selected-row td:nth-child(1), .ulist tbody tr.selected-row td:nth-child(2) { background:#eff6ff; }
+        /* SUSPENDED users get a red-tinted row + left border so they stand out at a glance
+           in a long list, distinct from the per-cell ACTIVE/SUSPENDED badge alone. */
+        .ulist tbody tr.row-suspended td { background:#fef2f2; border-bottom-color:#fecaca; }
+        .ulist tbody tr.row-suspended td:nth-child(1), .ulist tbody tr.row-suspended td:nth-child(2) { background:#fef2f2; }
+        .ulist tbody tr.row-suspended td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+        .ulist tbody tr.row-suspended:hover td { background:#fee2e2; }
+        .ulist tbody tr.row-suspended.selected-row td { background:#fecaca; }
+        .ulist .row-check { width:14px; height:14px; accent-color:#2563eb; cursor:pointer; display:block; margin:0 auto; }
+        .ulist .pager { flex-shrink:0; padding:8px 0 10px; font-size:.8rem; color:#64748b; }
+
+        .ulist .search-card { background:#fff; border:1px solid #e2e8f0; border-radius:8px;
+                              padding:12px 14px; margin-bottom:10px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+        .ulist .period-section {
+            background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;
+            padding:8px 12px; margin-top:8px;
+            display:flex; flex-wrap:wrap; gap:14px; align-items:center;
+        }
+        .ulist .period-group { display:flex; align-items:center; gap:7px; }
+        .ulist .period-label { display:flex; align-items:center; gap:4px;
+            font-size:.75rem; font-weight:600; color:#475569; white-space:nowrap; cursor:pointer; user-select:none; }
+        .ulist .period-label input[type="checkbox"] { width:13px; height:13px; accent-color:#2563eb; cursor:pointer; }
+        .ulist .period-inputs { display:flex; align-items:center; gap:4px; }
+        .ulist .period-inputs input[type="datetime-local"] {
+            font-size:.74rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:5px;
+            background:#fff; color:#1e293b; outline:none; cursor:pointer; font-family:inherit;
+        }
+        .ulist .period-inputs input[type="datetime-local"]:focus { border-color:#2563eb; }
+        .ulist .period-inputs input[type="datetime-local"]:disabled {
+            background:#f1f5f9; color:#94a3b8; cursor:not-allowed; border-color:#e2e8f0;
+        }
+        .ulist .period-sep { font-size:.74rem; color:#94a3b8; }
+
+        .ulist .page-footer {
+            flex-shrink:0; background:#fff; border-top:1px solid #e2e8f0;
+            padding:9px 20px; display:flex; align-items:center; justify-content:flex-end; gap:12px;
+            box-shadow:0 -1px 4px rgba(0,0,0,.05);
+        }
+        .ulist .footer-divider { width:1px; height:28px; background:#e2e8f0; flex-shrink:0; }
+        .ulist .selected-count { font-size:.78rem; color:#64748b; }
+        .ulist .folder-select {
+            font-family:inherit; font-size:.78rem; font-weight:500;
+            padding:5px 10px; border-radius:5px; border:1px solid #cbd5e1;
+            background:#fff; color:#1e293b; outline:none; cursor:pointer; min-width:120px;
+        }
+        .ulist .folder-select:focus { border-color:#2563eb; }
+        .ulist .folder-select:disabled { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+        .ulist .btn-move, .ulist .btn-broadcast {
+            font-family:inherit; font-size:.82rem; font-weight:700;
+            padding:7px 16px; border-radius:6px; border:none; color:#fff; cursor:pointer; white-space:nowrap;
+        }
+        .ulist .btn-move { background:#059669; box-shadow:0 1px 3px rgba(5,150,105,.25); }
+        .ulist .btn-move:hover:not(:disabled) { background:#047857; }
+        .ulist .btn-broadcast { background:#2563eb; box-shadow:0 1px 3px rgba(37,99,235,.3); }
+        .ulist .btn-broadcast:hover:not(:disabled) { background:#1d4ed8; }
+        .ulist .btn-move:disabled, .ulist .btn-broadcast:disabled { background:#94a3b8; cursor:not-allowed; box-shadow:none; }
+
+        /* Compact multi-select dropdown built on <details>. Summary acts as the closed
+         * "input"; popover is a floating panel of checkboxes. Native focus-within / open
+         * pseudo-classes do most of the work — no JS required for show/hide, just for the
+         * summary-text-update and click-outside-to-close behaviour. */
+        .ulist .ms-dd { position: relative; }
+        .ulist .ms-dd-sum {
+            list-style: none; cursor: pointer; user-select: none;
+            font-size: .85rem; padding: 5px 28px 5px 10px;
+            border: 1px solid #cbd5e1; border-radius: 5px; background: #fff;
+            color: #1e293b; min-height: 32px; line-height: 20px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            position: relative;
+        }
+        .ulist .ms-dd-sum::-webkit-details-marker { display: none; }
+        .ulist .ms-dd-sum::after {
+            content: "▾"; position: absolute; right: 8px; top: 50%;
+            transform: translateY(-50%); font-size: .7rem; color: #94a3b8;
+        }
+        .ulist .ms-dd[open] > .ms-dd-sum { border-color: #2563eb; }
+        .ulist .ms-dd-pop {
+            position: absolute; z-index: 50; left: 0; right: 0; top: calc(100% + 2px);
+            max-height: 260px; overflow-y: auto;
+            background: #fff; border: 1px solid #cbd5e1; border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.08);
+            padding: 4px;
+        }
+        .ulist .ms-dd-opt {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 8px; border-radius: 3px; font-size: .8rem;
+            cursor: pointer; color: #1e293b;
+        }
+        .ulist .ms-dd-opt:hover { background: #f1f5f9; }
+        .ulist .ms-dd-opt input[type="checkbox"] {
+            width: 14px; height: 14px; accent-color: #2563eb; cursor: pointer;
+            margin: 0; flex-shrink: 0;
+        }
+        .ulist .ms-dd-opt span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+</head>
+<body>
+<section layout:fragment="content">
+<div class="ulist">
+
+    <div class="top-area">
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
+            <h1 class="text-xl font-bold text-slate-800 flex items-center gap-3">
+                ユーザー管理
+                <span id="userTotalCount" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-slate-100 text-slate-700"
+                      th:text="${users.totalElements} + ' 名'">0 名</span>
+                <!-- Status quick-filter, inline with the heading per operator request.
+                     The select drives the hidden status field on the main searchForm via JS
+                     so it stays bound to the existing search GET parameters. -->
+                <label class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 ml-2">
+                    ステータス:
+                    <select id="statusHeaderFilter" class="tw-input" style="width:auto;font-size:.85rem;padding:2px 24px 2px 8px;"
+                            onchange="document.getElementById('searchFormStatus').value=this.value; document.getElementById('searchForm').submit();">
+                        <option value="" th:selected="${#strings.isEmpty(searchForm.status)}">すべて</option>
+                        <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}"
+                                th:selected="${s == searchForm.status}"></option>
+                    </select>
+                </label>
+            </h1>
+            <div class="flex-1"></div>
+            <a class="text-sm px-3 py-1.5 border border-slate-300 text-slate-700 rounded bg-white hover:bg-slate-50"
+               th:href="@{/manager/users/import}">CSVインポート</a>
+            <a class="text-sm px-3 py-1.5 border border-slate-300 text-slate-700 rounded bg-white hover:bg-slate-50"
+               th:href="@{/manager/users/export.csv(email=${searchForm.email},displayName=${searchForm.displayName},status=${searchForm.status},carrierCode=${searchForm.carrierCode},emailDomains=${searchForm.emailDomains},folders=${searchForm.folders})}">CSVエクスポート</a>
+            <a class="text-sm px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm"
+               th:href="@{/manager/users/new}">新規作成</a>
+        </div>
+
+        <div class="search-card">
+            <form method="get" th:action="@{/manager/users}" th:object="${searchForm}" id="searchForm">
+                <!-- Hidden status input: driven by the header quick-filter; must stay in the form. -->
+                <input type="hidden" id="searchFormStatus" th:field="*{status}"/>
+                <!-- Grid 12-col (2026-05-24 v2): email + displayName halved again per
+                     operator request — email 33%→17% (2/12), displayName 17%→8% (1/12) —
+                     freeing up 25% more width for the right-hand selects + count-range
+                     inputs which were getting cramped. -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div class="md:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">電話番号</label>
+                        <textarea class="tw-input" rows="2" th:field="*{phoneNumber}" style="resize:none;font-size:.78rem;"></textarea>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs text-slate-500 mb-1">メールアドレス</label>
+                        <textarea class="tw-input" rows="2" th:field="*{email}" style="resize:none;font-size:.78rem;"
+                                  placeholder="user1@example.com&#10;user2@example.com"></textarea>
+                    </div>
+                    <div class="md:col-span-1">
+                        <label class="block text-xs text-slate-500 mb-1">表示名</label>
+                        <textarea class="tw-input" rows="2" th:field="*{displayName}" style="resize:none;font-size:.78rem;"></textarea>
+                    </div>
+                    <!-- Compact selects (フォルダ・広告コード・性別・キャリア・累計送信・累計返信)
+                         in a single row with search/clear buttons on the right edge of the row. -->
+                    <div class="md:col-span-8">
+                        <div class="flex items-end gap-2 flex-wrap">
+                            <div class="min-w-0" style="flex:1 1 0;">
+                                <label class="block text-xs text-slate-500 mb-1">キャリア</label>
+                                <details class="ms-dd" data-ms="emailDomains">
+                                    <summary class="ms-dd-sum" data-empty-label="すべて">すべて</summary>
+                                    <div class="ms-dd-pop">
+                                        <label th:each="d : ${emailDomainChoices}" class="ms-dd-opt">
+                                            <input type="checkbox" name="emailDomains" th:value="${d}"
+                                                   th:checked="${#lists.contains(searchForm.emailDomains, d)}"/>
+                                            <span th:text="'@' + ${d}"></span>
+                                        </label>
+                                    </div>
+                                </details>
+                            </div>
+                            <div class="min-w-0" style="flex:1 1 0;">
+                                <label class="block text-xs text-slate-500 mb-1">広告コード</label>
+                                <details class="ms-dd" data-ms="adCodes">
+                                    <summary class="ms-dd-sum" data-empty-label="すべて">すべて</summary>
+                                    <div class="ms-dd-pop">
+                                        <label class="ms-dd-opt"><input type="checkbox" name="adCodes" value="__NONE__"
+                                                th:checked="${#lists.contains(searchForm.adCodes, '__NONE__')}"/>（未設定）</label>
+                                        <label th:each="ac : ${adCodeChoices}" class="ms-dd-opt">
+                                            <input type="checkbox" name="adCodes" th:value="${ac.code}"
+                                                   th:checked="${#lists.contains(searchForm.adCodes, ac.code)}"/>
+                                            <span th:text="${ac.name} + ' (' + ${ac.code} + ')'"></span>
+                                        </label>
+                                    </div>
+                                </details>
+                            </div>
+                            <div class="min-w-0" style="flex:1 1 0;">
+                                <label class="block text-xs text-slate-500 mb-1">
+                                    フォルダ
+                                    <!-- The "フォルダ内全件対象" checkbox was retired 2026-05-19; selecting a
+                                         specific folder now implies operating on the whole folder. The hidden
+                                         input below preserves the existing JS scope-injection path. -->
+                                    <input type="checkbox" id="folderAllScope" style="display:none;"/>
+                                    <!-- Always-visible scope-count selector. Appears when a specific folder
+                                         (not 'すべて') is in the filter. "全件" = the whole folder; 500/1K/2K/5K
+                                         = first N by id ASC so the operator can run a 15K-row job in chunks. -->
+                                    <span id="folderScopeLimitWrap"
+                                          style="display:none;margin-left:8px;font-size:.7rem;color:#475569;">
+                                        対象件数選択：
+                                        <select id="folderScopeLimit" style="font-size:.72rem;padding:2px 6px;border:1px solid #cbd5e1;border-radius:3px;background:#fff;">
+                                            <option value="">全件</option>
+                                            <option value="500">500</option>
+                                            <option value="1000" selected>1,000</option>
+                                            <option value="2000">2,000</option>
+                                            <option value="2500">2,500</option>
+                                            <option value="5000">5,000</option>
+                                        </select>
+                                    </span>
+                                </label>
+                                <!-- Compact multi-select via <details>: summary stays one-line
+                                     ("3件選択中" / "未設定" / first-1-2 names) and the popover
+                                     of checkboxes only appears when the operator clicks. Reverted
+                                     from <select multiple size=5> which ate too much vertical
+                                     space. Checkboxes use name="folders" so Spring binds the
+                                     plural list field straight from the form. -->
+                                <details class="ms-dd" data-ms="folders">
+                                    <summary class="ms-dd-sum" data-empty-label="すべて">すべて</summary>
+                                    <div class="ms-dd-pop">
+                                        <label class="ms-dd-opt"><input type="checkbox" name="folders" value="__NONE__"
+                                                th:checked="${#lists.contains(searchForm.folders, '__NONE__')}"/>（未設定）</label>
+                                        <label th:each="orphan : ${searchForm.folders}"
+                                               th:if="${orphan != null and !#strings.isEmpty(#strings.trim(orphan))
+                                                       and !#strings.containsIgnoreCase(orphan, 'NONE')
+                                                       and !#lists.contains(folders, orphan)}"
+                                               class="ms-dd-opt">
+                                            <input type="checkbox" name="folders" th:value="${orphan}" checked/>
+                                            <span th:text="${orphan} + ' （旧名）'"></span>
+                                        </label>
+                                        <label th:each="f : ${folders}" class="ms-dd-opt">
+                                            <input type="checkbox" name="folders" th:value="${f}"
+                                                   th:checked="${#lists.contains(searchForm.folders, f)}"/>
+                                            <span th:text="${f}"></span>
+                                        </label>
+                                    </div>
+                                </details>
+                            </div>
+                            <div class="min-w-0" style="flex:1 1 0;">
+                                <label class="block text-xs text-slate-500 mb-1">性別</label>
+                                <details class="ms-dd" data-ms="genders">
+                                    <summary class="ms-dd-sum" data-empty-label="すべて">すべて</summary>
+                                    <div class="ms-dd-pop">
+                                        <label class="ms-dd-opt"><input type="checkbox" name="genders" value="M"
+                                                th:checked="${#lists.contains(searchForm.genders, 'M')}"/>男性</label>
+                                        <label class="ms-dd-opt"><input type="checkbox" name="genders" value="F"
+                                                th:checked="${#lists.contains(searchForm.genders, 'F')}"/>女性</label>
+                                        <label class="ms-dd-opt"><input type="checkbox" name="genders" value="__NONE__"
+                                                th:checked="${#lists.contains(searchForm.genders, '__NONE__')}"/>（未設定）</label>
+                                    </div>
+                                </details>
+                            </div>
+                            <!-- 累計送信件数: from-to range (inclusive). Either bound optional.
+                                 0-0 = users who have never been sent anything; 1-1 = exactly one;
+                                 3-5 = range. Predicate runs as a correlated COUNT subquery on
+                                 MESSAGE (direction=OUT, status=SENT) — see CrmUserService. -->
+                            <div class="min-w-0" style="flex:0 0 auto;">
+                                <label class="block text-xs text-slate-500 mb-1">累計送信件数</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="number" min="0" class="tw-input" th:field="*{sentCountMin}"
+                                           placeholder="最小" style="width:64px;padding:6px 4px;font-size:.8rem;"/>
+                                    <span class="text-slate-400 text-sm">〜</span>
+                                    <input type="number" min="0" class="tw-input" th:field="*{sentCountMax}"
+                                           placeholder="最大" style="width:64px;padding:6px 4px;font-size:.8rem;"/>
+                                </div>
+                            </div>
+                            <!-- 累計返信件数: same shape, predicate on MESSAGE direction=IN. -->
+                            <div class="min-w-0" style="flex:0 0 auto;">
+                                <label class="block text-xs text-slate-500 mb-1">累計返信件数</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="number" min="0" class="tw-input" th:field="*{replyCountMin}"
+                                           placeholder="最小" style="width:64px;padding:6px 4px;font-size:.8rem;"/>
+                                    <span class="text-slate-400 text-sm">〜</span>
+                                    <input type="number" min="0" class="tw-input" th:field="*{replyCountMax}"
+                                           placeholder="最大" style="width:64px;padding:6px 4px;font-size:.8rem;"/>
+                                </div>
+                            </div>
+                            <button type="submit" class="inline-flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded flex-shrink-0">検索</button>
+                            <button type="button" class="inline-flex items-center px-3 py-2 border border-slate-300 bg-white text-slate-600 text-sm rounded hover:bg-slate-50 flex-shrink-0" onclick="window.location='/manager/users'">クリア</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Period filters -->
+                <div class="period-section">
+                    <span class="text-xs font-bold text-slate-600 whitespace-nowrap">期間絞り込み</span>
+                    <div class="period-group">
+                        <label class="period-label" for="chk_register">
+                            <input type="checkbox" id="chk_register" onchange="togglePeriod('register', this.checked)"
+                                   th:checked="${!#strings.isEmpty(searchForm.registerFrom) or !#strings.isEmpty(searchForm.registerTo)}"/>
+                            登録期間
+                        </label>
+                        <div class="period-inputs">
+                            <input type="datetime-local" id="register_from" name="registerFrom"
+                                   th:value="${!#strings.isEmpty(searchForm.registerFrom)} ? ${searchForm.registerFrom} : ${defaultPeriodFrom}"
+                                   th:disabled="${#strings.isEmpty(searchForm.registerFrom) and #strings.isEmpty(searchForm.registerTo)}"/>
+                            <span class="period-sep">〜</span>
+                            <input type="datetime-local" id="register_to" name="registerTo"
+                                   th:value="${!#strings.isEmpty(searchForm.registerTo)} ? ${searchForm.registerTo} : ${defaultPeriodTo}"
+                                   th:disabled="${#strings.isEmpty(searchForm.registerFrom) and #strings.isEmpty(searchForm.registerTo)}"/>
+                        </div>
+                    </div>
+                    <div class="period-group">
+                        <label class="period-label" for="chk_login">
+                            <input type="checkbox" id="chk_login" onchange="togglePeriod('login', this.checked)"
+                                   th:checked="${!#strings.isEmpty(searchForm.loginFrom) or !#strings.isEmpty(searchForm.loginTo)}"/>
+                            ログイン期間
+                        </label>
+                        <!-- 「未」 = never-logged-in users (last_login_at IS NULL). Separate from the
+                             period range so the operator can search "either people who logged in
+                             during this window OR people who never logged in". -->
+                        <label class="period-label" for="chk_login_unset" style="margin-left:8px;">
+                            <input type="checkbox" id="chk_login_unset" name="loginUnset" value="true"
+                                   th:checked="${searchForm.loginUnset}"/>
+                            未
+                        </label>
+                        <div class="period-inputs">
+                            <input type="datetime-local" id="login_from" name="loginFrom"
+                                   th:value="${!#strings.isEmpty(searchForm.loginFrom)} ? ${searchForm.loginFrom} : ${defaultPeriodFrom}"
+                                   th:disabled="${#strings.isEmpty(searchForm.loginFrom) and #strings.isEmpty(searchForm.loginTo)}"/>
+                            <span class="period-sep">〜</span>
+                            <input type="datetime-local" id="login_to" name="loginTo"
+                                   th:value="${!#strings.isEmpty(searchForm.loginTo)} ? ${searchForm.loginTo} : ${defaultPeriodTo}"
+                                   th:disabled="${#strings.isEmpty(searchForm.loginFrom) and #strings.isEmpty(searchForm.loginTo)}"/>
+                        </div>
+                    </div>
+                    <div class="period-group">
+                        <label class="period-label" for="chk_send">
+                            <input type="checkbox" id="chk_send" onchange="togglePeriod('send', this.checked)"
+                                   th:checked="${!#strings.isEmpty(searchForm.sendFrom) or !#strings.isEmpty(searchForm.sendTo)}"/>
+                            返信期間
+                        </label>
+                        <div class="period-inputs">
+                            <input type="datetime-local" id="send_from" name="sendFrom"
+                                   th:value="${!#strings.isEmpty(searchForm.sendFrom)} ? ${searchForm.sendFrom} : ${defaultPeriodFrom}"
+                                   th:disabled="${#strings.isEmpty(searchForm.sendFrom) and #strings.isEmpty(searchForm.sendTo)}"/>
+                            <span class="period-sep">〜</span>
+                            <input type="datetime-local" id="send_to" name="sendTo"
+                                   th:value="${!#strings.isEmpty(searchForm.sendTo)} ? ${searchForm.sendTo} : ${defaultPeriodTo}"
+                                   th:disabled="${#strings.isEmpty(searchForm.sendFrom) and #strings.isEmpty(searchForm.sendTo)}"/>
+                        </div>
+                    </div>
+                    <div class="period-group">
+                        <label class="period-label" for="chk_payment">
+                            <input type="checkbox" id="chk_payment" onchange="togglePeriod('payment', this.checked)"
+                                   th:checked="${!#strings.isEmpty(searchForm.paymentFrom) or !#strings.isEmpty(searchForm.paymentTo)}"/>
+                            入金期間
+                        </label>
+                        <div class="period-inputs">
+                            <input type="datetime-local" id="payment_from" name="paymentFrom"
+                                   th:value="${!#strings.isEmpty(searchForm.paymentFrom)} ? ${searchForm.paymentFrom} : ${defaultPeriodFrom}"
+                                   th:disabled="${#strings.isEmpty(searchForm.paymentFrom) and #strings.isEmpty(searchForm.paymentTo)}"/>
+                            <span class="period-sep">〜</span>
+                            <input type="datetime-local" id="payment_to" name="paymentTo"
+                                   th:value="${!#strings.isEmpty(searchForm.paymentTo)} ? ${searchForm.paymentTo} : ${defaultPeriodTo}"
+                                   th:disabled="${#strings.isEmpty(searchForm.paymentFrom) and #strings.isEmpty(searchForm.paymentTo)}"/>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <form id="bulkForm" method="post" class="flex flex-col flex-1 min-h-0">
+    <div class="table-area">
+        <div class="table-outer">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                    <tr>
+                        <th><input type="checkbox" class="row-check" id="checkAll" title="全選択"/></th>
+                        <th>No</th>
+                        <th>電話番号</th>
+                        <th>メールアドレス</th>
+                        <th>表示名</th>
+                        <th>キャリア</th>
+                        <th>ステータス</th>
+                        <th>広告コード</th>
+                        <th>フォルダ</th>
+                        <th>性別</th>
+                        <th>登録日時</th>
+                        <th>最終ログイン</th>
+                        <th>最終返信</th>
+                        <th>最終入金日</th>
+                        <th class="text-right" style="width:64px;">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:if="${users.totalElements == 0}">
+                        <td colspan="15" class="text-center py-6 text-slate-400">該当するユーザーがいません</td>
+                    </tr>
+                    <tr th:each="u,it : ${users.content}"
+                        th:classappend="${u.status == 'SUSPENDED'} ? 'row-suspended'">
+                        <td><input type="checkbox" class="row-check row-item" name="ids" th:value="${u.id}"/></td>
+                        <!-- Sequential row number based on display order: page offset + 1-based row index.
+                             Page 1 row 1 = "1", page 2 row 1 = (size + 1), etc. -->
+                        <td><code class="text-xs text-slate-600" th:text="${users.number * users.size + it.count}"></code></td>
+                        <td class="text-xs text-slate-600" th:text="${u.phoneNumber} ?: '-'"></td>
+                        <td th:text="${u.email}"></td>
+                        <td th:text="${u.displayName}"></td>
+                        <td class="text-xs text-slate-500" th:text="${u.carrierDomain} ? ('@' + ${u.carrierDomain}) : '-'"></td>
+                        <td>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  th:classappend="${u.status == 'ACTIVE'} ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700 border border-red-300'"
+                                  th:text="${u.status}"></span>
+                        </td>
+                        <td class="text-xs text-slate-600">
+                            <code th:if="${u.adCode}" class="bg-slate-100 px-1.5 py-0.5 rounded text-xs" th:text="${u.adCode}"></code>
+                            <span th:unless="${u.adCode}" class="text-slate-400">-</span>
+                        </td>
+                        <td class="text-xs text-slate-600" th:text="${u.folder} ?: '-'"></td>
+                        <td>
+                            <span th:if="${u.gender == 'M'}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">男</span>
+                            <span th:if="${u.gender == 'F'}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-700">女</span>
+                            <span th:if="${u.gender == null or u.gender == ''}" class="text-xs text-slate-400">-</span>
+                        </td>
+                        <td class="text-xs text-slate-500" th:text="${#temporals.format(u.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                        <td class="text-xs text-slate-500">
+                            <span th:if="${u.lastLoginAt}" th:text="${#temporals.format(u.lastLoginAt, 'yyyy-MM-dd HH:mm')}"></span>
+                            <span th:unless="${u.lastLoginAt}" class="text-slate-400">-</span>
+                        </td>
+                        <td class="text-xs text-slate-500" th:with="ls=${lastSentByUserId.get(u.id)}">
+                            <span th:if="${ls != null}" th:text="${#temporals.format(ls, 'yyyy-MM-dd HH:mm')}"></span>
+                            <span th:if="${ls == null}" class="text-slate-400">-</span>
+                        </td>
+                        <td class="text-xs text-slate-500">
+                            <span th:if="${u.lastPaymentAt}" th:text="${#temporals.format(u.lastPaymentAt, 'yyyy-MM-dd')}"></span>
+                            <span th:unless="${u.lastPaymentAt}" class="text-slate-400">-</span>
+                        </td>
+                        <td class="text-right">
+                            <a class="inline-flex items-center px-3 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded" th:href="@{'/manager/users/' + ${u.id}}">編集</a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="pager" th:if="${users.totalPages > 0}" style="display:flex; align-items:center; gap:8px; padding:10px 0;">
+            <span style="margin-right:auto;">
+                全 <strong th:text="${users.totalElements}"></strong> 件
+                （<span th:text="${users.number + 1}"></span> / <span th:text="${users.totalPages == 0 ? 1 : users.totalPages}"></span> ページ）
+            </span>
+            <!-- Pagination preserves the FULL current query string (all filters — email, folders,
+                 adCodes, sentCount range, date ranges, etc.) via JS off window.location.search,
+                 swapping only the "page" param. The old approach hand-listed each filter field
+                 in every th:href here; every time a new filter was added to the search form (16+
+                 fields now) it silently stopped surviving page-2+ navigation unless someone
+                 remembered to update all 4 links here too — that's exactly the pagination bug
+                 reported 2026-08-07 (adCodes/sentCountMin/sentCountMax dropped on page 2, so the
+                 filtered 952-result search reverted to the unfiltered 5521 total). Fixed 2026-08-08. -->
+            <nav th:if="${users.totalPages > 1}">
+                <ul class="flex items-center gap-1 text-sm">
+                    <li>
+                        <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50 pagelink"
+                           th:classappend="${users.first} ? 'opacity-50 pointer-events-none'"
+                           th:attr="data-page=${users.number - 1}" href="#">前へ</a>
+                    </li>
+                    <!-- Windowed pagination: first page, an ellipsis,
+                         a sliding window of current ± 2, an ellipsis, last page.
+                         Avoids the 1..151 wall when totalPages is large. -->
+                    <li th:if="${users.number > 2}">
+                        <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50 pagelink"
+                           th:attr="data-page=0" href="#">1</a>
+                    </li>
+                    <li th:if="${users.number > 3}" style="color:#94a3b8; padding:0 4px;">…</li>
+                    <li th:each="i : ${#numbers.sequence(0, users.totalPages - 1)}"
+                        th:if="${i >= users.number - 2 and i <= users.number + 2}">
+                        <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50 pagelink"
+                           th:classappend="${i == users.number} ? 'bg-blue-600 text-white border-blue-600'"
+                           th:attr="data-page=${i}" href="#" th:text="${i + 1}"></a>
+                    </li>
+                    <li th:if="${users.number < users.totalPages - 4}" style="color:#94a3b8; padding:0 4px;">…</li>
+                    <li th:if="${users.number < users.totalPages - 3}">
+                        <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50 pagelink"
+                           th:attr="data-page=${users.totalPages - 1}" href="#" th:text="${users.totalPages}"></a>
+                    </li>
+                    <li>
+                        <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50 pagelink"
+                           th:classappend="${users.last} ? 'opacity-50 pointer-events-none'"
+                           th:attr="data-page=${users.number + 1}" href="#">次へ</a>
+                    </li>
+                </ul>
+            </nav>
+            <script>
+            (function () {
+                document.querySelectorAll('a.pagelink').forEach(function (a) {
+                    a.addEventListener('click', function (ev) {
+                        ev.preventDefault();
+                        if (a.classList.contains('pointer-events-none')) return;
+                        var params = new URLSearchParams(window.location.search);
+                        params.set('page', a.getAttribute('data-page'));
+                        window.location.href = '/manager/users?' + params.toString();
+                    });
+                });
+            })();
+            </script>
+        </div>
+    </div>
+
+    <div class="page-footer">
+        <span class="selected-count" id="selectedCount"></span>
+        <div class="footer-divider"></div>
+
+        <!-- Carrier bulk-bind (left). The leading label was dropped per operator request — the
+             dropdown's "全キャリア（一括）" placeholder already conveys the action's scope. -->
+        <select class="folder-select" name="poolId" id="poolSelect" disabled>
+            <option value="">全キャリア（一括）</option>
+            <option th:each="p : ${activePoolAddresses}" th:value="${p.id}"
+                    th:text="${p.address} + ' (' + ${p.carrierCode} + ')'"></option>
+        </select>
+        <button type="submit" class="btn-move" id="btnBindCarrier" disabled
+                formaction="/manager/users/bulk-bind-carrier">フォルダ対象件数割り当て</button>
+        <button type="submit" class="btn-move btn-bulk-unbind" id="btnUnbindCarrier" disabled
+                formaction="/manager/users/bulk-unbind-carrier"
+                onclick="return confirm('選択したユーザーの割り当てを解除します。よろしいですか?');">割り当て削除</button>
+
+        <div class="footer-divider"></div>
+
+        <!-- Folder bulk-move. The "（フォルダ解除）" pseudo-option was removed 2026-05-21
+             because it shared value="" with the prompt option, which let operators silently
+             move users to 未設定 just by forgetting to pick a target. If folder-unset is
+             genuinely needed, use the rebind UI on /manager/settings/folders. -->
+        <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">移動先フォルダ</span>
+        <select class="folder-select" name="folder" id="folderSelect" disabled>
+            <option value="">フォルダを選択</option>
+            <option value="__NONE__">（未設定）</option>
+            <option th:each="f : ${folders}" th:value="${f}" th:text="${f}"></option>
+        </select>
+        <button type="submit" class="btn-move" id="btnMove" disabled
+                formaction="/manager/users/bulk-move-folder">選択フォルダ移動</button>
+
+        <div class="footer-divider"></div>
+
+        <!-- Bulk ACTIVE/SUSPENDED status change. Row-selection only (no folder-scope mode) —
+             a mass status flip across an entire filtered folder without checking individual
+             rows is too easy to trigger by accident, so this always requires explicit checks. -->
+        <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">変更先ステータス</span>
+        <select class="folder-select" name="status" id="statusSelect" disabled>
+            <option value="">ステータスを選択</option>
+            <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}"></option>
+        </select>
+        <button type="submit" class="btn-move" id="btnSetStatus" disabled
+                formaction="/manager/users/bulk-set-status">選択ステータス変更</button>
+
+        <div class="footer-divider"></div>
+        <button type="button" class="btn-broadcast" id="btnBroadcast" disabled onclick="goBroadcast()">選択一斉送信</button>
+        <button type="button" class="btn-broadcast" id="btnBroadcastSms" disabled onclick="goBroadcast('SMS')">選択一斉SMS配信</button>
+
+        <div class="footer-divider"></div>
+        <button type="submit" class="btn-move" id="btnDelete" disabled
+                formaction="/manager/users/bulk-delete"
+                onclick="return confirmBulkDelete(this, 'ユーザー');"
+                style="background:#dc2626;border-color:#dc2626;color:#fff;">選択削除</button>
+    </div>
+    </form>
+
+    <!-- The yellow "全ユーザー割り当て" footer form was removed 2026-05-19 per client request:
+         the same outcome is now reachable by selecting each folder and clicking the renamed
+         "フォルダ対象件数割り当て" button. The /manager/users/bulk-bind-all endpoint is left in
+         place on the server in case ops scripts still call it, but no longer surfaced in the UI. -->
+</div>
+
+<script>
+// --- Period toggles ---
+function togglePeriod(key, enabled) {
+    var map = {
+        register:['register_from','register_to'],
+        login:['login_from','login_to'],
+        send:['send_from','send_to'],
+        payment:['payment_from','payment_to']
+    };
+    (map[key] || []).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = !enabled;
+        if (!enabled) el.removeAttribute('name'); // un-checked group must not POST a value
+        else el.setAttribute('name', el.id.endsWith('_from')
+                ? key + 'From' : key + 'To');
+    });
+}
+// On page load, sync name attributes for checked/unchecked groups so unfilled defaults
+// don't accidentally narrow the result set when the user just hits 検索 with no checks.
+document.addEventListener('DOMContentLoaded', function () {
+    ['register','login','send','payment'].forEach(function (k) {
+        var chk = document.getElementById('chk_' + k);
+        if (chk) togglePeriod(k, chk.checked);
+    });
+    // Defensive sync: walk the URL's query string and force every multi-select checkbox
+    // whose name+value matches a query param to be checked. Belt-and-braces against any
+    // edge case where Thymeleaf's th:checked didn't fire (e.g. (未設定) for folders=__NONE__
+    // was reported reverting to "すべて" on 2026-05-21).
+    try {
+        var qs = new URLSearchParams(window.location.search);
+        ['folders','adCodes','genders','emailDomains'].forEach(function (name) {
+            var values = qs.getAll(name);
+            if (!values || values.length === 0) return;
+            values.forEach(function (val) {
+                var sel = 'details.ms-dd input[type="checkbox"][name="' + name + '"][value="'
+                        + val.replace(/"/g, '\\"') + '"]';
+                document.querySelectorAll(sel).forEach(function (cb) { cb.checked = true; });
+            });
+        });
+    } catch (_) { /* old browser without URLSearchParams — Thymeleaf rendering still works */ }
+    initMultiSelectDropdowns();
+});
+
+// --- Compact <details>-based multi-select dropdowns ---
+// Each .ms-dd block manages its own checked state and updates its <summary> caption with
+// the count or up-to-2 selected labels. The "data-empty-label" attribute is the fallback
+// (e.g. "すべて"). Clicking outside closes the popover via a single window listener.
+function initMultiSelectDropdowns() {
+    document.querySelectorAll('.ms-dd').forEach(function (dd) {
+        var sum = dd.querySelector('.ms-dd-sum');
+        if (!sum) return;
+        var emptyLabel = sum.getAttribute('data-empty-label') || 'すべて';
+        function refreshSummary() {
+            var checks = dd.querySelectorAll('input[type="checkbox"]:checked');
+            if (checks.length === 0) {
+                sum.textContent = emptyLabel;
+            } else if (checks.length <= 2) {
+                // Show the actual labels (use the <span> text or the value).
+                var labels = Array.prototype.map.call(checks, function (c) {
+                    var lbl = c.parentNode;
+                    var span = lbl ? lbl.querySelector('span') : null;
+                    return span ? span.textContent.trim()
+                                : (lbl ? lbl.textContent.trim() : c.value);
+                });
+                sum.textContent = labels.join(', ');
+            } else {
+                sum.textContent = checks.length + ' 件選択中';
+            }
+        }
+        dd.addEventListener('change', refreshSummary);
+        refreshSummary();
+    });
+    // One global listener that closes any open <details> when the user clicks outside it.
+    document.addEventListener('click', function (ev) {
+        document.querySelectorAll('.ms-dd[open]').forEach(function (dd) {
+            if (!dd.contains(ev.target)) dd.open = false;
+        });
+    });
+}
+
+// --- Selection footer (unified row-check + folder-scope state) ---
+// Page-level snapshot of the committed folder filter — what the URL said when the page
+// loaded (= the operator's last 検索 result). Folder-scope mode keys on THIS, not the live
+// checkbox state, so an operator who clicks a folder checkbox WITHOUT pressing 検索 doesn't
+// accidentally redefine the bulk-scope. 2026-05-21: array of selected folder values instead
+// of a single string, since the filter is now multi-select.
+var committedFolders = [];
+
+// Read selected values from one of the new <details data-ms="..."> multi-select widgets.
+function getMultiSelectValues(groupName) {
+    var sel = 'details.ms-dd[data-ms="' + groupName + '"] input[type="checkbox"]:checked';
+    return Array.prototype.map.call(document.querySelectorAll(sel), function (c) { return c.value; });
+}
+
+// Human-readable label of the current folder filter for confirm() dialogs.
+function formatFolderLabel(values) {
+    if (!values || values.length === 0) return '';
+    function pretty(v) { return v === '__NONE__' ? '（未設定）' : v; }
+    if (values.length === 1) return pretty(values[0]);
+    if (values.length === 2) return pretty(values[0]) + ', ' + pretty(values[1]);
+    return values.length + ' 件 (' + values.slice(0, 3).map(pretty).join(', ') + (values.length > 3 ? ', ...' : '') + ')';
+}
+
+(function () {
+    var checkAll = document.getElementById('checkAll');
+    var countLabel = document.getElementById('selectedCount');
+    var folderSel = document.getElementById('folderSelect');
+    var btnMove = document.getElementById('btnMove');
+    var btnBroad = document.getElementById('btnBroadcast');
+    var btnBroadSms = document.getElementById('btnBroadcastSms');
+
+    function rows() { return document.querySelectorAll('.row-item'); }
+
+    var poolSel = document.getElementById('poolSelect');
+    var btnBindCarrier = document.getElementById('btnBindCarrier');
+    var btnUnbindCarrier = document.getElementById('btnUnbindCarrier');
+    var btnDelete = document.getElementById('btnDelete');
+    var scopeFlag = document.getElementById('folderAllScope');
+    var limitWrap = document.getElementById('folderScopeLimitWrap');
+    var statusSel = document.getElementById('statusSelect');
+    var btnSetStatus = document.getElementById('btnSetStatus');
+    // Snapshot the committed folder filter from the rendered checkbox state.
+    // NOTE: at script-execution time the DOMContentLoaded defensive checkbox-sync
+    // hasn't fired yet, so a missing th:checked on the (未設定) box would leave
+    // committedFolders empty here even though the URL has folders=__NONE__. Cover
+    // that by ALSO reading values straight from the URL's `folders=` params and
+    // merging — that way folder-scope mode engages correctly for 未設定 too.
+    committedFolders = getMultiSelectValues('folders');
+    try {
+        var qsFolders = new URLSearchParams(window.location.search).getAll('folders');
+        qsFolders.forEach(function (v) {
+            if (v && committedFolders.indexOf(v) === -1) committedFolders.push(v);
+        });
+    } catch (_) { /* old browser; rely on Thymeleaf rendering alone */ }
+
+    // Single source of truth for footer state — runs initially + every time row checks
+    // change. Resolves the three operating modes:
+    //   * folder-scope: committed folder filter set AND no rows checked
+    //       → buttons say "フォルダ内全○○" (orange), submit injects scope params, action
+    //         targets every user in the folder (capped by 対象件数選択：).
+    //   * row-selection: any rows are checked (folder filter irrelevant)
+    //       → buttons say "選択○○" (default colors), action targets only the checked ids.
+    //   * idle: no filter and no checks → buttons disabled.
+    // Row checks ALWAYS beat folder-scope. The client reported 2026-05-19 that checking a
+    // row inside a folder filter was being ignored; this mode-priority is the fix.
+    function refresh() {
+        var checkedList = [].filter.call(rows(), function (c) { return c.checked; });
+        var hasRows = checkedList.length > 0;
+        var hasFolderFilter = committedFolders.length > 0;
+        var folderScopeMode = hasFolderFilter && !hasRows;
+
+        // Status label: "X 件選択中" wins when rows are checked; otherwise hint at folder mode.
+        if (hasRows) {
+            countLabel.textContent = checkedList.length + ' 件選択中';
+        } else if (folderScopeMode) {
+            countLabel.textContent = 'フォルダ全件対象';
+        } else {
+            countLabel.textContent = '';
+        }
+
+        // Hidden flag for the submit handler — only inject scope params in folder-scope mode.
+        if (scopeFlag) scopeFlag.checked = folderScopeMode;
+
+        // Enable buttons whenever EITHER mode is active.
+        var enable = hasRows || folderScopeMode;
+        if (folderSel) folderSel.disabled = !enable;
+        btnMove.disabled = !enable;
+        btnBroad.disabled = !enable;
+        // SMS now supports folder/filter-scope targeting too (2026-08-08), same as email.
+        if (btnBroadSms) btnBroadSms.disabled = !enable;
+        if (poolSel)          poolSel.disabled = !enable;
+        if (btnBindCarrier)   btnBindCarrier.disabled = !enable;
+        if (btnUnbindCarrier) btnUnbindCarrier.disabled = !enable;
+        if (btnDelete)        btnDelete.disabled = !enable;
+        // Status change: row-selection only, deliberately NOT enabled in folder-scope mode.
+        if (statusSel)   statusSel.disabled = !hasRows;
+        if (btnSetStatus) btnSetStatus.disabled = !hasRows;
+
+        // checkAll indicator reflects ROW checks only, not folder scope.
+        checkAll.indeterminate = hasRows && checkedList.length < rows().length;
+        checkAll.checked = rows().length > 0 && checkedList.length === rows().length;
+
+        // "対象件数選択：" dropdown is meaningful only in folder-scope mode.
+        if (limitWrap) limitWrap.style.display = folderScopeMode ? '' : 'none';
+
+        // Button labels + colors switch with the mode.
+        if (folderScopeMode) {
+            btnMove.textContent = 'フォルダ対象件数移動';
+            btnMove.style.background = '#d97706';
+            if (btnDelete)        { btnDelete.textContent = 'フォルダ対象件数削除'; btnDelete.style.background = '#7f1d1d'; }
+            if (btnUnbindCarrier) { btnUnbindCarrier.textContent = 'フォルダ対象件数割り当て削除'; btnUnbindCarrier.style.background = '#7f1d1d'; }
+            if (btnBindCarrier)   { btnBindCarrier.textContent = 'フォルダ対象件数割り当て'; btnBindCarrier.style.background = '#d97706'; }
+            if (btnBroad)         { btnBroad.textContent = '対象件数一斉送信'; btnBroad.style.background = '#d97706'; }
+            if (btnBroadSms)      { btnBroadSms.textContent = '対象件数一斉SMS配信'; btnBroadSms.style.background = '#d97706'; }
+        } else {
+            btnMove.textContent = '選択フォルダ移動';
+            btnMove.style.background = '';
+            if (btnDelete)        { btnDelete.textContent = '選択削除'; btnDelete.style.background = '#dc2626'; }
+            if (btnUnbindCarrier) { btnUnbindCarrier.textContent = '選択キャリア解除'; btnUnbindCarrier.style.background = ''; }
+            if (btnBindCarrier)   { btnBindCarrier.textContent = '選択へキャリア割り当て'; btnBindCarrier.style.background = ''; }
+            if (btnBroad)         { btnBroad.textContent = '選択一斉送信'; btnBroad.style.background = ''; }
+            if (btnBroadSms)      { btnBroadSms.textContent = '選択一斉SMS配信'; btnBroadSms.style.background = ''; }
+        }
+    }
+    if (checkAll) checkAll.addEventListener('change', function () {
+        [].forEach.call(rows(), function (c) {
+            c.checked = checkAll.checked;
+            var tr = c.closest('tr'); if (tr) tr.classList.toggle('selected-row', checkAll.checked);
+        });
+        refresh();
+    });
+    document.addEventListener('change', function (e) {
+        if (!e.target.classList || !e.target.classList.contains('row-item')) return;
+        var tr = e.target.closest('tr'); if (tr) tr.classList.toggle('selected-row', e.target.checked);
+        refresh();
+    });
+    refresh();
+
+    // Submit-handler block — now reads folder selection from the new multi-select widget
+    // instead of the old single-value <select>. committedFolders (array) is the snapshot
+    // from page-load; filterSel.value / selectedIndex no longer exist.
+    (function () {
+        var scope = document.getElementById('folderAllScope');
+        var btnMove = document.getElementById('btnMove');
+        var folderSel = document.getElementById('folderSelect');
+        if (!scope || !btnMove) return;
+
+        var limitSel = document.getElementById('folderScopeLimit');
+
+        // Inject scope override into the submitted form just before POST.
+        // Applies to bulk-move-folder, bulk-delete, and bulk-unbind-carrier when
+        // フォルダ内全件対象 is on. Each path has its own confirm prompt.
+        var bulkForm = document.getElementById('bulkForm');
+        function addHidden(name, value) {
+            var i = document.createElement('input');
+            i.type = 'hidden'; i.name = name; i.value = value;
+            bulkForm.appendChild(i);
+        }
+        if (bulkForm) {
+            // Always carry the current URL so each bulk action redirects back to the
+            // filtered view, not the empty /manager/users. Re-evaluated on submit so a
+            // mid-page filter change is picked up.
+            bulkForm.addEventListener('submit', function (ev) {
+                var rt = window.location.pathname + window.location.search;
+                var rtIn = bulkForm.querySelector('input[name="returnTo"]');
+                if (!rtIn) {
+                    rtIn = document.createElement('input');
+                    rtIn.type = 'hidden'; rtIn.name = 'returnTo';
+                    bulkForm.appendChild(rtIn);
+                }
+                rtIn.value = rt;
+            });
+
+            bulkForm.addEventListener('submit', function (ev) {
+                var action = ev.submitter && ev.submitter.getAttribute('formaction');
+                // Empty-target guard for folder-move: even outside folder-scope mode, an
+                // empty <select> value silently sent users to 未設定. Force a target pick.
+                if (action && action.indexOf('bulk-move-folder') >= 0) {
+                    var tgt = folderSel && folderSel.value;
+                    if (!tgt || tgt === '__NONE__') {
+                        alert('移動先のフォルダを選択してください');
+                        ev.preventDefault();
+                        return;
+                    }
+                }
+                // Status change is row-selection only (never folder-scope) — confirm here,
+                // before the folder-scope early-return below skips the rest of this handler.
+                if (action && action.indexOf('bulk-set-status') >= 0) {
+                    var stSel = document.getElementById('statusSelect');
+                    var stTgt = stSel && stSel.value;
+                    if (!stTgt) {
+                        alert('変更先のステータスを選択してください');
+                        ev.preventDefault();
+                        return;
+                    }
+                    var stLabel = stSel.options[stSel.selectedIndex].text;
+                    if (!confirm('選択したユーザーのステータスを「' + stLabel + '」に変更します。よろしいですか?')) {
+                        ev.preventDefault();
+                        return;
+                    }
+                }
+
+                // Folder-scope mode requires at least one committed folder AND no row checks
+                // (gate is enforced by the refresh() function that toggles scope.checked).
+                if (!action || !scope.checked || committedFolders.length === 0) return;
+
+                // Mirror every active filter from the URL as hidden inputs so the server can
+                // re-apply the SAME filter set when resolving the scope-target user IDs.
+                // Without this the bulk action ignores the operator's login-period / carrier /
+                // gender / status filters and operates on the entire folder (2026-05-24
+                // incident: 177-row filtered view → folder move targeted all rows in the
+                // folder, not just the 177 matching the period filter).
+                try {
+                    var qs = new URLSearchParams(window.location.search);
+                    qs.forEach(function (value, key) {
+                        if (!value) return;
+                        if (key === 'page' || key === 'size') return;
+                        if (key === '_csrf') return;
+                        // Skip params that the bulkForm itself will set/override below.
+                        if (key === 'sourceFolder' || key === 'sourceFolders'
+                            || key === 'scope' || key === 'scopeLimit'
+                            || key === 'folder' || key === 'returnTo'
+                            || key === 'ids' || key === 'poolId') return;
+                        addHidden(key, value);
+                    });
+                } catch (_) { /* old browser without URLSearchParams */ }
+
+                // Build label + list of folder values to send. Multi-folder operations send
+                // every committedFolders entry as a repeated sourceFolders=X&sourceFolders=Y
+                // param; the server iterates and runs the action on each folder's users.
+                var srcLabel = formatFolderLabel(committedFolders);
+                function addAllSourceFolders() {
+                    committedFolders.forEach(function (v) {
+                        // The server normalises "__NONE__" → null (=未設定). Send the literal
+                        // sentinel so backwards-compat single-value endpoints still work.
+                        addHidden('sourceFolders', v);
+                    });
+                    // Legacy single-value alias — server uses sourceFolders if present,
+                    // else falls back to sourceFolder for older code paths.
+                    addHidden('sourceFolder', committedFolders[0] === '__NONE__' ? '' : committedFolders[0]);
+                }
+
+                var lim = limitSel && limitSel.value ? parseInt(limitSel.value, 10) : 0;
+                var limitText = lim > 0 ? '上限 ' + lim.toLocaleString() + ' 名' : '全件';
+                var foldersText = '対象フォルダ: ' + srcLabel;
+
+                if (action.indexOf('bulk-move-folder') >= 0) {
+                    var to = folderSel.options[folderSel.selectedIndex].text;
+                    if (!confirm(foldersText + '\n内の' + limitText + 'を「' + to + '」に移動します。\nよろしいですか?')) {
+                        ev.preventDefault(); return;
+                    }
+                    addHidden('scope', 'allInFolder');
+                    addAllSourceFolders();
+                    if (lim > 0) addHidden('scopeLimit', lim);
+                } else if (action.indexOf('bulk-delete') >= 0) {
+                    if (!confirm('⚠️ ' + foldersText + '\n内の' + limitText + 'を削除します。\n関連メッセージ・入金履歴・キャリア紐付けもすべて消えます。\nよろしいですか?')) {
+                        ev.preventDefault(); return;
+                    }
+                    if (!confirm('本当に実行しますか? この操作は取り消せません。')) {
+                        ev.preventDefault(); return;
+                    }
+                    var pw = prompt('管理者パスワードを入力してください');
+                    if (!pw) { ev.preventDefault(); return; }
+                    var ph = bulkForm.querySelector('input[name="confirmPassword"]');
+                    if (!ph) { ph = document.createElement('input'); ph.type='hidden'; ph.name='confirmPassword'; bulkForm.appendChild(ph); }
+                    ph.value = pw;
+                    addHidden('scope', 'allInFolder');
+                    addAllSourceFolders();
+                    if (lim > 0) addHidden('scopeLimit', lim);
+                } else if (action.indexOf('bulk-bind-carrier') >= 0) {
+                    // poolSel.value === '' means "all active pool addresses"; the controller
+                    // already handles that branch in bindAllAvailableInFolder. Show the operator
+                    // exactly which pool target they're committing to before we POST.
+                    var poolLabel = (poolSel && poolSel.selectedIndex >= 0)
+                            ? poolSel.options[poolSel.selectedIndex].text : '全キャリア（一括）';
+                    if (!confirm(foldersText + '\n内の' + limitText + 'へ「' + poolLabel + '」を割り当てます。\nよろしいですか?')) {
+                        ev.preventDefault(); return;
+                    }
+                    addHidden('scope', 'allInFolder');
+                    addAllSourceFolders();
+                    if (lim > 0) addHidden('scopeLimit', lim);
+                } else if (action.indexOf('bulk-unbind-carrier') >= 0) {
+                    if (!confirm(foldersText + '\n内の' + limitText + 'のキャリア割り当てを解除します。\nよろしいですか?')) {
+                        ev.preventDefault(); return;
+                    }
+                    addHidden('scope', 'allInFolder');
+                    addAllSourceFolders();
+                    if (lim > 0) addHidden('scopeLimit', lim);
+                }
+            });
+        }
+    })();
+
+    // The dismissBindAll() helper + /bulk-bind-all/progress poller were removed 2026-05-19
+    // when the yellow "全ユーザー割り当て" form was retired from this page. The server-side
+    // endpoint stays in place; if it's ever resurrected for an ops script, the poller can be
+    // restored from git history.
+
+    window.goBroadcast = function (channel) {
+        // Mode priority matches the unified refresh() above:
+        //   1. ROW SELECTION wins when any row is checked — even with a folder filter in
+        //      the URL. (Client request 2026-05-19: 「フォルダ を選択した場合でも 左側のチェック
+        //      欄を チェックすると個別で」.)
+        //   2. Folder-scope only fires when the URL has a committed folder filter AND no
+        //      rows are checked.
+        //   3. Otherwise fall through to /broadcast/new with no preselected users.
+        // Always POSTed so big id lists never exceed Tomcat's 8KB GET-URL limit.
+        var folders = (typeof committedFolders !== 'undefined' && committedFolders) ? committedFolders : [];
+        var rowEls = document.querySelectorAll('.row-item');
+        var ids = [].filter.call(rowEls, function (c) { return c.checked; }).map(function (c) { return c.value; });
+        var f = document.createElement('form');
+        f.method = 'POST';
+
+        // CSRF token from the existing bulkForm so the request is accepted.
+        function copyCsrf() {
+            var bulk = document.getElementById('bulkForm');
+            if (!bulk) return;
+            var csrf = bulk.querySelector('input[name="_csrf"]');
+            if (csrf) {
+                var h = document.createElement('input');
+                h.type = 'hidden'; h.name = '_csrf'; h.value = csrf.value;
+                f.appendChild(h);
+            }
+        }
+
+        if (ids.length > 0) {
+            // Row-selection broadcast (wins over folder filter).
+            f.action = '/manager/messages/broadcast/new';
+            copyCsrf();
+            ids.forEach(function (id) {
+                var i = document.createElement('input');
+                i.type = 'hidden'; i.name = 'userIds'; i.value = id;
+                f.appendChild(i);
+            });
+            if (channel === 'SMS') {
+                var ch = document.createElement('input');
+                ch.type = 'hidden'; ch.name = 'channel'; ch.value = 'SMS';
+                f.appendChild(ch);
+            }
+        } else if (channel === 'SMS' && folders.length === 0) {
+            alert('SMS配信するユーザーを選択するか、フォルダで絞り込んでください。');
+            return;
+        } else if (folders.length > 0) {
+            // Folder-scope broadcast (no row checks, folder filter committed). Forward every
+            // active filter param from the URL — folder alone is NOT enough; docomo carrier /
+            // gender / status / period filters all need to survive the redirect, or the
+            // broadcast goes to the wrong users (2026-05-21 incident: 3,148 docomo users in
+            // the page → 5,000 mixed-carrier users actually queued).
+            // Multi-folder selection is supported: every committedFolders entry rides along
+            // as a repeated sourceFolders=X param (server unions them in the spec). The
+            // legacy singular sourceFolder is also sent (= the first folder) for older builds.
+            var firstFolder = folders[0];
+            var srcValLegacy = firstFolder === '__NONE__' ? '' : firstFolder;
+            var limitEl = document.getElementById('folderScopeLimit');
+            var lim = limitEl && limitEl.value ? parseInt(limitEl.value, 10) : 0;
+            var srcLabel = (typeof formatFolderLabel === 'function')
+                    ? formatFolderLabel(folders)
+                    : folders.join(', ');
+            // Read the visible result-total badge ("X 名") so the confirm dialog shows the
+            // ACTUAL filtered count, not just the limit.
+            var totalBadge = document.getElementById('userTotalCount');
+            var visibleTotal = totalBadge ? parseInt((totalBadge.textContent || '').replace(/[^0-9]/g, ''), 10) : 0;
+            var actualTarget = (lim > 0 && visibleTotal > 0)
+                    ? Math.min(lim, visibleTotal) : (visibleTotal || lim);
+            var actualText = actualTarget > 0
+                    ? '実際の対象 ' + actualTarget.toLocaleString() + ' 名 (現在の絞り込み)'
+                    : '上限 ' + (lim > 0 ? lim.toLocaleString() : '') + ' 名';
+            var folderWord = folders.length === 1 ? 'フォルダ' : 'フォルダ (' + folders.length + ' 件)';
+            var smsWord = channel === 'SMS' ? 'SMS' : '';
+            if (!confirm(folderWord + '「' + srcLabel + '」+ 現在の絞り込み条件で' + smsWord + '一斉送信します。\n' + actualText + '\n次の画面で本文を作成後に確定送信となります。よろしいですか?')) return;
+
+            f.action = '/manager/messages/broadcast/new-from-folder';
+            copyCsrf();
+            if (channel === 'SMS') {
+                var chf = document.createElement('input');
+                chf.type = 'hidden'; chf.name = 'channel'; chf.value = 'SMS';
+                f.appendChild(chf);
+            }
+            // Mirror the URL's full filter set into the POST body so the server can re-apply
+            // every filter (not just folder). page/size are stripped since broadcast wants
+            // the unpaged result. URLSearchParams.forEach iterates EACH repeated key, so
+            // multi-folder `folders=A&folders=B` survives intact.
+            try {
+                var qs = new URLSearchParams(window.location.search);
+                qs.forEach(function (value, key) {
+                    if (!value) return;
+                    if (key === 'page' || key === 'size') return;
+                    if (key === '_csrf') return; // already forwarded above
+                    var i = document.createElement('input');
+                    i.type = 'hidden'; i.name = key; i.value = value;
+                    f.appendChild(i);
+                });
+            } catch (_) { /* URLSearchParams unavailable — fall back below */ }
+            // Belt-and-braces: also emit sourceFolders=X for each selected folder so the
+            // dedicated multi-folder broadcast endpoint sees them even if the URL lost them.
+            folders.forEach(function (v) {
+                var sfm = document.createElement('input');
+                sfm.type = 'hidden'; sfm.name = 'sourceFolders';
+                sfm.value = v === '__NONE__' ? '' : v;
+                f.appendChild(sfm);
+            });
+            // Legacy alias for older server builds (first folder only).
+            var sf = document.createElement('input'); sf.type='hidden'; sf.name='sourceFolder'; sf.value=srcValLegacy; f.appendChild(sf);
+            if (lim > 0) {
+                var sl = document.createElement('input'); sl.type='hidden'; sl.name='scopeLimit'; sl.value=String(lim); f.appendChild(sl);
+            }
+        } else {
+            // No selection, no folder — visit the empty broadcast form.
+            window.location.href = '/manager/messages/broadcast/new';
+            return;
+        }
+        document.body.appendChild(f);
+        f.submit();
+    };
+
+    // Double-confirmation for bulk delete + admin-password prompt. Returns true to submit.
+    window.confirmBulkDelete = function (btn, label) {
+        // フォルダ内全件対象モードのときは行チェックなしでも動作するように。
+        // 確認ダイアログ + 管理者パスワード入力は bulkForm の submit リスナ側で
+        // すでに処理しているので、ここでは「先に進ませる」だけにする。
+        var scope = document.getElementById('folderAllScope');
+        if (scope && scope.checked && (committedFolders && committedFolders.length > 0)) {
+            return true;  // submit listener takes over with its own confirms/password
+        }
+
+        var checked = [].filter.call(rows(), function (c) { return c.checked; });
+        var n = checked.length;
+        if (n === 0) return false;
+        if (!confirm('選択した ' + n + ' 件の' + label + 'を削除します。よろしいですか?')) return false;
+        if (!confirm('本当に削除してよろしいですか? この操作は取り消せません。')) return false;
+        var pw = prompt('管理者パスワードを入力してください');
+        if (!pw) return false;
+        var form = btn.form || document.getElementById('bulkForm');
+        if (!form) return false;
+        var hidden = form.querySelector('input[name="confirmPassword"]');
+        if (!hidden) {
+            hidden = document.createElement('input');
+            hidden.type = 'hidden'; hidden.name = 'confirmPassword';
+            form.appendChild(hidden);
+        }
+        hidden.value = pw;
+        return true;
+    };
+})();
+</script>
+</section>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${form.channel == 'SMS'} ? 'SMS一斉送信 新規作成' : '一斉送信 新規作成'">一斉送信 新規作成</title>
+    <style>
+        /* Override the default layout's main padding so this page fits one screen. */
+        main.flex-1.p-6 { padding: 0 !important; }
+        .bcast-wrap { display:grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr;
+                      gap:8px; padding:12px; height:calc(100vh - 0px); box-sizing:border-box; }
+        .bcast-top  { display:flex; align-items:center; gap:10px; grid-column: 1 / span 2; }
+        .bcast-pane { background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;
+                      display:flex; flex-direction:column; min-height:0; }
+        .bcast-pane > header { padding:8px 12px; background:#f8fafc; border-bottom:1px solid #e2e8f0;
+                               font-size:.82rem; font-weight:700; color:#334155; }
+        .bcast-pane > .body { flex:1; overflow-y:auto; overflow-x:hidden; padding:10px 12px; min-height:0; }
+        .tpl-item { padding:7px 9px; border-radius:5px; border:1px solid #e2e8f0; background:#f8fafc;
+                    cursor:pointer; margin-bottom:6px; font-size:.78rem;
+                    display:flex; gap:10px; align-items:center;
+                    /* Constrain the row width to the panel — even when subjects are long Japanese
+                       strings with no break points the .tpl-item must NOT widen the parent and
+                       trigger a horizontal scrollbar. min-width:0 unlocks flex shrinking on the
+                       child spans; border-left-width is the slot for the per-template color frame. */
+                    width:100%; box-sizing:border-box; min-width:0; overflow:hidden;
+                    border-left-width:4px; }
+        .tpl-item:hover { background:#eff6ff; border-color:#2563eb; }
+        /* Same color palette as the thread page so a template's accent is visually
+         * identical wherever it appears. Background tint stays soft (-100) and the
+         * left border is the stronger -400. Hover keeps the colored bg so picking
+         * the right template by eye works in a hover-and-scan flow. */
+        .tpl-item.color-slate   { border-left-color:#94a3b8; background:#f1f5f9; }
+        .tpl-item.color-blue    { border-left-color:#60a5fa; background:#dbeafe; }
+        .tpl-item.color-sky     { border-left-color:#38bdf8; background:#e0f2fe; }
+        .tpl-item.color-cyan    { border-left-color:#22d3ee; background:#cffafe; }
+        .tpl-item.color-emerald { border-left-color:#34d399; background:#d1fae5; }
+        .tpl-item.color-lime    { border-left-color:#a3e635; background:#ecfccb; }
+        .tpl-item.color-amber   { border-left-color:#fbbf24; background:#fef3c7; }
+        .tpl-item.color-rose    { border-left-color:#fb7185; background:#ffe4e6; }
+        .tpl-item.color-pink    { border-left-color:#f472b6; background:#fce7f3; }
+        .tpl-item.color-violet  { border-left-color:#a78bfa; background:#ede9fe; }
+        .tpl-item .name {
+            font-weight:700; color:#1e293b;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            /* In flex-direction:column children, width must be explicit for ellipsis to engage. */
+            width:100%; max-width:100%; min-width:0;
+        }
+        .tpl-item .subj {
+            color:#475569; font-size:.72rem;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            width:100%; max-width:100%; min-width:0;
+        }
+        .hist-row { padding:7px 0; border-bottom:1px dashed #e2e8f0; font-size:.78rem; display:flex; gap:8px; }
+        .hist-row:last-child { border-bottom:none; }
+        .hist-row .type { flex-shrink:0; font-size:.68rem; font-weight:700; padding:2px 6px; border-radius:4px; }
+        .type-out { background:#dbeafe; color:#1d4ed8; }
+        .type-in  { background:#e2e8f0; color:#475569; }
+        .type-sms { background:#fef9c3; color:#854d0e; }
+        .hist-row .sub { flex:1; min-width:0; }
+        .hist-row .sub .title { font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .hist-row .sub .preview { color:#475569; font-size:.72rem; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .hist-row .sub .meta  { color:#64748b; font-size:.68rem; margin-top:2px; }
+        .hist-row .sub .sched { color:#d97706; font-size:.7rem; font-weight:600; margin-top:2px; }
+        .compose-body { display:flex; flex-direction:column; gap:8px; }
+        .compose-body label { font-size:.72rem; font-weight:600; color:#475569; }
+        .compose-body input, .compose-body textarea, .compose-body select {
+            width:100%; padding:6px 10px; border:1px solid #cbd5e1; border-radius:5px; font-size:.8rem; outline:none; }
+        .compose-body input:focus, .compose-body textarea:focus, .compose-body select:focus { border-color:#2563eb; }
+        .compose-body textarea { resize:none; min-height:120px; flex:1; }
+        .compose-actions { display:flex; align-items:center; gap:8px; margin-top:4px; }
+        .btn-send { background:#2563eb; color:#fff; padding:6px 16px; border-radius:5px; border:none; font-weight:700; font-size:.8rem; cursor:pointer; }
+        .btn-send:hover { background:#1d4ed8; }
+
+        /* ---- Reservation (予約送信) panel — same as thread.html ---- */
+        .sched-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 10px; }
+        .sched-box .sched-head { display:flex; align-items:center; gap:8px; font-size:.72rem; font-weight:700; color:#475569; margin-bottom:6px; }
+        .sched-box .sched-status { font-size:.7rem; color:#16a34a; font-weight:700; }
+        .sched-box .sched-status.scheduled { color:#d97706; }
+        .sched-box .sched-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .sched-box .chip {
+            font-size:.7rem; font-weight:600; padding:3px 9px; border-radius:14px;
+            border:1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; white-space:nowrap;
+        }
+        .sched-box .chip:hover { background:#eff6ff; border-color:#2563eb; color:#1d4ed8; }
+        .sched-box .chip.clear { color:#16a34a; border-color:#bbf7d0; background:#f0fdf4; }
+        .sched-box input[type="datetime-local"] {
+            padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:.78rem; outline:none; flex:1; min-width:180px;
+        }
+        .sched-box input[type="datetime-local"]:focus { border-color:#2563eb; }
+
+        /* ---- Tag panel ---- */
+        .tag-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 10px; margin-top:8px; }
+        .tag-panel h4 { font-size:.72rem; font-weight:700; color:#475569; margin:0 0 4px 0; }
+        .tag-panel .tag-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+        .tag-panel code.tag-name {
+            display:inline-block; padding:2px 7px; border-radius:3px; font-size:.7rem;
+            background:#e2e8f0; color:#1e293b; cursor:pointer; min-width:120px; text-align:center;
+        }
+        .tag-panel code.tag-name:hover { background:#dbeafe; color:#1d4ed8; }
+        .tag-panel .tag-desc { font-size:.7rem; color:#64748b; flex:1; }
+        .tag-panel .btn-tag-save {
+            font-size:.7rem; padding:3px 12px; border-radius:4px; border:none; background:#16a34a; color:#fff; cursor:pointer; font-weight:700;
+        }
+        .tag-panel .btn-tag-save:hover { background:#15803d; }
+        .tag-panel .btn-tag-save.saved { background:#94a3b8; }
+    </style>
+</head>
+<body>
+<section layout:fragment="content">
+<div class="bcast-wrap">
+
+    <div class="bcast-top">
+        <h1 style="font-size:1.1rem;font-weight:700;color:#1e293b;flex:1;"
+            th:text="${form.channel == 'SMS'} ? 'SMS一斉送信 新規作成' : '一斉送信 新規作成'">一斉送信 新規作成</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/messages/broadcast}">一覧に戻る</a>
+    </div>
+
+    <!-- Top-left: templates with 5-page tab strip (operator request 2026-05-25 — mirror
+         the thread / inbox panel so broadcast composing sees the same paginated set as
+         the settings page). Tab click toggles .tpl-item visibility by data-page. -->
+    <div class="bcast-pane">
+        <header>定型文（クリックで挿入）</header>
+        <div id="bcastTplTabs" class="flex border-b border-slate-200 bg-slate-50 text-xs overflow-x-auto" style="flex:0 0 auto;">
+            <button type="button" th:each="p, iter : ${templateActivePages}"
+                    class="bcast-tpl-tab px-3 py-1.5 whitespace-nowrap border-r border-slate-200"
+                    th:classappend="${iter.index == 0 ? 'bg-white text-blue-700 font-semibold border-b-2 border-b-blue-500' : 'text-slate-600 hover:bg-white'}"
+                    th:attr="data-page=${p}"
+                    th:text="${templatePageTitles[iter.index]}">タイトル</button>
+        </div>
+        <div class="body">
+            <div th:if="${templates.empty}" class="text-xs text-slate-400">定型文はまだ登録されていません。</div>
+            <div th:each="t : ${templates}" class="tpl-item"
+                 th:attr="data-page=${t.pageNo},data-subject=${t.subject},data-body=${t.body}"
+                 th:classappend="${t.color != null and t.color != ''} ? 'color-' + ${t.color} : ''"
+                 th:style="${t.pageNo != templateActivePages[0] ? 'display:none;' : null}"
+                 onclick="applyTemplateFromElement(this)"
+                 style="flex-direction:column;align-items:flex-start;">
+                <span class="name" th:text="${t.name}" th:title="${t.name}"></span>
+                <span class="subj" th:text="${t.subject} ?: '(タイトル未設定)'" th:title="${t.subject}" style="font-weight:600;color:#1e293b;"></span>
+                <span class="subj" th:text="${t.body}" th:title="${t.body}"></span>
+            </div>
+        </div>
+        <script>
+        (function () {
+            var tabs = document.querySelectorAll('#bcastTplTabs .bcast-tpl-tab');
+            if (!tabs.length) return;
+            function setActive(page) {
+                tabs.forEach(function (t) {
+                    var active = String(t.getAttribute('data-page')) === String(page);
+                    t.classList.toggle('bg-white', active);
+                    t.classList.toggle('text-blue-700', active);
+                    t.classList.toggle('font-semibold', active);
+                    t.classList.toggle('border-b-2', active);
+                    t.classList.toggle('border-b-blue-500', active);
+                    t.classList.toggle('text-slate-600', !active);
+                });
+                document.querySelectorAll('.bcast-pane .tpl-item').forEach(function (it) {
+                    it.style.display = String(it.getAttribute('data-page')) === String(page) ? '' : 'none';
+                });
+            }
+            tabs.forEach(function (t) {
+                t.addEventListener('click', function () { setActive(t.getAttribute('data-page')); });
+            });
+        })();
+        </script>
+    </div>
+
+    <!-- Right (spans both rows): history -->
+    <div class="bcast-pane" style="grid-row: 2 / span 2; grid-column: 2;">
+        <header>送受信履歴（最新50件・時間順）</header>
+        <div class="body">
+            <div th:if="${history == null or history.empty}" class="text-xs text-slate-400">履歴はまだありません</div>
+            <div th:each="m : ${history}" class="hist-row">
+                <span th:if="${m.channel == 'SMS'}" class="type type-sms">SMS</span>
+                <span th:if="${m.channel != 'SMS' and m.direction == 'OUT'}" class="type type-out">SENT</span>
+                <span th:if="${m.channel != 'SMS' and m.direction == 'IN'}"  class="type type-in">IN</span>
+                <div class="sub">
+                    <div class="title" th:if="${m.channel != 'SMS'}" th:text="${m.subject} ?: '(件名なし)'"></div>
+                    <div class="preview" th:text="${m.bodyText != null and m.bodyText.length() > 60} ? ${m.bodyText.substring(0, 60) + '…'} : ${m.bodyText}"></div>
+                    <div class="meta"
+                         th:text="${m.sentAt != null} ? ${#temporals.format(m.sentAt, 'MM-dd HH:mm')} : (${m.createdAt != null} ? ${#temporals.format(m.createdAt, 'MM-dd HH:mm')} : '-')"></div>
+                    <div class="sched"
+                         th:if="${m.scheduledAt != null and m.status == 'QUEUED'}"
+                         th:text="'予約: ' + ${#temporals.format(m.scheduledAt, 'yyyy-MM-dd HH:mm')}"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom-left: compose form -->
+    <div class="bcast-pane">
+        <header>新規メッセージ</header>
+        <div class="body compose-body">
+            <form method="post" th:action="@{/manager/messages/broadcast}" th:object="${form}"
+                  class="flex flex-col gap-2 h-full"
+                  onsubmit="return confirm('対象ユーザーへ一斉送信を登録します。よろしいですか?')">
+
+                <input type="hidden" th:field="*{title}"/>
+                <input type="hidden" th:field="*{channel}"/>
+
+                <!-- Targeting lock-in: when admin came in via "選択一斉送信", show the picked
+                     users explicitly and pin the targetUserIds[] so filters won't widen the list. -->
+                <!-- Selected-users summary. The address list itself is intentionally NOT
+                     rendered — at 500 names it pushed the template panel out of view.
+                     Operators just need confirmation of the targeting; the addresses can
+                     be reviewed on /manager/users before clicking 選択一斉送信. -->
+                <div th:if="${selectedUsers != null and !selectedUsers.empty}"
+                     style="background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:10px 12px;font-size:.85rem;">
+                    <div style="font-weight:700;color:#92400e;">
+                        選択ユーザー <span th:text="'(' + ${#lists.size(selectedUsers)} + '名)'"></span> のみに送信
+                        <span th:if="${form.channel == 'SMS'}" style="color:#b45309;">(SMS配信)</span>
+                    </div>
+                    <input type="hidden" th:each="u : ${selectedUsers}" name="targetUserIds" th:value="${u.id}"/>
+                </div>
+
+                <div th:if="${form.channel != 'SMS'}">
+                    <label>件名</label>
+                    <input type="text" id="subject" th:field="*{subject}" placeholder="例: %name% 様 ご案内"/>
+                </div>
+                <!-- SMS has no subject line. subject isn't required for this channel (see
+                     BroadcastForm/BroadcastController); BroadcastService.createAndQueueSms
+                     derives the broadcast label from title/body instead. -->
+                <input type="hidden" th:if="${form.channel == 'SMS'}" th:field="*{subject}"/>
+                <div style="flex:1; display:flex; flex-direction:column;">
+                    <label th:text="${form.channel == 'SMS'} ? 'SMS本文' : '本文'">本文</label>
+                    <textarea id="body" th:field="*{body}"
+                              th:placeholder="${form.channel == 'SMS'}
+                                  ? '例: %name% 様 いつもありがとうございます。%amount% のお支払いをお願いいたします。'
+                                  : '例: %name% 様 いつもありがとうございます。&#10;%amount% のお支払いをお願いいたします。&#10;返信はこちら: %reply_url%'"></textarea>
+                    <span th:if="${form.channel == 'SMS'}" id="smsCharCount" class="text-xs text-slate-400" style="margin-top:2px;">60文字以内で送信 (0文字)</span>
+                </div>
+
+                <!-- メールドメイン / ステータス / rate / min は operator 要請により削除。
+                     対象絞り込みはユーザー管理側のフィルタ + 選択送信で行う運用に統一。
+                     ratePerMinute は隠しフィールドとして残し、グローバル設定 (リレー設定画面) の値で
+                     上書きされる。 -->
+                <input type="hidden" th:field="*{ratePerMinute}"/>
+                <input type="hidden" th:field="*{targetCarrierCode}"/>
+                <input type="hidden" th:field="*{targetStatus}"/>
+                <div class="sched-box" data-sched-box>
+                    <div class="sched-head">
+                        <span>予約送信</span>
+                        <span class="sched-status" data-sched-status>即時開始</span>
+                    </div>
+                    <div class="sched-row">
+                        <input type="datetime-local" th:field="*{scheduledAt}" data-sched-input/>
+                        <button type="button" class="chip" data-sched-quick="60">+1時間</button>
+                        <button type="button" class="chip" data-sched-quick="180">+3時間</button>
+                        <button type="button" class="chip" data-sched-quick="1440">明日同時刻</button>
+                        <button type="button" class="chip clear" data-sched-clear>即時開始</button>
+                    </div>
+                </div>
+                <div class="compose-actions">
+                    <button type="submit" class="btn-send">登録する</button>
+                </div>
+
+                <!-- 置き換えタグ — 一斉送信は受信者ごとに値が差し替えられるので、ここでは説明のみ。 -->
+                <div class="tag-panel">
+                    <h4>デフォルトの置き換えタグ <span class="text-slate-400" style="font-weight:400;">(クリックで本文に挿入)</span></h4>
+                    <div class="tag-row" th:each="t : ${builtinTags}">
+                        <code class="tag-name" th:text="${t.token}" th:attr="data-token=${t.token}"></code>
+                        <span class="tag-desc" th:text="${t.description}"></span>
+                    </div>
+                </div>
+                <div class="tag-panel">
+                    <h4>置き換えタグ（メッセージ送信時にユーザーごとに差し替え）</h4>
+                    <div class="tag-row">
+                        <code class="tag-name" data-token="%amount%">%amount%</code>
+                        <span class="tag-desc">金額（ユーザー詳細で設定）</span>
+                    </div>
+                    <div class="tag-row">
+                        <code class="tag-name" data-token="%product%">%product%</code>
+                        <span class="tag-desc">商品（ユーザー詳細で設定）</span>
+                    </div>
+                    <div class="tag-row">
+                        <code class="tag-name" data-token="%full_address%">%full_address%</code>
+                        <span class="tag-desc">住所（ユーザー詳細で設定）</span>
+                    </div>
+                    <div class="tag-row">
+                        <code class="tag-name" data-token="%reply_url%">%reply_url%</code>
+                        <span class="tag-desc">返信URL（常にCRM本体の返信画面／メッセージボックスへ、送信時に自動生成）</span>
+                    </div>
+                    <div class="tag-row">
+                        <code class="tag-name" data-token="%external_url%">%external_url%</code>
+                        <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
+                    </div>
+                    <div class="tag-row">
+                        <input type="text" class="tag-val" id="urlLeadTextInput" th:value="${urlLeadText}"
+                               placeholder="例: 返信はこちら／本文はこちら（空欄可）" maxlength="500"
+                               style="flex:1; padding:3px 6px; font-size:.72rem; border:1px solid #cbd5e1; border-radius:4px;"/>
+                        <button type="button" class="btn-tag-save" id="btnUrlLeadTextSave">保存</button>
+                    </div>
+                    <p class="text-xs text-slate-400" style="margin:2px 0 0;">
+                        URL前文言（返信画面設定・メッセージスレッドと共有）。%reply_url% / %external_url% のURL直上に改行して自動挿入されます（空欄可）。
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function applyTemplateFromElement(el) {
+    var s = el.getAttribute('data-subject') || '';
+    var b = el.getAttribute('data-body') || '';
+    document.getElementById('subject').value = s;
+    document.getElementById('body').value = b;
+}
+
+// SMS is billed per 65-character segment — nudge staying within 60 for a single message.
+(function () {
+    var ta = document.getElementById('body');
+    var counter = document.getElementById('smsCharCount');
+    if (!ta || !counter) return;
+    function update() {
+        var n = ta.value.length;
+        counter.textContent = '60文字以内で送信 (' + n + '文字' + (n > 60 ? ' / 2通以上になります' : '') + ')';
+        counter.style.color = n > 60 ? '#dc2626' : '';
+    }
+    ta.addEventListener('input', update);
+    update();
+})();
+
+function insertTagToBody(token) {
+    var ta = document.getElementById('body');
+    if (!ta) return;
+    var pos = ta.selectionStart || ta.value.length;
+    ta.value = ta.value.slice(0, pos) + token + ta.value.slice(ta.selectionEnd || pos);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = pos + token.length;
+}
+document.querySelectorAll('code.tag-name[data-token]').forEach(function (el) {
+    el.addEventListener('click', function () { insertTagToBody(el.getAttribute('data-token')); });
+});
+
+// URL前文言 — shared global setting (same ReplyPageSetting row as /manager/settings/reply-page
+// and the message-thread panel). Saving here immediately affects every future %reply_url% /
+// %external_url% expansion, for both single sends and broadcasts.
+(function () {
+    var btn = document.getElementById('btnUrlLeadTextSave');
+    var input = document.getElementById('urlLeadTextInput');
+    if (!btn || !input) return;
+    btn.addEventListener('click', async function () {
+        try {
+            var r = await fetch('/manager/api/settings/url-lead-text', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urlLeadText: input.value })
+            });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            btn.textContent = '保存しました';
+            btn.classList.add('saved');
+            setTimeout(function () { btn.textContent = '保存'; btn.classList.remove('saved'); }, 1500);
+        } catch (e) {
+            alert('保存に失敗しました: ' + e.message);
+        }
+    });
+})();
+
+// --- Reservation (予約送信) UI ---
+function pad2(n) { return String(n).padStart(2, '0'); }
+function fmtLocal(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
+        + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+document.querySelectorAll('[data-sched-box]').forEach(function (box) {
+    var input = box.querySelector('[data-sched-input]');
+    var status = box.querySelector('[data-sched-status]');
+    function refresh() {
+        if (input.value) {
+            status.textContent = '予約: ' + input.value.replace('T', ' ');
+            status.classList.add('scheduled');
+        } else {
+            status.textContent = box.querySelector('[data-sched-clear]').textContent;
+            status.classList.remove('scheduled');
+        }
+    }
+    input.addEventListener('change', refresh);
+    box.querySelectorAll('[data-sched-quick]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var minutes = parseInt(btn.getAttribute('data-sched-quick'), 10);
+            var d = new Date(Date.now() + minutes * 60000);
+            input.value = fmtLocal(d);
+            refresh();
+        });
+    });
+    var clear = box.querySelector('[data-sched-clear]');
+    if (clear) clear.addEventListener('click', function () { input.value = ''; refresh(); });
+    refresh();
+});
+</script>
+</section>
+</body>
+</html>

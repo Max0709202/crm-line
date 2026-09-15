@@ -1,0 +1,1191 @@
+package com.crm.controller;
+
+import com.crm.dto.CsvImportResult;
+import com.crm.dto.PaymentForm;
+import com.crm.dto.UserForm;
+import com.crm.dto.UserSearchForm;
+import com.crm.entity.CrmUser;
+import com.crm.entity.Payment;
+import com.crm.service.CarrierBindingService;
+import com.crm.service.CrmUserService;
+import com.crm.service.PaymentService;
+import com.crm.service.PlaceholderService;
+import org.springframework.data.domain.Page;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import javax.validation.Valid;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+
+@Controller
+@RequestMapping("/manager/users")
+public class UserController {
+
+    private static final List<String> STATUSES = Arrays.asList(CrmUser.STATUS_ACTIVE, CrmUser.STATUS_SUSPENDED);
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private final CrmUserService service;
+    private final CarrierBindingService bindingService;
+    private final PlaceholderService placeholderService;
+    private final PaymentService paymentService;
+    private final com.crm.repository.CrmUserRepository userRepository;
+    private final com.crm.repository.MessageRepository messageRepository;
+    private final com.crm.repository.UserAccessLogRepository userAccessLogRepository;
+    private final com.crm.service.FolderSettingService folderSettingService;
+    private final com.crm.service.AdminAuthService adminAuthService;
+    private final com.crm.service.AdCodeService adCodeService;
+    private final com.crm.service.ReplyPageSettingService replyPageSettingService;
+    private final com.crm.service.AuditLogService auditLog;
+    private final com.crm.service.ReplyHtmlSlotService replyHtmlSlotService;
+    private final com.crm.service.ReplyAttachmentService attachmentService;
+    private final com.crm.service.MessageBoxService messageBoxService;
+    private final com.crm.service.DiffScheduleService diffScheduleService;
+
+    public UserController(CrmUserService service,
+                          CarrierBindingService bindingService,
+                          PlaceholderService placeholderService,
+                          PaymentService paymentService,
+                          com.crm.repository.CrmUserRepository userRepository,
+                          com.crm.repository.MessageRepository messageRepository,
+                          com.crm.repository.UserAccessLogRepository userAccessLogRepository,
+                          com.crm.service.FolderSettingService folderSettingService,
+                          com.crm.service.AdminAuthService adminAuthService,
+                          com.crm.service.AdCodeService adCodeService,
+                          com.crm.service.ReplyPageSettingService replyPageSettingService,
+                          com.crm.service.AuditLogService auditLog,
+                          com.crm.service.ReplyHtmlSlotService replyHtmlSlotService,
+                          com.crm.service.ReplyAttachmentService attachmentService,
+                          com.crm.service.MessageBoxService messageBoxService,
+                          com.crm.service.DiffScheduleService diffScheduleService) {
+        this.service = service;
+        this.bindingService = bindingService;
+        this.placeholderService = placeholderService;
+        this.paymentService = paymentService;
+        this.userRepository = userRepository;
+        this.messageRepository = messageRepository;
+        this.userAccessLogRepository = userAccessLogRepository;
+        this.folderSettingService = folderSettingService;
+        this.adminAuthService = adminAuthService;
+        this.adCodeService = adCodeService;
+        this.replyPageSettingService = replyPageSettingService;
+        this.auditLog = auditLog;
+        this.replyHtmlSlotService = replyHtmlSlotService;
+        this.attachmentService = attachmentService;
+        this.messageBoxService = messageBoxService;
+        this.diffScheduleService = diffScheduleService;
+    }
+
+    /** Active ad-code choices for autocomplete on the user-detail form. */
+    @ModelAttribute("adCodeChoices")
+    public List<com.crm.entity.AdCode> adCodeChoices() {
+        return adCodeService.listAllAlphabetical();
+    }
+
+    @ModelAttribute("builtinTags")
+    public List<PlaceholderService.BuiltinTag> builtinTags() {
+        return PlaceholderService.BUILTIN_TAGS;
+    }
+
+    @ModelAttribute("statuses")
+    public List<String> statuses() { return STATUSES; }
+
+    @ModelAttribute("folders")
+    public List<String> folderChoices() { return folderSettingService.listFolders(); }
+
+    @GetMapping
+    public String list(@ModelAttribute("searchForm") UserSearchForm searchForm, Model model) {
+        Page<CrmUser> users = service.search(searchForm);
+        model.addAttribute("users", users);
+
+        // Display rank: 1..N by creation order (not the DB PK).
+        java.util.List<Long> orderedIds = userRepository.findAllIdsByCreatedAsc();
+        java.util.Map<Long, Integer> rankById = new java.util.HashMap<>(orderedIds.size());
+        for (int i = 0; i < orderedIds.size(); i++) rankById.put(orderedIds.get(i), i + 1);
+        model.addAttribute("rankById", rankById);
+
+        // Email-domain filter choices (distinct "@domain" values currently in the DB).
+        model.addAttribute("emailDomainChoices", userRepository.findDistinctEmailDomains());
+        // Configurable folder choices for the filter + bulk-move control.
+        model.addAttribute("folders", folderSettingService.listFolders());
+        // Active carrier-pool addresses for the bulk-bind dropdown.
+        model.addAttribute("activePoolAddresses", bindingService.listActivePool());
+        // Per-user last INBOUND timestamp — the column header reads 最終送信 but per operator
+        // request it shows the user's most recent reply to us, not our outbound to them.
+        java.util.Map<Long, java.time.LocalDateTime> lastSent = new java.util.HashMap<>();
+        for (Object[] row : messageRepository.lastInboundAtByUser()) {
+            if (row[0] instanceof Number && row[1] instanceof java.time.LocalDateTime) {
+                lastSent.put(((Number) row[0]).longValue(), (java.time.LocalDateTime) row[1]);
+            }
+        }
+        model.addAttribute("lastSentByUserId", lastSent);
+
+        // Default calendar values for the period filters: 1st of current month → today.
+        // Defaults for the datetime-local pickers (yyyy-MM-ddTHH:mm). "From" anchors at
+        // 00:00 on the first of this month; "To" at 23:59 now.
+        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.LocalDate firstOfMonth = today.withDayOfMonth(1);
+        model.addAttribute("defaultPeriodFrom", firstOfMonth.atStartOfDay()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")));
+        model.addAttribute("defaultPeriodTo", today.atTime(23, 59)
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")));
+        return "user/list";
+    }
+
+    /**
+     * Background bulk-bind-all state. Holds the latest run's progress + total + flag.
+     * Single global slot — we assume one operator at a time triggers 全ユーザー割り当て.
+     */
+    private final java.util.concurrent.atomic.AtomicLong bindAllProgress = new java.util.concurrent.atomic.AtomicLong(0);
+    private final java.util.concurrent.atomic.AtomicLong bindAllTotal    = new java.util.concurrent.atomic.AtomicLong(0);
+    private final java.util.concurrent.atomic.AtomicLong bindAllCreated  = new java.util.concurrent.atomic.AtomicLong(0);
+    private volatile boolean bindAllRunning = false;
+    private volatile String  bindAllResultMsg = "";
+
+    /**
+     * Bind every active pool address to EVERY user (15K+ users × 15+ addresses).
+     * Runs asynchronously on a background thread because the operation is expected
+     * to take minutes on the 2GB-RAM tier. The frontend polls /bulk-bind-all/progress
+     * for X / Y display.
+     */
+    @PostMapping("/bulk-bind-all")
+    public String bulkBindAllUsers(RedirectAttributes ra) {
+        if (bindAllRunning) {
+            ra.addFlashAttribute("flashError", "全ユーザー割り当て処理は既に実行中です。完了まで少々お待ちください。");
+            return "redirect:/manager/users";
+        }
+        bindAllRunning = true;
+        bindAllProgress.set(0);
+        bindAllTotal.set(0);
+        bindAllCreated.set(0);
+        bindAllResultMsg = "";
+        new Thread(() -> {
+            try {
+                int created = bindingService.bindAllAvailableToAllUsers(500, bindAllProgress, bindAllTotal);
+                bindAllCreated.set(created);
+                bindAllResultMsg = bindAllTotal.get() + " 名へ全キャリアアドレスを割り当て (新規 " + created + " 件)";
+            } catch (Exception e) {
+                bindAllResultMsg = "エラー: " + e.getClass().getSimpleName() + " — " + e.getMessage();
+            } finally {
+                bindAllRunning = false;
+            }
+        }, "bulk-bind-all").start();
+        ra.addFlashAttribute("flashSuccess",
+                "全ユーザーへの一括割り当てを開始しました。進捗はこのページのバナーで確認できます。");
+        return "redirect:/manager/users";
+    }
+
+    /** Polled by user-list JS for live progress display. */
+    @GetMapping("/bulk-bind-all/progress")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public java.util.Map<String, Object> bulkBindAllProgress() {
+        java.util.Map<String, Object> m = new java.util.HashMap<>();
+        m.put("running",  bindAllRunning);
+        m.put("progress", bindAllProgress.get());
+        m.put("total",    bindAllTotal.get());
+        m.put("created",  bindAllCreated.get());
+        m.put("message",  bindAllResultMsg);
+        return m;
+    }
+
+    /**
+     * Dismiss the completion banner from /manager/users. Clears the cached result
+     * message so the live-progress poller stops re-rendering the green '完了' notice.
+     * Refuses to clear if a run is still in flight.
+     */
+    @PostMapping("/bulk-bind-all/clear")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public java.util.Map<String, Object> bulkBindAllClear() {
+        java.util.Map<String, Object> m = new java.util.HashMap<>();
+        if (bindAllRunning) {
+            m.put("ok", false);
+            m.put("reason", "still_running");
+            return m;
+        }
+        bindAllResultMsg = "";
+        bindAllProgress.set(0);
+        bindAllTotal.set(0);
+        bindAllCreated.set(0);
+        m.put("ok", true);
+        return m;
+    }
+
+    /**
+     * Bulk-bind a single carrier-pool address (or all active pool addresses) to the selected users.
+     * Called by the 「キャリア登録割り当て」 button on the user list page.
+     * If poolId == null or empty, binds ALL active pool addresses to each selected user.
+     */
+    @PostMapping("/bulk-bind-carrier")
+    public String bulkBindCarrier(@RequestParam(name = "ids", required = false) java.util.List<Long> ids,
+                                  @RequestParam(name = "poolId", required = false) Long poolId,
+                                  @RequestParam(name = "scope", required = false) String scope,
+                                  @RequestParam(name = "sourceFolder", required = false) String sourceFolder,
+                                  @RequestParam(name = "sourceFolders", required = false) java.util.List<String> sourceFolders,
+                                  @RequestParam(name = "scopeLimit", required = false) Integer scopeLimit,
+                                  @ModelAttribute UserSearchForm filterForm,
+                                  RedirectAttributes ra) {
+        // Folder-scope override — resolves the target user-ID list via the SAME UserSearchForm
+        // as the GET list, so all on-screen filters apply. 2026-05-24 fix mirrors the one in
+        // bulk-move-folder: previously this only honored FOLDER and ignored login-period etc.
+        if ("allInFolder".equals(scope)) {
+            java.util.List<String> srcs = normalizeSourceFolders(sourceFolders, sourceFolder);
+            applySourceFoldersOverride(filterForm, srcs);
+            java.util.List<Long> ids2 = service.findIdsBySearch(filterForm,
+                    (scopeLimit != null && scopeLimit > 0) ? scopeLimit : null);
+            int totalCreated;
+            if (poolId == null) {
+                totalCreated = ids2.isEmpty() ? 0 : bindingService.bindAllAvailableToMany(ids2);
+            } else {
+                totalCreated = ids2.isEmpty() ? 0 : bindingService.bindOneToMany(poolId, ids2);
+            }
+            String srcLabel = labelForFolders(srcs);
+            String chunkNote = (scopeLimit != null && scopeLimit > 0) ? "（上限 " + scopeLimit + " 件）" : "";
+            ra.addFlashAttribute("flashSuccess",
+                    "フォルダ「" + srcLabel + "」内 " + ids2.size() + " 名へキャリアアドレスを一括割当しました（新規 " + totalCreated + " 件、絞り込み条件適用済）" + chunkNote);
+            return "redirect:/manager/users";
+        }
+
+        if (ids == null || ids.isEmpty()) {
+            ra.addFlashAttribute("flashError", "ユーザーが選択されていません");
+            return "redirect:/manager/users";
+        }
+        int n;
+        if (poolId == null) {
+            n = bindingService.bindAllAvailableToMany(ids);
+            ra.addFlashAttribute("flashSuccess",
+                    ids.size() + " 名へ全キャリアアドレスを一括割当（新規 " + n + " 件）しました");
+        } else {
+            n = bindingService.bindOneToMany(poolId, ids);
+            ra.addFlashAttribute("flashSuccess",
+                    ids.size() + " 名へキャリアアドレスを一括割当（新規 " + n + " 件）しました");
+        }
+        return "redirect:/manager/users";
+    }
+
+    /**
+     * Bulk-unbind: remove the (selected pool, selected users) bindings, or — when poolId is
+     * empty — remove ALL bindings for each selected user. Symmetric counterpart to the
+     * bulk-bind action on the user list page.
+     */
+    @PostMapping("/bulk-unbind-carrier")
+    public String bulkUnbindCarrier(@RequestParam(name = "ids", required = false) java.util.List<Long> ids,
+                                    @RequestParam(name = "poolId", required = false) Long poolId,
+                                    @RequestParam(name = "scope", required = false) String scope,
+                                    @RequestParam(name = "sourceFolder", required = false) String sourceFolder,
+                                    @RequestParam(name = "sourceFolders", required = false) java.util.List<String> sourceFolders,
+                                    @RequestParam(name = "scopeLimit", required = false) Integer scopeLimit,
+                                    @ModelAttribute UserSearchForm filterForm,
+                                    RedirectAttributes ra) {
+        // Scope override — same filter-aware resolution as bulk-bind-carrier (2026-05-24 fix).
+        if ("allInFolder".equals(scope)) {
+            java.util.List<String> srcs = normalizeSourceFolders(sourceFolders, sourceFolder);
+            applySourceFoldersOverride(filterForm, srcs);
+            java.util.List<Long> ids2 = service.findIdsBySearch(filterForm,
+                    (scopeLimit != null && scopeLimit > 0) ? scopeLimit : null);
+            int totalRemoved = 0;
+            if (poolId == null) {
+                for (Long uid : ids2) if (uid != null) totalRemoved += bindingService.unbindAll(uid);
+            } else {
+                for (Long uid : ids2) if (uid != null && bindingService.unbindOne(uid, poolId)) totalRemoved++;
+            }
+            String srcLabel = labelForFolders(srcs);
+            String chunkNote = (scopeLimit != null && scopeLimit > 0) ? "（上限 " + scopeLimit + " 件）" : "";
+            ra.addFlashAttribute("flashSuccess",
+                    "フォルダ「" + srcLabel + "」内 " + ids2.size() + " 名のキャリア割り当てを解除しました (" + totalRemoved + " 件、絞り込み条件適用済)" + chunkNote);
+            return "redirect:/manager/users";
+        }
+
+        if (ids == null || ids.isEmpty()) {
+            ra.addFlashAttribute("flashError", "ユーザーが選択されていません");
+            return "redirect:/manager/users";
+        }
+        int removed = 0;
+        if (poolId == null) {
+            for (Long uid : ids) {
+                if (uid != null) removed += bindingService.unbindAll(uid);
+            }
+            ra.addFlashAttribute("flashSuccess",
+                    ids.size() + " 名のキャリア割り当てを全解除（" + removed + " 件削除）しました");
+        } else {
+            for (Long uid : ids) {
+                if (uid != null && bindingService.unbindOne(uid, poolId)) removed++;
+            }
+            ra.addFlashAttribute("flashSuccess",
+                    ids.size() + " 名から指定キャリアアドレスの割り当てを解除（" + removed + " 件削除）しました");
+        }
+        return "redirect:/manager/users";
+    }
+
+    /**
+     * Bulk-move the selected users into a single target folder. Called by the "選択フォルダ移動"
+     * button on the user list page.
+     */
+    @PostMapping("/bulk-move-folder")
+    public String bulkMoveFolder(@RequestParam(name = "ids", required = false) java.util.List<Long> ids,
+                                 @RequestParam(name = "folder", required = false) String folder,
+                                 @RequestParam(name = "scope", required = false) String scope,
+                                 @RequestParam(name = "sourceFolder", required = false) String sourceFolder,
+                                 @RequestParam(name = "sourceFolders", required = false) java.util.List<String> sourceFolders,
+                                 @RequestParam(name = "scopeLimit", required = false) Integer scopeLimit,
+                                 @RequestParam(name = "returnTo", required = false) String returnTo,
+                                 @ModelAttribute UserSearchForm filterForm,
+                                 RedirectAttributes ra) {
+        // "Where do we send the operator back to after the move?" — preserves their
+        // current filter (folder + emailDomain + period etc.) so they don't lose context.
+        // Falls back to the un-filtered user list if the form didn't carry returnTo or
+        // the URL looks suspicious. Only same-site relative URLs are honoured.
+        String safeReturn = safeRelativeReturnUrl(returnTo, "/manager/users");
+
+        String target = folder == null ? null : folder.trim();
+        // Defensive: a stale form / wrong handler somewhere submitted the URL-filter sentinel
+        // "__NONE__" as the move TARGET, which would have created users with the literal
+        // string folder='__NONE__'. Treat any sentinel-shaped value as null (=フォルダ解除).
+        if (target != null && (target.isEmpty()
+                || "__NONE__".equals(target) || "_NONE_".equals(target))) target = null;
+
+        // Reject silent "move to 未設定" — the operator forgot to pick a target. They can
+        // explicitly send moveToUnset=true if they really mean it.
+        boolean explicitUnset = "true".equalsIgnoreCase(folder == null ? null : null) /* placeholder */;
+        if (target == null && !"allInFolder".equals(scope)) {
+            ra.addFlashAttribute("flashError", "移動先のフォルダを選択してください");
+            return "redirect:" + safeReturn;
+        }
+        String label = (target == null) ? "（フォルダ解除）" : target;
+
+        // Scope override: when scope=allInFolder, resolve the target user-ID list via the
+        // SAME UserSearchForm that the GET-list page uses, so login-period / status /
+        // gender / carrier and every other on-screen filter survives the redirect. The
+        // page's filter set was POSTed to us as hidden inputs (see user/list.html bulkForm
+        // submit listener). 2026-05-24 fix: previously this only filtered by FOLDER which
+        // moved entire folders even when the operator was looking at a narrower view.
+        if ("allInFolder".equals(scope)) {
+            // The form already carries folders[] from the URL params, but we also fold in
+            // any sourceFolders/sourceFolder legacy aliases for robustness.
+            java.util.List<String> srcs = normalizeSourceFolders(sourceFolders, sourceFolder);
+            applySourceFoldersOverride(filterForm, srcs);
+            java.util.List<Long> ids2 = service.findIdsBySearch(filterForm,
+                    (scopeLimit != null && scopeLimit > 0) ? scopeLimit : null);
+            int total = ids2.isEmpty() ? 0 : userRepository.bulkUpdateFolderForIds(ids2, target);
+            String srcLabel = labelForFolders(srcs);
+            ra.addFlashAttribute("flashSuccess",
+                    "フォルダ「" + srcLabel + "」内の " + total + " 名を " + label + " に移動しました（絞り込み条件適用済）");
+            return "redirect:" + safeReturn;
+        }
+
+        if (ids == null || ids.isEmpty()) {
+            ra.addFlashAttribute("flashError", "ユーザーが選択されていません");
+            return "redirect:" + safeReturn;
+        }
+        int n = 0;
+        for (CrmUser u : userRepository.findAllById(ids)) {
+            u.setFolder(target);
+            userRepository.save(u);
+            n++;
+        }
+        ra.addFlashAttribute("flashSuccess", n + " 件のユーザーを " + label + " に移動しました");
+        return "redirect:" + safeReturn;
+    }
+
+    /** Bulk ACTIVE ⇄ SUSPENDED status change from the /manager/users list's row-checkbox
+     *  selection. Not password-gated — unlike delete, this is a reversible field flip. */
+    @PostMapping("/bulk-set-status")
+    public String bulkSetStatus(@RequestParam(name = "ids", required = false) java.util.List<Long> ids,
+                                 @RequestParam(name = "status", required = false) String status,
+                                 @RequestParam(name = "returnTo", required = false) String returnTo,
+                                 RedirectAttributes ra) {
+        String safeReturn = safeRelativeReturnUrl(returnTo, "/manager/users");
+        if (!CrmUser.STATUS_ACTIVE.equals(status) && !CrmUser.STATUS_SUSPENDED.equals(status)) {
+            ra.addFlashAttribute("flashError", "変更先のステータスを選択してください");
+            return "redirect:" + safeReturn;
+        }
+        if (ids == null || ids.isEmpty()) {
+            ra.addFlashAttribute("flashError", "ユーザーが選択されていません");
+            return "redirect:" + safeReturn;
+        }
+        int n = 0;
+        for (CrmUser u : userRepository.findAllById(ids)) {
+            u.setStatus(status);
+            userRepository.save(u);
+            n++;
+        }
+        auditLog.record(com.crm.service.AuditLogService.ACTION_USER_UPDATE,
+                "CrmUser", null, "bulk status=" + status + " count=" + n);
+        ra.addFlashAttribute("flashSuccess", n + " 件のユーザーを " + status + " に変更しました");
+        return "redirect:" + safeReturn;
+    }
+
+    /**
+     * Normalize the union of the plural sourceFolders list and the legacy singular
+     * sourceFolder field into an ordered, deduped List<String> where each entry is either
+     * a non-empty folder name OR `null` (= the "未設定" bucket). The empty/sentinel
+     * "__NONE__" / "_NONE_" values are folded to null. If no folder is selected at all,
+     * the returned list is a singleton [null] so legacy single-folder allInFolder calls
+     * (= bulk-operate on "未設定") keep working.
+     */
+    private static java.util.List<String> normalizeSourceFolders(java.util.List<String> plural,
+                                                                 String legacySingular) {
+        java.util.List<String> input = new java.util.ArrayList<>();
+        if (plural != null) input.addAll(plural);
+        if (legacySingular != null) input.add(legacySingular);
+
+        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+        boolean sawNone = false;
+        for (String raw : input) {
+            if (raw == null) { sawNone = true; continue; }
+            String t = raw.trim();
+            if (t.isEmpty() || "__NONE__".equals(t) || "_NONE_".equals(t)) { sawNone = true; continue; }
+            seen.add(t);
+        }
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (sawNone) out.add(null);
+        out.addAll(seen);
+        if (out.isEmpty()) out.add(null);
+        return out;
+    }
+
+    /** If the operator's filter form has no folders set but legacy sourceFolders/sourceFolder
+     *  was POSTed, fold those into the form's folders list so the spec resolver sees them.
+     *  null entries in srcs become the "__NONE__" sentinel that CrmUserService recognises. */
+    private static void applySourceFoldersOverride(UserSearchForm form, java.util.List<String> srcs) {
+        if (form.getFolders() != null && !form.getFolders().isEmpty()) return;
+        if (srcs == null || srcs.isEmpty()) return;
+        java.util.List<String> out = new java.util.ArrayList<>(srcs.size());
+        for (String s : srcs) out.add(s == null ? "__NONE__" : s);
+        form.setFolders(out);
+    }
+
+    /** Human label for a normalized list (single → "X", many → "X, Y …" or count). */
+    private static String labelForFolders(java.util.List<String> srcs) {
+        if (srcs == null || srcs.isEmpty()) return "（未設定）";
+        if (srcs.size() == 1) {
+            String s = srcs.get(0);
+            return (s == null) ? "（未設定）" : s;
+        }
+        java.util.List<String> pretty = new java.util.ArrayList<>(srcs.size());
+        for (String s : srcs) pretty.add(s == null ? "（未設定）" : s);
+        if (pretty.size() <= 3) return String.join(", ", pretty);
+        return pretty.size() + " 件 (" + String.join(", ", pretty.subList(0, 3)) + ", ...)";
+    }
+
+    /**
+     * Constrain a caller-supplied returnTo to a safe relative URL inside /manager/. Anything
+     * with a scheme, host, or pointing outside /manager/ falls back to the default. Protects
+     * against open-redirect when reusing the form value as a Location header.
+     */
+    private static String safeRelativeReturnUrl(String returnTo, String fallback) {
+        if (returnTo == null) return fallback;
+        String r = returnTo.trim();
+        if (r.isEmpty()) return fallback;
+        // Reject absolute URLs and protocol-relative URLs.
+        if (r.startsWith("http://") || r.startsWith("https://") || r.startsWith("//")) return fallback;
+        // Must be inside /manager/
+        if (!r.startsWith("/manager/") && !r.equals("/manager")) return fallback;
+        return r;
+    }
+
+    @GetMapping("/new")
+    public String createForm(Model model) {
+        model.addAttribute("form", new UserForm());
+        model.addAttribute("editing", false);
+        return "user/form";
+    }
+
+    @PostMapping
+    public String create(@Valid @ModelAttribute("form") UserForm form,
+                         BindingResult br, RedirectAttributes ra, Model model) {
+        if (br.hasErrors()) {
+            model.addAttribute("editing", false);
+            return "user/form";
+        }
+        if (isBlank(form.getEmail()) && isBlank(form.getPhoneNumber())) {
+            br.rejectValue("email", "missingContact", "保存（または編集）に失敗しました");
+            model.addAttribute("editing", false);
+            return "user/form";
+        }
+        try {
+            CrmUserService.CreationResult result = service.create(form);
+            ra.addFlashAttribute("flashSuccess", "ユーザーを作成しました");
+            ra.addFlashAttribute("issuedCredentials", result.getCredentials());
+            return "redirect:/manager/users/" + result.getUser().getId();
+        } catch (CrmUserService.DuplicateEmailException e) {
+            br.rejectValue("email", "duplicate", "このメールアドレスは既に登録されています");
+            model.addAttribute("editing", false);
+            return "user/form";
+        }
+    }
+
+    @GetMapping("/{id}")
+    public String detail(@PathVariable Long id, Model model, RedirectAttributes ra) {
+        Optional<CrmUser> user = service.findById(id);
+        if (!user.isPresent()) {
+            ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
+            return "redirect:/manager/users";
+        }
+        model.addAttribute("user", user.get());
+        // Form for inline-editing on the detail page (eliminates the separate /edit route).
+        if (!model.containsAttribute("form")) {
+            model.addAttribute("form", UserForm.from(user.get()));
+        }
+        model.addAttribute("userId", id);
+        model.addAttribute("payments", paymentService.listForUser(id));
+        // Access log (アクセスログ) — recent link-click history, newest first, capped at 20 rows.
+        model.addAttribute("accessLogs", userAccessLogRepository.findByUserIdOrderByCreatedAtDesc(
+                id, org.springframework.data.domain.PageRequest.of(0, 20)));
+        model.addAttribute("boundAddresses", bindingService.listBoundFor(id));
+        model.addAttribute("paymentForm", paymentFormFor(id));
+        model.addAttribute("paymentMethods", PAYMENT_METHODS);
+        model.addAttribute("paymentStatuses", PAYMENT_STATUSES);
+        // User stats for detail sidebar
+        model.addAttribute("statTotalOut",   messageRepository.countByUserIdAndDirection(id, com.crm.entity.Message.DIR_OUT));
+        model.addAttribute("statTotalIn",    messageRepository.countByUserIdAndDirection(id, com.crm.entity.Message.DIR_IN));
+        model.addAttribute("statLastReply",  messageRepository.maxCreatedAtByUserIdAndDirection(id, com.crm.entity.Message.DIR_IN));
+        java.math.BigDecimal totalPaid = paymentService.sumPaidByUser(id);
+        model.addAttribute("statTotalPaid",  totalPaid != null ? totalPaid : java.math.BigDecimal.ZERO);
+        // reply-HTML slot titles for the tab labels
+        model.addAttribute("memoSlotTitles", replyHtmlSlotService.listSlotTitles());
+        // Per-slot attachment lists for the bottom-left attachment grids. Indexed
+        // 0..SLOT_COUNT-1 (slot 1..SLOT_COUNT) so the template can do attachmentsBySlot[i] cleanly.
+        java.util.List<java.util.List<com.crm.entity.ReplyPageAttachment>> attachmentsBySlot =
+                new java.util.ArrayList<>(com.crm.service.ReplyHtmlSlotService.SLOT_COUNT);
+        for (int s = 1; s <= com.crm.service.ReplyHtmlSlotService.SLOT_COUNT; s++) {
+            attachmentsBySlot.add(attachmentService.listForUserSlot(id, s));
+        }
+        model.addAttribute("attachmentsBySlot", attachmentsBySlot);
+        model.addAttribute("circledNumbers", com.crm.service.ReplyHtmlSlotService.CIRCLED_NUMBERS);
+        return "user/detail";
+    }
+
+    /** Admin-side image serve — needs an active admin session (interceptor gates this). */
+    @GetMapping("/{userId}/attachment/{attId}")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource>
+            serveAttachment(@PathVariable Long userId, @PathVariable Long attId) {
+        com.crm.entity.ReplyPageAttachment att = attachmentService.findById(attId, userId).orElse(null);
+        if (att == null) return org.springframework.http.ResponseEntity.notFound().build();
+        java.io.File f = attachmentService.fileFor(att);
+        if (f == null) return org.springframework.http.ResponseEntity.notFound().build();
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(att.getContentType()))
+                .header("Cache-Control", "private, max-age=300")
+                .body(new org.springframework.core.io.FileSystemResource(f));
+    }
+
+    /**
+     * Called only via fetch() from user/detail.html's attachment grid — the JS removes the
+     * thumbnail from the DOM directly on success/failure and never navigates to the redirect
+     * target below, so any flashSuccess/flashError set here would sit unconsumed in the
+     * session's FlashMap and resurface as a stale/duplicated message on some later, unrelated
+     * page load. Report the outcome in the JSON body instead; no flash attributes.
+     */
+    @PostMapping("/{userId}/attachment/{attId}/delete")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<java.util.Map<String, Object>> deleteAttachment(
+            @PathVariable Long userId, @PathVariable Long attId) {
+        com.crm.entity.ReplyPageAttachment att = attachmentService.findById(attId, userId).orElse(null);
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        if (att == null) {
+            body.put("success", false);
+            body.put("message", "添付ファイルが見つかりません");
+        } else if (attachmentService.deleteById(attId)) {
+            body.put("success", true);
+            body.put("message", "添付ファイル「" + att.getFileName() + "」を削除しました");
+        } else {
+            body.put("success", false);
+            body.put("message", "添付ファイルの削除に失敗しました");
+        }
+        return org.springframework.http.ResponseEntity.ok(body);
+    }
+
+    /** Admin-side メッセージボックス preview — same HTML/CSS as the public /reply/{token}
+     *  message-box section, but with an admin-only 選択削除 affordance and, per operator
+     *  request, real reply forms that post through the existing /messages(/sms) endpoints. */
+    @GetMapping("/{id}/message-box")
+    public String messageBox(@PathVariable Long id,
+                             @RequestParam(name = "page", defaultValue = "0") int page,
+                             @RequestParam(name = "inboundPage", defaultValue = "0") int inboundPage,
+                             Model model, RedirectAttributes ra) {
+        Optional<CrmUser> user = service.findById(id);
+        if (!user.isPresent()) {
+            ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
+            return "redirect:/manager/users";
+        }
+        model.addAttribute("user", user.get());
+        model.addAttribute("messageBox", messageBoxService.listFor(id, page));
+        model.addAttribute("inboundBox", messageBoxService.listInboundFor(id, inboundPage));
+        model.addAttribute("messageBoxPage", page);
+        return "user/message-box";
+    }
+
+    @PostMapping("/{id}/message-box/delete")
+    public String messageBoxDelete(@PathVariable Long id,
+                                   @RequestParam(name = "ids", required = false) List<Long> ids,
+                                   RedirectAttributes ra) {
+        int n = messageBoxService.dismissSelected(id, ids);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_BOX_DELETE, "Message",
+                ids == null ? "" : ids.toString(), n + " 件削除 (user=" + id + ")");
+        ra.addFlashAttribute("flashSuccess", n + " 件削除しました");
+        return "redirect:/manager/users/" + id + "/message-box";
+    }
+
+    @PostMapping("/{id}/message-box/delete-all")
+    public String messageBoxDeleteAll(@PathVariable Long id, RedirectAttributes ra) {
+        int n = messageBoxService.dismissAll(id);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_BOX_DELETE, "Message",
+                "ALL", n + " 件全件削除 (user=" + id + ")");
+        ra.addFlashAttribute("flashSuccess", n + " 件全件削除しました");
+        return "redirect:/manager/users/" + id + "/message-box";
+    }
+
+    /** 受信履歴 tab's 全件削除 — separate from the 送信履歴 one above since they touch
+     *  different directions (see MessageBoxService.dismissAllInbound). */
+    @PostMapping("/{id}/message-box/delete-all-inbound")
+    public String messageBoxDeleteAllInbound(@PathVariable Long id, RedirectAttributes ra) {
+        int n = messageBoxService.dismissAllInbound(id);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_BOX_DELETE, "Message",
+                "ALL_INBOUND", n + " 件全件削除 (user=" + id + ")");
+        ra.addFlashAttribute("flashSuccess", n + " 件全件削除しました");
+        return "redirect:/manager/users/" + id + "/message-box";
+    }
+
+    /** This user's 差分スケジュール — pending + history, with select/all delete. Note that a
+     *  schedule can target multiple users at once, so deleting a row here removes it for every
+     *  target it was originally set for, not just this user (the confirm dialogs on the page
+     *  say so explicitly). */
+    private static final int DIFF_SCHEDULES_PAGE_SIZE = 50;
+
+    @GetMapping("/{id}/diff-schedules")
+    public String diffSchedules(@PathVariable Long id,
+                                 @RequestParam(name = "page", defaultValue = "0") int page,
+                                 Model model, RedirectAttributes ra) {
+        Optional<CrmUser> user = service.findById(id);
+        if (!user.isPresent()) {
+            ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
+            return "redirect:/manager/users";
+        }
+        model.addAttribute("user", user.get());
+        List<com.crm.entity.DiffScheduleStep> allSteps = diffScheduleService.listStepsForUser(id);
+        int totalElements = allSteps.size();
+        int totalPages = Math.max(1, (int) Math.ceil(totalElements / (double) DIFF_SCHEDULES_PAGE_SIZE));
+        int safePage = Math.max(0, Math.min(page, totalPages - 1));
+        int from = safePage * DIFF_SCHEDULES_PAGE_SIZE;
+        int to = Math.min(from + DIFF_SCHEDULES_PAGE_SIZE, totalElements);
+        List<com.crm.entity.DiffScheduleStep> steps = from < to ? allSteps.subList(from, to) : java.util.Collections.emptyList();
+        model.addAttribute("steps", steps);
+        model.addAttribute("page", safePage);
+        model.addAttribute("totalPages", totalPages);
+        model.addAttribute("totalElements", totalElements);
+        model.addAttribute("indexOffset", from);
+        java.util.Map<Long, com.crm.entity.DiffSchedule> schedulesById = new java.util.HashMap<>();
+        for (com.crm.entity.DiffScheduleStep s : steps) {
+            schedulesById.computeIfAbsent(s.getDiffScheduleId(),
+                    sid -> diffScheduleService.findScheduleById(sid).orElse(null));
+        }
+        model.addAttribute("schedulesById", schedulesById);
+        model.addAttribute("userInfoById", buildUserInfoById(schedulesById.values()));
+        return "user/diff-schedules";
+    }
+
+    /** 表示名 column support for the shared diff-step table fragment — see the identical
+     *  helper in DiffScheduleController for the full rationale (only resolved for
+     *  single-target schedules). */
+    private java.util.Map<Long, java.util.Map<String, String>> buildUserInfoById(
+            java.util.Collection<com.crm.entity.DiffSchedule> schedules) {
+        java.util.Set<Long> singleTargetUserIds = new java.util.HashSet<>();
+        java.util.Map<Long, Long> singleTargetUserIdBySchedule = new java.util.HashMap<>();
+        for (com.crm.entity.DiffSchedule sched : schedules) {
+            if (sched == null || sched.getTargetUserIds() == null) continue;
+            String[] parts = sched.getTargetUserIds().split(",");
+            if (parts.length != 1) continue;
+            try {
+                Long uid = Long.parseLong(parts[0].trim());
+                singleTargetUserIds.add(uid);
+                singleTargetUserIdBySchedule.put(sched.getId(), uid);
+            } catch (NumberFormatException ignored) { /* skip malformed */ }
+        }
+        java.util.Map<Long, String> displayNameByUserId = new java.util.HashMap<>();
+        if (!singleTargetUserIds.isEmpty()) {
+            for (CrmUser u : service.findAllByIds(singleTargetUserIds)) {
+                String name = (u.getDisplayName() == null || u.getDisplayName().isEmpty())
+                        ? u.getEmail() : u.getDisplayName();
+                displayNameByUserId.put(u.getId(), name);
+            }
+        }
+        java.util.Map<Long, java.util.Map<String, String>> out = new java.util.HashMap<>();
+        for (java.util.Map.Entry<Long, Long> e : singleTargetUserIdBySchedule.entrySet()) {
+            String name = displayNameByUserId.get(e.getValue());
+            if (name != null) {
+                java.util.Map<String, String> info = new java.util.HashMap<>();
+                info.put("displayName", name);
+                out.put(e.getKey(), info);
+            }
+        }
+        return out;
+    }
+
+    @PostMapping("/{id}/diff-schedules/delete")
+    public String diffSchedulesDelete(@PathVariable Long id,
+                                       @RequestParam(name = "ids", required = false) List<Long> ids,
+                                       HttpSession session, RedirectAttributes ra) {
+        String adminName = (String) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_NAME);
+        int n = (ids == null || ids.isEmpty()) ? 0 : diffScheduleService.deleteSteps(ids, adminName);
+        ra.addFlashAttribute("flashSuccess", n + " 件削除しました");
+        return "redirect:/manager/users/" + id + "/diff-schedules";
+    }
+
+    @PostMapping("/{id}/diff-schedules/delete-all")
+    public String diffSchedulesDeleteAll(@PathVariable Long id, HttpSession session, RedirectAttributes ra) {
+        String adminName = (String) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_NAME);
+        int n = diffScheduleService.deleteAllStepsForUser(id, adminName);
+        ra.addFlashAttribute("flashSuccess", n + " 件全件削除しました");
+        return "redirect:/manager/users/" + id + "/diff-schedules";
+    }
+
+    /** In-place delete for the 差分予約 card on the thread view — mirrors
+     *  MessageController#cancelScheduledFromThread so a diff reservation can be removed the
+     *  same way a normal 予約送信 is: no navigation away from the thread (operator request:
+     *  the form-post version above redirects to /diff-schedules, breaking out of the thread). */
+    @PostMapping("/{id}/diff-schedules/{stepId}/delete-ajax")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public java.util.Map<String, Object> diffScheduleStepDeleteAjax(@PathVariable Long id, @PathVariable Long stepId,
+                                                                     HttpSession session) {
+        String adminName = (String) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_NAME);
+        boolean ok = diffScheduleService.deleteStep(stepId, adminName);
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("success", ok);
+        if (!ok) body.put("message", "削除できませんでした");
+        return body;
+    }
+
+    private static final List<String> PAYMENT_METHODS = Arrays.asList(
+            Payment.METHOD_BANK_TRANSFER, Payment.METHOD_CREDIT_CARD, Payment.METHOD_CASH);
+    /** PAID listed first so the most-common selection is the default in dropdowns. */
+    private static final List<String> PAYMENT_STATUSES = Arrays.asList(
+            Payment.STATUS_PAID, Payment.STATUS_PENDING, Payment.STATUS_OVERDUE,
+            Payment.STATUS_REFUNDED, Payment.STATUS_CANCELLED);
+
+    private PaymentForm paymentFormFor(Long userId) {
+        PaymentForm f = new PaymentForm();
+        f.setUserId(userId);
+        f.setStatus(Payment.STATUS_PAID);
+        return f;
+    }
+
+    @PostMapping("/{id}/payments")
+    public String addPayment(@PathVariable Long id,
+                              @Valid @ModelAttribute("paymentForm") PaymentForm form,
+                              BindingResult br, RedirectAttributes ra) {
+        form.setUserId(id);
+        if (br.hasErrors()) {
+            String msg = br.getAllErrors().stream()
+                    .map(e -> e.getDefaultMessage())
+                    .filter(m -> m != null && !m.isEmpty())
+                    .findFirst()
+                    .orElse("入金情報の入力に誤りがあります");
+            ra.addFlashAttribute("flashError", msg);
+            return "redirect:/manager/users/" + id;
+        }
+        com.crm.entity.Payment created = paymentService.create(form);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_PAYMENT_CREATE,
+                "Payment", created == null ? null : created.getId(),
+                "userId=" + id + " amount=" + form.getAmount());
+        ra.addFlashAttribute("flashSuccess", "入金を登録しました");
+        return "redirect:/manager/users/" + id;
+    }
+
+    @PostMapping("/{id}/payments/{pid}/mark-paid")
+    public String markPaymentPaid(@PathVariable Long id, @PathVariable Long pid, RedirectAttributes ra) {
+        paymentService.markPaid(pid);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_PAYMENT_MARK_PAID,
+                "Payment", pid, "userId=" + id);
+        ra.addFlashAttribute("flashSuccess", "入金済にしました");
+        return "redirect:/manager/users/" + id;
+    }
+
+    @PostMapping("/{id}/payments/{pid}/delete")
+    public String deletePayment(@PathVariable Long id, @PathVariable Long pid,
+                                @RequestParam(name = "confirmPassword", required = false) String confirmPassword,
+                                HttpSession session,
+                                RedirectAttributes ra) {
+        // Require admin-password confirmation: payment deletes are audit-sensitive.
+        Long adminId = (Long) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_ID);
+        if (!adminAuthService.verifyPassword(adminId, confirmPassword)) {
+            ra.addFlashAttribute("flashError", "入金削除には管理者パスワードの確認が必要です");
+            return "redirect:/manager/users/" + id;
+        }
+        paymentService.delete(pid);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_PAYMENT_DELETE,
+                "Payment", pid, "userId=" + id);
+        ra.addFlashAttribute("flashSuccess", "入金を削除しました");
+        return "redirect:/manager/users/" + id;
+    }
+
+    /** Legacy path — now redirects to the detail page which has inline editing. */
+    @GetMapping("/{id}/edit")
+    public String editForm(@PathVariable Long id) {
+        return "redirect:/manager/users/" + id;
+    }
+
+    @PostMapping("/{id}")
+    public String update(@PathVariable Long id,
+                         @Valid @ModelAttribute("form") UserForm form,
+                         BindingResult br,
+                         @RequestParam(name = "confirmPassword", required = false) String confirmPassword,
+                         HttpSession session,
+                         RedirectAttributes ra) {
+        if (br.hasErrors()) {
+            String msg = br.getAllErrors().stream()
+                    .map(e -> e.getDefaultMessage()).filter(m -> m != null && !m.isEmpty())
+                    .findFirst().orElse("入力に誤りがあります");
+            ra.addFlashAttribute("flashError", msg);
+            ra.addFlashAttribute("form", form);
+            return "redirect:/manager/users/" + id;
+        }
+        if (isBlank(form.getEmail()) && isBlank(form.getPhoneNumber())) {
+            ra.addFlashAttribute("flashError", "保存（または編集）に失敗しました");
+            ra.addFlashAttribute("form", form);
+            return "redirect:/manager/users/" + id;
+        }
+        // Email change is gated by the admin's own login password. Blank and null are the
+        // same "no email" state (a phone-only user's email input is always submitted as ""
+        // even though CrmUser.email is stored as null) — normalize both sides so editing an
+        // unrelated field (e.g. phoneNumber) on a phone-only user doesn't get misread as an
+        // email change just because "" != null under equalsIgnoreCase.
+        Optional<CrmUser> existing = service.findById(id);
+        boolean emailChanging = false;
+        if (existing.isPresent()) {
+            String newEmail = isBlank(form.getEmail()) ? null : form.getEmail().trim();
+            String oldEmail = isBlank(existing.get().getEmail()) ? null : existing.get().getEmail();
+            emailChanging = newEmail != null ? !newEmail.equalsIgnoreCase(oldEmail) : oldEmail != null;
+        }
+        if (emailChanging) {
+            Long adminId = (Long) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_ID);
+            if (!adminAuthService.verifyPassword(adminId, confirmPassword)) {
+                ra.addFlashAttribute("flashError", "メールアドレス変更には管理者パスワードの確認が必要です");
+                ra.addFlashAttribute("form", form);
+                return "redirect:/manager/users/" + id;
+            }
+        }
+        try {
+            service.update(id, form);
+            ra.addFlashAttribute("flashSuccess", "ユーザーを更新しました");
+            return "redirect:/manager/users/" + id;
+        } catch (CrmUserService.DuplicateEmailException e) {
+            ra.addFlashAttribute("flashError", "このメールアドレスは既に登録されています");
+            ra.addFlashAttribute("form", form);
+            return "redirect:/manager/users/" + id;
+        } catch (CrmUserService.UserNotFoundException e) {
+            ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
+            return "redirect:/manager/users";
+        }
+    }
+
+    @PostMapping("/{id}/delete")
+    public String delete(@PathVariable Long id,
+                         @RequestParam(name = "confirmPassword", required = false) String confirmPassword,
+                         HttpSession session,
+                         RedirectAttributes ra) {
+        Long adminId = (Long) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_ID);
+        if (!adminAuthService.verifyPassword(adminId, confirmPassword)) {
+            ra.addFlashAttribute("flashError", "削除には管理者パスワードの確認が必要です");
+            return "redirect:/manager/users/" + id;
+        }
+        service.delete(id);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_USER_DELETE,
+                "CrmUser", id, "single");
+        ra.addFlashAttribute("flashSuccess", "ユーザーを削除しました");
+        return "redirect:/manager/users";
+    }
+
+    @PostMapping("/bulk-delete")
+    public String bulkDelete(@RequestParam(name = "ids", required = false) List<Long> ids,
+                              @RequestParam(name = "scope", required = false) String scope,
+                              @RequestParam(name = "sourceFolder", required = false) String sourceFolder,
+                              @RequestParam(name = "sourceFolders", required = false) java.util.List<String> sourceFolders,
+                              @RequestParam(name = "scopeLimit", required = false) Integer scopeLimit,
+                              @RequestParam(name = "confirmPassword", required = false) String confirmPassword,
+                              @ModelAttribute UserSearchForm filterForm,
+                              javax.servlet.http.HttpSession session,
+                              RedirectAttributes ra) {
+        Long adminId = (Long) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_ID);
+        if (!adminAuthService.verifyPassword(adminId, confirmPassword)) {
+            ra.addFlashAttribute("flashError", "一括削除には管理者パスワードの確認が必要です");
+            return "redirect:/manager/users";
+        }
+
+        // Scope override — same filter-aware resolution as bulk-move-folder (2026-05-24 fix).
+        // Honours every filter from the GET list (login period, status, carrier, …) instead
+        // of blindly deleting the whole folder.
+        if ("allInFolder".equals(scope)) {
+            java.util.List<String> srcs = normalizeSourceFolders(sourceFolders, sourceFolder);
+            applySourceFoldersOverride(filterForm, srcs);
+            java.util.List<Long> ids2 = service.findIdsBySearch(filterForm,
+                    (scopeLimit != null && scopeLimit > 0) ? scopeLimit : null);
+            int total = 0;
+            for (Long uid : ids2) {
+                if (uid == null) continue;
+                try { service.delete(uid); total++; } catch (Exception ignored) {}
+            }
+            String srcLabel = labelForFolders(srcs);
+            String chunkNote = (scopeLimit != null && scopeLimit > 0) ? "（上限 " + scopeLimit + " 件）" : "";
+            auditLog.record(com.crm.service.AuditLogService.ACTION_USER_DELETE,
+                    "CrmUser", null, "bulk folder=" + srcLabel + " count=" + total + chunkNote);
+            ra.addFlashAttribute("flashSuccess",
+                    "フォルダ「" + srcLabel + "」内の " + total + " 名を削除しました（絞り込み条件適用済）" + chunkNote);
+            return "redirect:/manager/users";
+        }
+
+        int n = 0;
+        java.util.List<String> failures = new java.util.ArrayList<>();
+        if (ids != null) {
+            for (Long id : ids) {
+                if (id == null) continue;
+                try { service.delete(id); n++; }
+                catch (Exception e) { failures.add("ID=" + id + ": " + e.getMessage()); }
+            }
+        }
+        auditLog.record(com.crm.service.AuditLogService.ACTION_USER_DELETE,
+                "CrmUser", null, "bulk count=" + n + (failures.isEmpty() ? "" : " failures=" + failures.size()));
+        ra.addFlashAttribute("flashSuccess", n + " 件のユーザーを削除しました");
+        if (!failures.isEmpty()) {
+            ra.addFlashAttribute("flashError",
+                    failures.size() + " 件失敗: " + String.join("; ", failures.subList(0, Math.min(5, failures.size()))));
+        }
+        return "redirect:/manager/users";
+    }
+
+    @PostMapping("/{id}/reset-credentials")
+    public String resetCredentials(@PathVariable Long id, RedirectAttributes ra) {
+        try {
+            CrmUserService.IssuedCredentials cred = service.resetCredentials(id);
+            ra.addFlashAttribute("flashSuccess", "認証情報を再発行しました");
+            ra.addFlashAttribute("issuedCredentials", cred);
+        } catch (CrmUserService.UserNotFoundException e) {
+            ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
+            return "redirect:/manager/users";
+        }
+        return "redirect:/manager/users/" + id;
+    }
+
+    @PostMapping("/{id}/bind-carrier")
+    public String bindCarrier(@PathVariable Long id, RedirectAttributes ra) {
+        Optional<CrmUser> u = service.findById(id);
+        if (!u.isPresent()) {
+            ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
+            return "redirect:/manager/users";
+        }
+        if (u.get().getCarrierDomain() == null) {
+            ra.addFlashAttribute("flashError",
+                    "キャリアドメインが未設定のため同キャリアの自動割当はできません。「全AMGアドレスを割り当て」で全キャリアを一括割当することは可能です。");
+            return "redirect:/manager/users/" + id;
+        }
+        boolean bound = bindingService.autoBind(u.get()).isPresent();
+        if (bound) {
+            ra.addFlashAttribute("flashSuccess",
+                    "キャリアアドレスを追加で割り当てました (同キャリアの空きから1つ)");
+        } else {
+            ra.addFlashAttribute("flashError",
+                    "該当キャリアの空きアドレスがありません。キャリアプールに追加するか「全AMGアドレスを割り当て」をご利用ください。");
+        }
+        return "redirect:/manager/users/" + id;
+    }
+
+    @PostMapping("/{id}/bind-all-carriers")
+    public String bindAllCarriers(@PathVariable Long id, RedirectAttributes ra) {
+        int bound = bindingService.bindAllAvailable(id);
+        if (bound > 0) {
+            auditLog.record(com.crm.service.AuditLogService.ACTION_CARRIER_BIND,
+                    "CrmUser", id, "bindAllAvailable count=" + bound);
+            ra.addFlashAttribute("flashSuccess",
+                    "AMGに登録されている空きキャリアアドレスを " + bound + " 件、このユーザーに割り当てました");
+        } else {
+            ra.addFlashAttribute("flashError",
+                    "割り当て可能な空きキャリアアドレスがありませんでした。キャリアプールに登録が必要です。");
+        }
+        return "redirect:/manager/users/" + id;
+    }
+
+    @PostMapping("/{id}/unbind-carrier/{poolId}")
+    public String unbindOneCarrier(@PathVariable Long id, @PathVariable Long poolId, RedirectAttributes ra) {
+        if (bindingService.unbindOne(id, poolId)) {
+            auditLog.record(com.crm.service.AuditLogService.ACTION_CARRIER_UNBIND,
+                    "CrmUser", id, "poolId=" + poolId);
+            ra.addFlashAttribute("flashSuccess", "キャリアアドレスを解除しました");
+        } else {
+            ra.addFlashAttribute("flashError", "解除できませんでした");
+        }
+        return "redirect:/manager/users/" + id;
+    }
+
+    @PostMapping("/{id}/unbind-carrier")
+    public String unbindCarrier(@PathVariable Long id, RedirectAttributes ra) {
+        int n = bindingService.unbindAll(id);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_CARRIER_UNBIND,
+                "CrmUser", id, "unbindAll count=" + n);
+        ra.addFlashAttribute("flashSuccess", n + " 件のキャリアアドレスを解除しました");
+        return "redirect:/manager/users/" + id;
+    }
+
+    @GetMapping("/import")
+    public String importForm() {
+        return "user/import";
+    }
+
+    @PostMapping("/import")
+    public String doImport(@RequestParam("file") MultipartFile file, Model model) throws IOException {
+        if (file == null || file.isEmpty()) {
+            model.addAttribute("flashError", "ファイルを選択してください");
+            return "user/import";
+        }
+        CsvImportResult result = service.importCsv(file.getInputStream());
+        model.addAttribute("result", result);
+        return "user/import";
+    }
+
+    /**
+     * Lightweight JSON endpoint polled by the import page during a long upload so the
+     * operator sees "現在 X件 登録中..." instead of staring at a blank tab for minutes.
+     * Returns the live row counter maintained by CrmUserService.importCsv().
+     */
+    @GetMapping("/import/progress")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public java.util.Map<String, Object> importProgress() {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("progress", service.getImportProgress());
+        body.put("running",  service.isImportRunning());
+        return body;
+    }
+
+    /**
+     * Admin-only preview of what the user would see on their reply page —
+     * the memo, with placeholder tags substituted against this user's data.
+     */
+    @GetMapping("/{id}/reply-preview")
+    public String replyPreview(@PathVariable Long id,
+                                @RequestParam(name = "slot", required = false) Integer slot,
+                                Model model, RedirectAttributes ra) {
+        Optional<CrmUser> user = service.findById(id);
+        if (!user.isPresent()) {
+            ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
+            return "redirect:/manager/users";
+        }
+        // Default to the slot the operator marked 使用中; allow ?slot=N override for preview.
+        int effSlot = (slot != null && slot >= 1 && slot <= com.crm.service.ReplyHtmlSlotService.SLOT_COUNT)
+                ? slot : user.get().getActiveMemoSlot();
+        String rawMemo = user.get().getMemoSlot(effSlot);
+        boolean usingDefault = rawMemo == null || rawMemo.trim().isEmpty();
+        if (usingDefault) {
+            // No per-user HTML for this slot; fall back to the site-wide reply page HTML.
+            rawMemo = replyPageSettingService.getOrCreate().getDefaultHeaderHtml();
+        }
+        String memoText = placeholderService.substitute(rawMemo, user.get());
+        String repaired = repairHtml(memoText);
+        boolean wasRepaired = memoText != null && !memoText.equals(repaired);
+        model.addAttribute("user", user.get());
+        model.addAttribute("memoText", repaired);
+        model.addAttribute("repaired", wasRepaired);
+        model.addAttribute("usingDefaultHtml", usingDefault);
+        model.addAttribute("previewSlot", effSlot);
+        model.addAttribute("activeSlot", user.get().getActiveMemoSlot());
+        model.addAttribute("bindings", placeholderService.buildBindings(user.get()));
+        return "user/reply-preview";
+    }
+
+    /**
+     * Best-effort repair of a few common HTML breakages we've seen in the wild on
+     * pasted memos. Currently:
+     *   - missing &lt;/style&gt; for an open &lt;style&gt; block (everything after gets eaten as CSS)
+     *   - orphan &lt;/script&gt; with no matching &lt;script&gt; opening (JS code dumped into HTML)
+     * Returns the input unchanged if no obvious repair is needed.
+     */
+    static String repairHtml(String html) {
+        if (html == null) return null;
+        String out = html;
+
+        // 1) <style> ... (no </style>): the user's source typically has a stray ">" on its own
+        // line where "</style>" belonged. Convert that stray ">" between <style> and </head>
+        // back into "</style>"; otherwise inject </style> before </head>/<body>.
+        boolean hasStyleOpen = indexOfIgnoreCase(out, "<style") >= 0;
+        boolean hasStyleClose = indexOfIgnoreCase(out, "</style>") >= 0;
+        if (hasStyleOpen && !hasStyleClose) {
+            int styleStart = indexOfIgnoreCase(out, "<style");
+            int headEnd = indexOfIgnoreCase(out, "</head>");
+            int bodyStart = indexOfIgnoreCase(out, "<body");
+            int boundary = headEnd >= 0 ? headEnd : bodyStart;
+            int strayIdx = findStrayGtLine(out, styleStart, boundary >= 0 ? boundary : out.length());
+            if (strayIdx >= 0) {
+                int strayEnd = out.indexOf('\n', strayIdx);
+                if (strayEnd < 0) strayEnd = out.length();
+                out = out.substring(0, strayIdx) + "</style>" + out.substring(strayEnd);
+            } else if (boundary >= 0) {
+                out = out.substring(0, boundary) + "</style>\n" + out.substring(boundary);
+            }
+        }
+
+        // 2) </script> exists but <script> does not: same trick — the missing "<script>" usually
+        // shows up as a stray ">" on its own line right before the JS body.
+        boolean hasScriptOpen = indexOfIgnoreCase(out, "<script") >= 0;
+        boolean hasScriptClose = indexOfIgnoreCase(out, "</script>") >= 0;
+        if (!hasScriptOpen && hasScriptClose) {
+            int closeIdx = indexOfIgnoreCase(out, "</script>");
+            int footerEnd = indexOfIgnoreCase(out, "</footer>");
+            int searchFrom = footerEnd >= 0 ? footerEnd : 0;
+            int strayIdx = findStrayGtLine(out, searchFrom, closeIdx);
+            if (strayIdx >= 0) {
+                int strayEnd = out.indexOf('\n', strayIdx);
+                if (strayEnd < 0) strayEnd = out.length();
+                out = out.substring(0, strayIdx) + "<script>" + out.substring(strayEnd);
+            } else if (footerEnd >= 0 && footerEnd < closeIdx) {
+                int afterFooter = footerEnd + "</footer>".length();
+                out = out.substring(0, afterFooter) + "\n<script>" + out.substring(afterFooter);
+            } else {
+                out = out.replaceAll("(?i)</script>", "");
+            }
+        }
+
+        return out;
+    }
+
+    /** Find the LAST line in s[from..to] whose only non-whitespace content is a single '>'. */
+    private static int findStrayGtLine(String s, int from, int to) {
+        if (s == null || from < 0 || to <= from || to > s.length()) return -1;
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("(?m)^[ \\t]*>[ \\t]*$");
+        java.util.regex.Matcher m = p.matcher(s);
+        m.region(from, to);
+        int found = -1;
+        while (m.find()) found = m.start();
+        return found;
+    }
+
+    private static int indexOfIgnoreCase(String s, String needle) {
+        return s.toLowerCase().indexOf(needle.toLowerCase());
+    }
+
+    @GetMapping("/export.csv")
+    public void exportCsv(@ModelAttribute("searchForm") UserSearchForm searchForm,
+                          HttpServletResponse response) throws IOException {
+        response.setContentType("text/csv; charset=UTF-8");
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setHeader("Content-Disposition",
+                "attachment; filename=\"users.csv\"; filename*=UTF-8''users.csv");
+        PrintWriter writer = response.getWriter();
+        service.exportCsv(searchForm, writer);
+        writer.flush();
+    }
+}

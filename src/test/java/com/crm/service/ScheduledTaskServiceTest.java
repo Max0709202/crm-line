@@ -1,0 +1,274 @@
+package com.crm.service;
+
+import com.crm.entity.Broadcast;
+import com.crm.entity.Message;
+import com.crm.repository.BroadcastRepository;
+import com.crm.repository.CarrierAddressPoolRepository;
+import com.crm.repository.CarrierUserBindingRepository;
+import com.crm.repository.CrmSettingRepository;
+import com.crm.repository.MessageRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.Optional;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * Scheduled broadcast snapshot semantics: every materialised MESSAGE row of a scheduled
+ * broadcast fires at dispatch time regardless of intermediate OUT activity for the same
+ * user. Cancel-race protection (operator cancelled the parent broadcast) is still honoured.
+ *
+ * The scheduler-lock branch is short-circuited by stubbing the CrmSettingRepository so the
+ * lock is always claimable; we focus on the per-message exclusion path.
+ */
+class ScheduledTaskServiceTest {
+
+    private MessageRepository msgRepo;
+    private CarrierAddressPoolRepository poolRepo;
+    private MessageService messageService;
+    private CrmSettingRepository settingRepo;
+    private CarrierUserBindingRepository bindingRepo;
+    private DomainSettingService domainSettings;
+    private BroadcastRepository broadcastRepo;
+    private SmsSettingService smsSettingService;
+    private com.crm.repository.DiffScheduleStepRepository diffScheduleStepRepo;
+    private DiffScheduleService diffScheduleService;
+    private ScheduledTaskService svc;
+
+    @BeforeEach
+    void setUp() {
+        msgRepo = mock(MessageRepository.class);
+        poolRepo = mock(CarrierAddressPoolRepository.class);
+        messageService = mock(MessageService.class);
+        settingRepo = mock(CrmSettingRepository.class);
+        bindingRepo = mock(CarrierUserBindingRepository.class);
+        domainSettings = mock(DomainSettingService.class);
+        broadcastRepo = mock(BroadcastRepository.class);
+
+        // Make the dispatcher lock always acquirable (empty value, no holder).
+        when(settingRepo.findBySettingKey(anyString())).thenReturn(Optional.empty());
+
+        FolderSettingService folderSettings = mock(FolderSettingService.class);
+        FolderRetentionService folderRetention = mock(FolderRetentionService.class);
+        com.crm.repository.InboundMailLogRepository inboundLogRepo =
+                mock(com.crm.repository.InboundMailLogRepository.class);
+        InboundMailService inboundMail = mock(InboundMailService.class);
+        com.crm.repository.UserAccessLogRepository userAccessLogRepo =
+                mock(com.crm.repository.UserAccessLogRepository.class);
+        smsSettingService = mock(SmsSettingService.class);
+        when(smsSettingService.getRatePerMinute()).thenReturn(600); // fast in tests: 100ms/msg
+        FolderAutoMoveService folderAutoMoveService = mock(FolderAutoMoveService.class);
+        diffScheduleStepRepo = mock(com.crm.repository.DiffScheduleStepRepository.class);
+        diffScheduleService = mock(DiffScheduleService.class);
+        BackupService backupService = mock(BackupService.class);
+        svc = new ScheduledTaskService(msgRepo, poolRepo, messageService,
+                settingRepo, bindingRepo, domainSettings, broadcastRepo,
+                folderSettings, folderRetention, inboundLogRepo, inboundMail, userAccessLogRepo,
+                smsSettingService, folderAutoMoveService, diffScheduleStepRepo, diffScheduleService,
+                backupService);
+    }
+
+    private static Message scheduledBroadcastRow(Long id, Long userId, Long broadcastId,
+                                                  LocalDateTime createdAt, LocalDateTime scheduledAt) {
+        Message m = new Message();
+        m.setId(id);
+        m.setUserId(userId);
+        m.setBroadcastId(broadcastId);
+        m.setDirection(Message.DIR_OUT);
+        m.setFromAddress("from@avu74g.jp");
+        m.setToAddress("to@example.com");
+        m.setSubject("s");
+        m.setBodyText("b");
+        m.setStatus(Message.STATUS_QUEUED);
+        m.setCreatedAt(createdAt);
+        m.setScheduledAt(scheduledAt);
+        return m;
+    }
+
+    private static Broadcast broadcast(Long id, LocalDateTime createdAt) {
+        Broadcast b = new Broadcast();
+        b.setId(id);
+        b.setCreatedAt(createdAt);
+        return b;
+    }
+
+    @Test
+    void dispatchesScheduledBroadcastRow_evenWhenUserReceivedOtherSendsInBetween() {
+        // 2026-05-29: client requested snapshot semantics — every materialised MESSAGE
+        // row of a scheduled broadcast must fire at dispatch time, regardless of any
+        // other OUT activity for the same user in the gap between schedule and dispatch.
+        // (Earlier exclusion logic was removed; this test asserts the new behaviour.)
+        LocalDateTime bCreated = LocalDateTime.now().minusHours(2);
+        LocalDateTime scheduled = LocalDateTime.now().minusMinutes(1); // due
+        Message m = scheduledBroadcastRow(1L, 7L, 99L, bCreated, scheduled);
+
+        when(msgRepo.findDueForDispatch(eq(Message.STATUS_QUEUED), any())).thenReturn(
+                Collections.singletonList(m));
+        when(broadcastRepo.findById(99L)).thenReturn(Optional.of(broadcast(99L, bCreated)));
+
+        svc.dispatchQueued();
+
+        // Row must be sent normally — no CANCELLED save.
+        verify(messageService).sendNow(eq(m), any());
+        verify(msgRepo, never()).save(any(Message.class));
+        verify(msgRepo, never()).countOutboundFinalisedSince(anyLong(), any(), anyLong());
+    }
+
+    @Test
+    void dispatchesNormally_forNonBroadcastQueuedMessage() {
+        // No broadcastId → broadcast-cancel check is skipped entirely, message is sent.
+        Message m = scheduledBroadcastRow(3L, 7L, null,
+                LocalDateTime.now().minusHours(2), LocalDateTime.now().minusMinutes(1));
+
+        when(msgRepo.findDueForDispatch(eq(Message.STATUS_QUEUED), any())).thenReturn(
+                Collections.singletonList(m));
+
+        svc.dispatchQueued();
+
+        verify(messageService).sendNow(eq(m), any());
+        verify(broadcastRepo, never()).findById(anyLong());
+        verify(msgRepo, never()).countOutboundFinalisedSince(anyLong(), any(), anyLong());
+    }
+
+    @Test
+    void dispatchesImmediateBroadcast_whenScheduledAtEqualsCreatedAt() {
+        // Immediate (non-scheduled) broadcast row dispatches normally.
+        LocalDateTime t = LocalDateTime.now().minusMinutes(1);
+        Message m = scheduledBroadcastRow(4L, 7L, 99L, t, t);
+
+        when(msgRepo.findDueForDispatch(eq(Message.STATUS_QUEUED), any())).thenReturn(
+                Collections.singletonList(m));
+        when(broadcastRepo.findById(99L)).thenReturn(Optional.of(broadcast(99L, t)));
+
+        svc.dispatchQueued();
+
+        verify(messageService).sendNow(eq(m), any());
+        verify(msgRepo, never()).countOutboundFinalisedSince(anyLong(), any(), anyLong());
+    }
+
+    @Test
+    void dispatchQueued_smsMessage_sentViaSerialLane() throws Exception {
+        // 2026-08-06 fix: SMS must not go through the parallel workerPool (the relay's own
+        // rate-limiter isn't safe under concurrent requests — see class-level dispatchQueued
+        // comment). This just asserts the message still gets sent, since the serial lane runs
+        // async on a background thread — awaitSendNow polls until sendNow() has been invoked.
+        Message sms = scheduledBroadcastRow(10L, 7L, null,
+                LocalDateTime.now().minusHours(1), LocalDateTime.now().minusMinutes(1));
+        sms.setChannel(Message.CHANNEL_SMS);
+
+        when(msgRepo.findDueForDispatch(eq(Message.STATUS_QUEUED), any())).thenReturn(
+                Collections.singletonList(sms));
+
+        svc.dispatchQueued();
+
+        awaitSendNowCalled(sms);
+        verify(messageService).sendNow(eq(sms), any());
+    }
+
+    @Test
+    void dispatchQueued_mixedChannels_bothEventuallyDispatched() throws Exception {
+        Message sms = scheduledBroadcastRow(11L, 7L, null,
+                LocalDateTime.now().minusHours(1), LocalDateTime.now().minusMinutes(1));
+        sms.setChannel(Message.CHANNEL_SMS);
+        Message email = scheduledBroadcastRow(12L, 8L, null,
+                LocalDateTime.now().minusHours(1), LocalDateTime.now().minusMinutes(1));
+        email.setChannel(Message.CHANNEL_EMAIL);
+
+        when(msgRepo.findDueForDispatch(eq(Message.STATUS_QUEUED), any())).thenReturn(
+                java.util.Arrays.asList(sms, email));
+
+        svc.dispatchQueued();
+
+        // Email dispatches synchronously within dispatchQueued() (parallel workerPool, awaited
+        // before the method returns), so it's already sent by the time we get here.
+        verify(messageService).sendNow(eq(email), any());
+        // SMS runs async on the serial lane — poll for it.
+        awaitSendNowCalled(sms);
+        verify(messageService).sendNow(eq(sms), any());
+    }
+
+    /** Polls up to 2s for messageService.sendNow(msg, ...) to have been invoked — the SMS
+     *  serial lane dispatches on a background thread, not on the calling test thread. */
+    private void awaitSendNowCalled(Message msg) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 2000;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                verify(messageService).sendNow(eq(msg), any());
+                return;
+            } catch (AssertionError notYet) {
+                Thread.sleep(20);
+            }
+        }
+    }
+
+    private static <T> T eq(T expected) { return org.mockito.ArgumentMatchers.eq(expected); }
+
+    // ---- Diff-schedule dispatcher ----
+
+    private static com.crm.entity.DiffScheduleStep diffScheduleStep(Long id, String status) {
+        com.crm.entity.DiffScheduleStep s = new com.crm.entity.DiffScheduleStep();
+        s.setId(id);
+        s.setStatus(status);
+        s.setDiffScheduleId(1L);
+        s.setStepOrder(0);
+        s.setStepType(com.crm.entity.DiffStep.STEP_HTML_SWITCH);
+        s.setMemoSlotSnapshot(2);
+        s.setOffsetMode(com.crm.entity.DiffStep.OFFSET_MINUTES);
+        s.setOffsetMinutes(1);
+        s.setScheduledFor(LocalDateTime.now().minusMinutes(1));
+        return s;
+    }
+
+    @Test
+    void dispatchDueDiffSchedules_executesDueRow() {
+        com.crm.entity.DiffScheduleStep s = diffScheduleStep(10L, com.crm.entity.DiffScheduleStep.STATUS_PENDING);
+        when(diffScheduleStepRepo.findDueForExecution(eq(com.crm.entity.DiffScheduleStep.STATUS_PENDING), any()))
+                .thenReturn(Collections.singletonList(s));
+        when(diffScheduleStepRepo.findById(10L)).thenReturn(Optional.of(s));
+
+        svc.dispatchDueDiffSchedules();
+
+        verify(diffScheduleService).execute(s);
+    }
+
+    @Test
+    void dispatchDueDiffSchedules_reFetchesBeforeExecuting_skipsIfCancelledMidTick() {
+        // The initial findDueForExecution() snapshot says PENDING, but by the time this tick
+        // re-fetches the row (immediately before executing) an operator has cancelled it —
+        // execute() must never be called on an already-CANCELLED row.
+        com.crm.entity.DiffScheduleStep stale = diffScheduleStep(11L, com.crm.entity.DiffScheduleStep.STATUS_PENDING);
+        com.crm.entity.DiffScheduleStep fresh = diffScheduleStep(11L, com.crm.entity.DiffScheduleStep.STATUS_CANCELLED);
+        when(diffScheduleStepRepo.findDueForExecution(eq(com.crm.entity.DiffScheduleStep.STATUS_PENDING), any()))
+                .thenReturn(Collections.singletonList(stale));
+        when(diffScheduleStepRepo.findById(11L)).thenReturn(Optional.of(fresh));
+
+        svc.dispatchDueDiffSchedules();
+
+        verify(diffScheduleService, org.mockito.Mockito.never()).execute(any());
+    }
+
+    @Test
+    void dispatchDueDiffSchedules_continuesAfterOneRowThrows() {
+        com.crm.entity.DiffScheduleStep s1 = diffScheduleStep(12L, com.crm.entity.DiffScheduleStep.STATUS_PENDING);
+        com.crm.entity.DiffScheduleStep s2 = diffScheduleStep(13L, com.crm.entity.DiffScheduleStep.STATUS_PENDING);
+        when(diffScheduleStepRepo.findDueForExecution(eq(com.crm.entity.DiffScheduleStep.STATUS_PENDING), any()))
+                .thenReturn(java.util.Arrays.asList(s1, s2));
+        when(diffScheduleStepRepo.findById(12L)).thenReturn(Optional.of(s1));
+        when(diffScheduleStepRepo.findById(13L)).thenReturn(Optional.of(s2));
+        org.mockito.Mockito.doThrow(new RuntimeException("boom")).when(diffScheduleService).execute(s1);
+
+        svc.dispatchDueDiffSchedules();
+
+        verify(diffScheduleService).execute(s1);
+        verify(diffScheduleService).execute(s2);
+    }
+}

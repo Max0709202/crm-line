@@ -1,0 +1,277 @@
+package com.crm.entity;
+
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.PrePersist;
+import javax.persistence.PreUpdate;
+import javax.persistence.Table;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "CRM_USER")
+public class CrmUser {
+
+    public static final String STATUS_ACTIVE = "ACTIVE";
+    public static final String STATUS_SUSPENDED = "SUSPENDED";
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    /** Optional — an SMS-only user (see {@link #phoneNumber}) may have no email at all.
+     *  At least one of email/phoneNumber is enforced at the service layer (CrmUserService),
+     *  not here; multiple NULLs are fine under the DB's UNIQUE index. */
+    @Column(name = "EMAIL", unique = true)
+    private String email;
+
+    /** SMS delivery target (BytePlus SMS channel). Required when email is blank
+     *  (SMS-only user); otherwise optional. */
+    @Column(name = "PHONE_NUMBER", length = 20)
+    private String phoneNumber;
+
+    /**
+     * Set when this user's email has an RFC-invalid local-part that the relay's SMTP client
+     * will reject (trailing/leading dot, consecutive dots). See {@link com.crm.util.CsvUtil}
+     * for the reason codes. Broadcasts skip users where this is non-null; the user list and
+     * detail page show a 「送信不可」 badge so the operator can spot them.
+     */
+    @Column(name = "ADDRESS_INVALID_REASON", length = 64)
+    private String addressInvalidReason;
+
+    @Column(name = "DISPLAY_NAME")
+    private String displayName;
+
+    @Column(name = "LOGIN_ID")
+    private String loginId;
+
+    @Column(name = "LOGIN_PASSWORD")
+    private String loginPassword;
+
+    @Column(name = "CARRIER_DOMAIN")
+    private String carrierDomain;
+
+    @Column(name = "STATUS")
+    private String status;
+
+    /** Advertising / agency tag — the {@code AD_CODE.code} that referred this user. */
+    @Column(name = "AD_CODE", length = 64)
+    private String adCode;
+
+    /** "M" / "F" / null — drives the 男性/女性 split on the agency dashboard. */
+    @Column(name = "GENDER", length = 8)
+    private String gender;
+
+    /** User-assigned grouping folder (free-form; choices are managed via settings). */
+    @Column(name = "FOLDER", length = 64)
+    private String folder;
+
+    @Column(name = "LAST_LOGIN_AT")
+    private LocalDateTime lastLoginAt;
+
+    /** Per-user reply-page HTML (rendered as HTML on the public reply page).
+     *  LONGTEXT (4GB) so operators can paste full landing-page HTML with
+     *  base64-embedded images — TEXT (64KB) was being exceeded.
+     *  Slot 1 of three; see {@link #memo2}, {@link #memo3}, {@link #activeMemoSlot}. */
+    @Column(name = "MEMO", columnDefinition = "LONGTEXT")
+    private String memo;
+
+    /** Slots 2-10 for the reply-page header HTML (slots 2-3 added 2026-05-23, 4-6 added
+     *  2026-05-25 for the bulk-edit workflow, 7-10 added 2026-09-02 per operator request —
+     *  displayed as a 5x2 grid in the admin UI). The operator switches between them via
+     *  {@code activeMemoSlot}; the public /reply page reads whichever slot is currently
+     *  marked 使用中. */
+    @Column(name = "MEMO_2", columnDefinition = "LONGTEXT")
+    private String memo2;
+    @Column(name = "MEMO_3", columnDefinition = "LONGTEXT")
+    private String memo3;
+    @Column(name = "MEMO_4", columnDefinition = "LONGTEXT")
+    private String memo4;
+    @Column(name = "MEMO_5", columnDefinition = "LONGTEXT")
+    private String memo5;
+    @Column(name = "MEMO_6", columnDefinition = "LONGTEXT")
+    private String memo6;
+    @Column(name = "MEMO_7", columnDefinition = "LONGTEXT")
+    private String memo7;
+    @Column(name = "MEMO_8", columnDefinition = "LONGTEXT")
+    private String memo8;
+    @Column(name = "MEMO_9", columnDefinition = "LONGTEXT")
+    private String memo9;
+    @Column(name = "MEMO_10", columnDefinition = "LONGTEXT")
+    private String memo10;
+    @Column(name = "ACTIVE_MEMO_SLOT", nullable = false)
+    private Integer activeMemoSlot;
+
+    /** Admin-only internal memo (never shown to the user). */
+    @Column(name = "INTERNAL_MEMO", columnDefinition = "LONGTEXT")
+    private String internalMemo;
+
+    @Column(name = "TAG1_KEY")   private String tag1Key;
+    @Column(name = "TAG1_VALUE") private String tag1Value;
+    @Column(name = "TAG2_KEY")   private String tag2Key;
+    @Column(name = "TAG2_VALUE") private String tag2Value;
+    @Column(name = "TAG3_KEY")   private String tag3Key;
+    @Column(name = "TAG3_VALUE") private String tag3Value;
+    @Column(name = "TAG4_KEY")   private String tag4Key;
+    @Column(name = "TAG4_VALUE") private String tag4Value;
+    @Column(name = "TAG5_KEY")   private String tag5Key;
+    @Column(name = "TAG5_VALUE") private String tag5Value;
+
+    @Column(name = "LAST_PAYMENT_AT")
+    private LocalDateTime lastPaymentAt;
+
+    @Column(name = "CREATED_AT", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "UPDATED_AT", nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) createdAt = now;
+        updatedAt = now;
+        if (status == null) status = STATUS_ACTIVE;
+        if (activeMemoSlot == null || activeMemoSlot < 1 || activeMemoSlot > 10) activeMemoSlot = 1;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+    public String getAddressInvalidReason() { return addressInvalidReason; }
+    public void setAddressInvalidReason(String addressInvalidReason) { this.addressInvalidReason = addressInvalidReason; }
+
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+
+    public String getLoginId() { return loginId; }
+    public void setLoginId(String loginId) { this.loginId = loginId; }
+
+    public String getLoginPassword() { return loginPassword; }
+    public void setLoginPassword(String loginPassword) { this.loginPassword = loginPassword; }
+
+    public String getCarrierDomain() { return carrierDomain; }
+    public void setCarrierDomain(String carrierDomain) { this.carrierDomain = carrierDomain; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
+    public String getFolder() { return folder; }
+    public void setFolder(String folder) { this.folder = folder; }
+    public String getAdCode() { return adCode; }
+    public void setAdCode(String adCode) { this.adCode = adCode; }
+    public String getGender() { return gender; }
+    public void setGender(String gender) { this.gender = gender; }
+
+    public LocalDateTime getLastLoginAt() { return lastLoginAt; }
+    public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+
+    public String getMemo() { return memo; }
+    public void setMemo(String memo) { this.memo = memo; }
+
+    public String getMemo2() { return memo2; }
+    public void setMemo2(String memo2) { this.memo2 = memo2; }
+    public String getMemo3() { return memo3; }
+    public void setMemo3(String memo3) { this.memo3 = memo3; }
+    public String getMemo4() { return memo4; }
+    public void setMemo4(String memo4) { this.memo4 = memo4; }
+    public String getMemo5() { return memo5; }
+    public void setMemo5(String memo5) { this.memo5 = memo5; }
+    public String getMemo6() { return memo6; }
+    public void setMemo6(String memo6) { this.memo6 = memo6; }
+    public String getMemo7() { return memo7; }
+    public void setMemo7(String memo7) { this.memo7 = memo7; }
+    public String getMemo8() { return memo8; }
+    public void setMemo8(String memo8) { this.memo8 = memo8; }
+    public String getMemo9() { return memo9; }
+    public void setMemo9(String memo9) { this.memo9 = memo9; }
+    public String getMemo10() { return memo10; }
+    public void setMemo10(String memo10) { this.memo10 = memo10; }
+    public Integer getActiveMemoSlot() { return activeMemoSlot == null ? 1 : activeMemoSlot; }
+    public void setActiveMemoSlot(Integer s) {
+        this.activeMemoSlot = (s == null || s < 1 || s > 10) ? 1 : s;
+    }
+
+    /** Returns the HTML for the slot currently marked 使用中. */
+    public String getActiveMemo() {
+        return getMemoSlot(getActiveMemoSlot());
+    }
+
+    /** Read any slot (1..10) by index. */
+    public String getMemoSlot(int n) {
+        switch (n) {
+            case 2: return memo2;
+            case 3: return memo3;
+            case 4: return memo4;
+            case 5: return memo5;
+            case 6: return memo6;
+            case 7: return memo7;
+            case 8: return memo8;
+            case 9: return memo9;
+            case 10: return memo10;
+            default: return memo;
+        }
+    }
+    public void setMemoSlot(int n, String value) {
+        switch (n) {
+            case 2: this.memo2 = value; break;
+            case 3: this.memo3 = value; break;
+            case 4: this.memo4 = value; break;
+            case 5: this.memo5 = value; break;
+            case 6: this.memo6 = value; break;
+            case 7: this.memo7 = value; break;
+            case 8: this.memo8 = value; break;
+            case 9: this.memo9 = value; break;
+            case 10: this.memo10 = value; break;
+            default: this.memo = value;
+        }
+    }
+
+    public String getInternalMemo() { return internalMemo; }
+    public void setInternalMemo(String internalMemo) { this.internalMemo = internalMemo; }
+
+    public String getTag1Key() { return tag1Key; }
+    public void setTag1Key(String v) { this.tag1Key = v; }
+    public String getTag1Value() { return tag1Value; }
+    public void setTag1Value(String v) { this.tag1Value = v; }
+
+    public String getTag2Key() { return tag2Key; }
+    public void setTag2Key(String v) { this.tag2Key = v; }
+    public String getTag2Value() { return tag2Value; }
+    public void setTag2Value(String v) { this.tag2Value = v; }
+
+    public String getTag3Key() { return tag3Key; }
+    public void setTag3Key(String v) { this.tag3Key = v; }
+    public String getTag3Value() { return tag3Value; }
+    public void setTag3Value(String v) { this.tag3Value = v; }
+
+    public String getTag4Key() { return tag4Key; }
+    public void setTag4Key(String v) { this.tag4Key = v; }
+    public String getTag4Value() { return tag4Value; }
+    public void setTag4Value(String v) { this.tag4Value = v; }
+
+    public String getTag5Key() { return tag5Key; }
+    public void setTag5Key(String v) { this.tag5Key = v; }
+    public String getTag5Value() { return tag5Value; }
+    public void setTag5Value(String v) { this.tag5Value = v; }
+
+    public LocalDateTime getLastPaymentAt() { return lastPaymentAt; }
+    public void setLastPaymentAt(LocalDateTime v) { this.lastPaymentAt = v; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+}

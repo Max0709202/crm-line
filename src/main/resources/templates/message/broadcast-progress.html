@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="'一斉送信 ' + (${broadcast.title} ?: '')">一斉送信</title>
+    <meta th:if="${running}" http-equiv="refresh" content="5"/>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1" th:text="'一斉送信 ' + (${broadcast.title} ?: '')"></h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/messages/broadcast}">一覧に戻る</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-4" style="max-width: 820px;">
+        <div class="flex items-center mb-3">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mr-2"
+                  th:classappend="${broadcast.status == 'COMPLETED'} ? 'bg-emerald-100 text-emerald-700'
+                                   : (${broadcast.status == 'SENDING'} ? 'bg-blue-100 text-blue-700'
+                                   : (${broadcast.status == 'SCHEDULED'} ? 'bg-sky-100 text-sky-700'
+                                   : (${broadcast.status == 'CANCELLED'} ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 text-slate-600')))"
+                  th:text="${broadcast.status}"></span>
+            <span class="text-xs text-slate-500">
+                作成: <span th:text="${#temporals.format(broadcast.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+            </span>
+            <span class="ml-auto text-xs text-slate-500" th:if="${running}">
+                5秒ごとに自動更新しています…
+            </span>
+        </div>
+
+        <div class="w-full bg-slate-200 rounded overflow-hidden mb-2" style="height: 24px;">
+            <div class="h-full flex items-center justify-center text-xs font-medium text-white transition-all"
+                 th:classappend="${broadcast.failedCount > 0} ? 'bg-amber-500' : 'bg-blue-600'"
+                 th:style="'width: ' + ${donePct} + '%'"
+                 th:text="${donePct} + '%'"></div>
+        </div>
+
+        <div class="grid grid-cols-5 gap-3 text-center mt-4">
+            <div><div class="text-xs text-slate-500">対象</div><div class="text-2xl font-bold" th:text="${broadcast.totalCount}"></div></div>
+            <div><div class="text-xs text-slate-500">送信済み</div><div class="text-2xl font-bold text-emerald-600" th:text="${broadcast.sentCount}"></div></div>
+            <div><div class="text-xs text-slate-500">失敗</div><div class="text-2xl font-bold text-red-600" th:text="${broadcast.failedCount}"></div></div>
+            <div>
+                <div class="text-xs text-slate-500">送信不可</div>
+                <div class="text-2xl font-bold text-amber-700" th:text="${broadcast.unsendableCount ?: 0}"></div>
+            </div>
+            <div><div class="text-xs text-slate-500">残り</div><div class="text-2xl font-bold" th:text="${broadcast.totalCount - doneCount}"></div></div>
+        </div>
+
+        <!-- 対象ユーザー: full resolved recipient list, so a past send's targets can still be
+             looked up later. Address/number copy separately per operator request (2026-09-09). -->
+        <details th:if="${targetUsers != null and !targetUsers.empty}" class="mt-4 rounded border border-slate-200 bg-slate-50">
+            <summary class="px-3 py-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
+                対象ユーザー（<span th:text="${targetUsers.size()}"></span> 名）
+            </summary>
+            <div class="px-3 pb-3">
+                <div class="flex gap-2 mb-2">
+                    <button type="button" class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded hover:bg-slate-100"
+                            onclick="copyTargetColumn('targetPhones')">番号をコピー</button>
+                    <button type="button" class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded hover:bg-slate-100"
+                            onclick="copyTargetColumn('targetEmails')">アドレスをコピー</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <div class="text-xs text-slate-500 mb-1">番号</div>
+                        <textarea id="targetPhones" readonly rows="8" class="tw-input text-xs" style="font-family:monospace;" th:text="${targetPhonesText}"></textarea>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-500 mb-1">アドレス</div>
+                        <textarea id="targetEmails" readonly rows="8" class="tw-input text-xs" style="font-family:monospace;" th:text="${targetEmailsText}"></textarea>
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <!-- Error detail accordion: collapsed by default; click 「エラー詳細を表示」 to reveal
+             the list of skipped addresses with their failure reason. Uses native <details>
+             so no JavaScript is needed and screen-readers behave correctly. -->
+        <details th:if="${broadcast.unsendableCount != null and broadcast.unsendableCount > 0}"
+                 class="mt-4 rounded border border-amber-300 bg-amber-50">
+            <summary class="px-3 py-2 text-sm font-semibold text-amber-900 cursor-pointer select-none">
+                ⚠ エラー詳細 (送信不可 <span th:text="${broadcast.unsendableCount}">0</span> 件)
+            </summary>
+            <div class="px-3 py-2 text-xs text-amber-900 border-t border-amber-200">
+                <p class="mb-2" th:if="${broadcast.channel == 'SMS'}">
+                    以下のユーザーは電話番号が未登録のため、今回のSMS一斉送信の対象から除外されました。
+                </p>
+                <p class="mb-2" th:unless="${broadcast.channel == 'SMS'}">
+                    以下のアドレスは形式エラー（先頭/末尾ドット、連続ドット等）のため、転送機の SMTP 送信時に拒否されることが事前に判明しているため、今回の一斉送信では除外されました。
+                </p>
+                <table class="w-full text-xs">
+                    <thead class="bg-amber-100">
+                        <tr>
+                            <th class="px-2 py-1 text-left" style="width: 70px;">ID</th>
+                            <th class="px-2 py-1 text-left">メールアドレス</th>
+                            <th class="px-2 py-1 text-left" style="width: 160px;">エラー内容</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-amber-100">
+                        <tr th:each="u : ${unsendableUsers}">
+                            <td class="px-2 py-1 font-mono" th:text="${u.id}"></td>
+                            <td class="px-2 py-1">
+                                <a class="text-blue-700 hover:underline"
+                                   th:href="@{'/manager/users/' + ${u.id}}" th:text="${u.email}"></a>
+                            </td>
+                            <td class="px-2 py-1" th:if="${broadcast.channel == 'SMS'}">電話番号未登録</td>
+                            <td class="px-2 py-1" th:unless="${broadcast.channel == 'SMS'}"
+                                th:text="${u.addressInvalidReason == 'trailing_dot'} ? '末尾にドット' :
+                                                          (${u.addressInvalidReason == 'leading_dot'} ? '先頭にドット' :
+                                                          (${u.addressInvalidReason == 'double_dot'} ? '連続ドット' : ${u.addressInvalidReason}))"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+
+        <div class="mt-4" th:if="${broadcast.status == 'SENDING' or broadcast.status == 'SCHEDULED'}">
+            <form method="post" th:action="@{'/manager/messages/broadcast/' + ${broadcast.id} + '/cancel'}"
+                  onsubmit="return confirm('送信をキャンセルします。未送信のメッセージは取り消されます。よろしいですか?');">
+                <button type="submit" class="inline-flex items-center px-3 py-2 text-sm border border-red-500 text-red-600 hover:bg-red-50 rounded-md">キャンセル</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden" style="max-width: 820px;">
+        <div class="px-4 py-2 text-xs text-slate-500 bg-slate-50 border-b border-slate-200">内容</div>
+        <table class="w-full text-sm">
+            <tbody class="divide-y divide-slate-100">
+                <!-- The broadcast form has only a "subject" input; title is auto-populated from
+                     subject when not explicitly set. Show the title row only when it actually
+                     differs from the subject so the detail screen doesn't render duplicates. -->
+                <tr th:if="${broadcast.title != null and broadcast.title != broadcast.subject}">
+                    <th class="px-4 py-2 text-left text-slate-600 bg-slate-50" style="width: 180px;">タイトル</th>
+                    <td class="px-4 py-2" th:text="${broadcast.title}"></td>
+                </tr>
+                <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50" style="width: 180px;">件名</th><td class="px-4 py-2" th:text="${broadcast.subject}"></td></tr>
+                <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50">本文</th><td class="px-4 py-2" style="white-space: pre-wrap;" th:text="${broadcast.bodyText}"></td></tr>
+                <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50">対象フィルタ</th><td class="px-4 py-2 text-xs text-slate-500" th:text="${broadcast.targetFilter}"></td></tr>
+                <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50">レート</th><td class="px-4 py-2"><span th:text="${broadcast.ratePerMinute}"></span> 件/分</td></tr>
+                <tr th:if="${broadcast.scheduledAt != null}">
+                    <th class="px-4 py-2 text-left text-slate-600 bg-slate-50">予約日時</th><td class="px-4 py-2" th:text="${#temporals.format(broadcast.scheduledAt, 'yyyy-MM-dd HH:mm')}"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function copyTargetColumn(elId) {
+            var el = document.getElementById(elId);
+            if (!el) return;
+            el.select();
+            navigator.clipboard.writeText(el.value).catch(function () {
+                document.execCommand('copy');
+            });
+        }
+    </script>
+</section>
+</body>
+</html>

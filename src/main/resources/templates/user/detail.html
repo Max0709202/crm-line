@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>ユーザー詳細</title>
+</head>
+<body>
+<section layout:fragment="content">
+
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">ユーザー詳細</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-violet-500 text-violet-600 hover:bg-violet-50 rounded-md mr-2"
+           th:href="@{'/manager/users/' + ${user.id} + '/diff-schedules'}" target="_blank">差分スケジュール確認/削除</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-blue-500 text-blue-600 hover:bg-blue-50 rounded-md"
+           th:href="@{'/manager/users/' + ${user.id} + '/thread'}" target="_blank">メッセージスレッド</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-indigo-500 text-indigo-600 hover:bg-indigo-50 rounded-md ml-2"
+           th:href="@{'/manager/users/' + ${user.id} + '/message-box'}" target="_blank">メッセージボックス</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md ml-2" th:href="@{/manager/users}">一覧に戻る</a>
+    </div>
+
+    <div th:if="${issuedCredentials}" class="mb-4 rounded-md border border-amber-300 bg-amber-50 overflow-hidden">
+        <div class="bg-amber-100 px-4 py-2">
+            <strong class="text-amber-900">認証情報を発行しました</strong>
+            <span class="text-xs text-amber-800 ml-2">画面を離れるとパスワードは再表示できません。必ず控えてください。</span>
+        </div>
+        <table class="w-full text-sm">
+            <tr class="border-t border-amber-200"><th class="text-left px-4 py-2 w-40 text-slate-700">ログインID</th><td class="px-4 py-2"><code class="bg-white px-2 py-1 rounded border" th:text="${issuedCredentials.loginId}"></code></td></tr>
+            <tr class="border-t border-amber-200"><th class="text-left px-4 py-2 text-slate-700">パスワード</th><td class="px-4 py-2"><code class="bg-white px-2 py-1 rounded border" th:text="${issuedCredentials.plainPassword}"></code></td></tr>
+        </table>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <!-- ===== LEFT: inline edit ===== -->
+        <form method="post" th:action="@{'/manager/users/' + ${user.id}}" th:object="${form}"
+              class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 flex flex-col gap-4"
+              onsubmit="return maybeConfirmEmailChange(this);">
+
+            <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">基本情報</h2>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">メールアドレス <span class="text-red-500">*</span></label>
+                    <input type="email" class="tw-input" th:field="*{email}" th:attr="data-original-email=${user.email}"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">電話番号 (SMS配信用)</label>
+                    <input type="text" class="tw-input" th:field="*{phoneNumber}" placeholder="例: 09012345678"/>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-500 mb-1">表示名</label>
+                <input type="text" class="tw-input" th:field="*{displayName}"/>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">キャリアドメイン</label>
+                    <input type="text" class="tw-input" th:field="*{carrierDomain}" placeholder="例: docomo.ne.jp"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">ステータス</label>
+                    <select class="tw-input" th:field="*{status}">
+                        <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}"></option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">フォルダ</label>
+                    <select class="tw-input" th:field="*{folder}">
+                        <option value="">（未設定）</option>
+                        <!-- Fallback for users whose folder was renamed in settings: their saved
+                             value no longer matches any configured option, which would otherwise
+                             make the browser show "（未設定）" while the DB still held the old name —
+                             saving without noticing would then silently blank the folder. Render
+                             the orphan value as an extra option so it stays visible and selected. -->
+                        <option th:if="${form.folder != null and form.folder != '' and !#lists.contains(folders, form.folder)}"
+                                th:value="${form.folder}"
+                                th:text="${form.folder} + ' （旧名 — 要移行）'"></option>
+                        <option th:each="f : ${folders}" th:value="${f}" th:text="${f}"></option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">広告コード <span class="text-slate-400 normal-case">(空欄でOK)</span></label>
+                    <input type="text" class="tw-input" th:field="*{adCode}" maxlength="64"
+                           list="adCodeChoices" placeholder="例: kaiun_I_mail"/>
+                    <datalist id="adCodeChoices">
+                        <option th:each="ac : ${adCodeChoices}" th:value="${ac.code}" th:text="${ac.name} + ' (' + ${ac.code} + ')'"></option>
+                    </datalist>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-500 mb-1">性別 <span class="text-slate-400 normal-case">(代理店ダッシュボードの男女集計に使用)</span></label>
+                <select class="tw-input" th:field="*{gender}">
+                    <option value="">未選択</option>
+                    <option value="M">男性</option>
+                    <option value="F">女性</option>
+                </select>
+            </div>
+
+            <!-- Ten reply-page HTML slots — operator picks one as 使用中. The public reply
+                 page renders only the active slot. Each slot has an operator-supplied
+                 display name (slotTitles, from CrmSetting memo.slot.N.title). Per-slot
+                 preview link in the action row below. Expanded 3→6 slots 2026-05-25,
+                 6→10 slots 2026-09-02 (displayed as a 5x2 grid per operator request). -->
+            <div>
+                <label class="block text-xs text-slate-500 mb-1 flex items-center gap-2">
+                    <span>専用返信画面HTML <span class="text-slate-400 normal-case">(10スロットまで保存でき、使用中のみが公開ページに反映されます。文字数は推奨20,000文字まで)</span></span>
+                    <a class="ml-auto text-xs text-blue-600 hover:underline"
+                       th:href="@{/manager/settings/memo-html-bulk(loadFromUserId=${user.id})}" target="_blank">フォルダ内一括編集 →</a>
+                </label>
+                <div class="border border-slate-200 rounded-md overflow-hidden">
+                    <!-- 5x2 grid: slots 1-5 on row 1, slots 6-10 on row 2. -->
+                    <div class="memo-tab-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); border-bottom:1px solid #e2e8f0; background:#f8fafc;">
+                        <button type="button" th:each="i : ${#numbers.sequence(1, 10)}"
+                                class="memo-tab px-2 py-1.5 text-left border-r border-b border-slate-200 text-xs"
+                                style="min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:1px;"
+                                th:attr="data-slot=${i}">
+                            <span class="flex items-center gap-1">
+                                <input type="radio" name="activeMemoSlot" th:value="${i}"
+                                       th:checked="${form.activeMemoSlot == i}" title="このスロットを使用中にする"/>
+                                <span class="font-bold text-slate-700" th:text="${circledNumbers.get(i - 1)}">①</span>
+                                <span class="ml-auto text-slate-400 memo-char" style="font-size:.68rem;" th:attr="data-for='memo' + ${i}">0</span>
+                            </span>
+                            <span class="text-slate-500 truncate" style="font-size:.7rem; padding-left:18px;" th:text="${memoSlotTitles[i - 1]}">タイトル</span>
+                        </button>
+                    </div>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo1" name="memo"
+                              th:text="${form.memo}"
+                              th:style="${form.activeMemoSlot == 1 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[0]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo2" name="memo2"
+                              th:text="${form.memo2}"
+                              th:style="${form.activeMemoSlot == 2 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[1]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo3" name="memo3"
+                              th:text="${form.memo3}"
+                              th:style="${form.activeMemoSlot == 3 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[2]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo4" name="memo4"
+                              th:text="${form.memo4}"
+                              th:style="${form.activeMemoSlot == 4 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[3]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo5" name="memo5"
+                              th:text="${form.memo5}"
+                              th:style="${form.activeMemoSlot == 5 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[4]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo6" name="memo6"
+                              th:text="${form.memo6}"
+                              th:style="${form.activeMemoSlot == 6 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[5]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo7" name="memo7"
+                              th:text="${form.memo7}"
+                              th:style="${form.activeMemoSlot == 7 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[6]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo8" name="memo8"
+                              th:text="${form.memo8}"
+                              th:style="${form.activeMemoSlot == 8 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[7]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo9" name="memo9"
+                              th:text="${form.memo9}"
+                              th:style="${form.activeMemoSlot == 9 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[8]} + ' の HTML を入力'"></textarea>
+                    <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo10" name="memo10"
+                              th:text="${form.memo10}"
+                              th:style="${form.activeMemoSlot == 10 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"
+                              th:placeholder="${memoSlotTitles[9]} + ' の HTML を入力'"></textarea>
+                </div>
+                <p class="mt-1 text-xs text-slate-500">タブのラジオボタンが「使用中」マークです。クリックでパネル切替、ラジオで公開反映スロットを変更し、保存後に反映されます。空白で保存すると該当スロットは削除扱いになります。スロットの表示名は<a class="text-blue-600 hover:underline" th:href="@{/manager/settings/memo-html-bulk}" target="_blank">一括編集ページ</a>から変更できます。</p>
+
+                <!-- Per-slot attachment grid — user-uploaded images via the public reply page,
+                     filed under whichever slot was active when they uploaded. Each pane shows
+                     only its own slot's attachments and follows the same display/hide rule as
+                     the textareas above (display:none when activeMemoSlot != this slot). -->
+                <div class="mt-3">
+                    <div th:each="i : ${#numbers.sequence(1, 10)}" class="attach-pane"
+                         th:attr="data-slot=${i}"
+                         th:style="${form.activeMemoSlot == i ? '' : 'display:none;'}">
+                        <div class="text-xs text-slate-600 mb-1.5">
+                            <span th:text="${memoSlotTitles[i - 1]}">タイトル</span>
+                            に添付された画像
+                            (<span th:text="${attachmentsBySlot[i - 1].size()}">0</span> 件)
+                        </div>
+                        <div th:if="${attachmentsBySlot[i - 1].empty}"
+                             class="text-xs text-slate-400 py-3">
+                            まだ添付ファイルはありません。返信ページ (/reply/&lt;token&gt;) から「画像添付」できます。
+                        </div>
+                        <div class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));">
+                            <div th:each="a : ${attachmentsBySlot[i - 1]}"
+                                 class="attach-thumb relative border border-slate-200 rounded overflow-hidden bg-slate-50">
+                                <a th:href="@{'/manager/users/' + ${user.id} + '/attachment/' + ${a.id}}"
+                                   target="_blank"
+                                   class="block"
+                                   style="aspect-ratio:1/1; overflow:hidden;">
+                                    <img th:src="@{'/manager/users/' + ${user.id} + '/attachment/' + ${a.id}}"
+                                         th:alt="${a.fileName}"
+                                         style="width:100%; height:100%; object-fit:cover; cursor:zoom-in;"
+                                         onclick="event.preventDefault(); openAttachLightbox(this.src);"/>
+                                </a>
+                                <div class="px-1 py-0.5 text-[10px] text-slate-500 truncate" th:title="${a.fileName}" th:text="${a.fileName}"></div>
+                                <!-- Plain button (NOT a nested <form>) — HTML disallows
+                                     nested forms, and the previous nested <form> here was
+                                     truncating the outer user-save form so 保存 stopped
+                                     working and the layout shifted (2026-05-26 fix). The
+                                     button POSTs via fetch with the CSRF token from the
+                                     outer form. -->
+                                <button type="button"
+                                        class="att-del-btn bg-rose-600 hover:bg-rose-700 text-white text-[10px] rounded-full"
+                                        th:data-userid="${user.id}"
+                                        th:data-attid="${a.id}"
+                                        th:title="'削除: ' + ${a.fileName}"
+                                        style="position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:18px; padding:0; border:0; cursor:pointer; z-index:2;">×</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lightbox overlay — click outside or press Esc to close. Built once and
+                     reused across slot tab switches. -->
+                <div id="attachLightbox" onclick="this.style.display='none'"
+                     style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); align-items:center; justify-content:center; cursor:zoom-out;">
+                    <img id="attachLightboxImg" src="" alt="" style="max-width:92vw; max-height:92vh; box-shadow:0 4px 30px rgba(0,0,0,0.5);"/>
+                </div>
+                <script>
+                    function openAttachLightbox(src) {
+                        var lb = document.getElementById('attachLightbox');
+                        var im = document.getElementById('attachLightboxImg');
+                        if (!lb || !im) return;
+                        im.src = src;
+                        lb.style.display = 'flex';
+                    }
+                    document.addEventListener('keydown', function (e) {
+                        if (e.key === 'Escape') {
+                            var lb = document.getElementById('attachLightbox');
+                            if (lb) lb.style.display = 'none';
+                        }
+                    });
+                    // Slot tab clicks need to also hide/show .attach-pane in addition to memo-pane.
+                    document.querySelectorAll('.memo-tab').forEach(function (tab) {
+                        tab.addEventListener('click', function () {
+                            var slot = tab.getAttribute('data-slot');
+                            document.querySelectorAll('.attach-pane').forEach(function (p) {
+                                p.style.display = String(p.getAttribute('data-slot')) === String(slot) ? '' : 'none';
+                            });
+                        });
+                    });
+
+                    // Attachment delete buttons — fetch-POST to avoid nested <form> which
+                    // breaks the outer user-save form.
+                    document.querySelectorAll('.att-del-btn').forEach(function (btn) {
+                        btn.addEventListener('click', function (e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Guard against a double-click firing two overlapping deletes: the
+                            // 18x18px button is easy to double-click, and two concurrent POSTs
+                            // each queue their own flash message (one "削除しました", one "見
+                            // つかりません" once the row is already gone) into the SAME session
+                            // FlashMap — both then render together on the next page load,
+                            // showing as a duplicated/contradictory message. Disabling on the
+                            // very first click (before the confirm dialog even blocks) prevents
+                            // a second click from reaching this handler at all.
+                            if (btn.disabled) return;
+                            if (!confirm('この添付ファイルを削除します。よろしいですか?')) return;
+                            btn.disabled = true;
+                            var userId = btn.getAttribute('data-userid');
+                            var attId  = btn.getAttribute('data-attid');
+                            var csrfInput = document.querySelector('input[name="_csrf"]');
+                            var csrf = csrfInput ? csrfInput.value : '';
+                            var fd = new FormData();
+                            fd.append('_csrf', csrf);
+                            fetch('/manager/users/' + userId + '/attachment/' + attId + '/delete', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                body: fd
+                            }).then(function (r) {
+                                if (!r.ok) throw new Error('HTTP ' + r.status);
+                                return r.json();
+                            }).then(function (json) {
+                                if (json.success) {
+                                    // Remove the thumb tile from the DOM instead of full reload.
+                                    var tile = btn.closest('.attach-thumb');
+                                    if (tile) tile.remove();
+                                } else {
+                                    alert(json.message || '削除に失敗しました');
+                                    btn.disabled = false;
+                                }
+                            }).catch(function (err) {
+                                alert('通信エラー: ' + err);
+                                btn.disabled = false;
+                            });
+                        });
+                    });
+                </script>
+            </div>
+            <script>
+                (function(){
+                    // 2026-09-09 fix: this list previously stopped at memo6, so slots 7-10
+                    // (added 2026-09-02) never got a live character count and clicking their
+                    // tab did nothing — none of the 6 known panes matched, so no pane ever
+                    // showed for those tabs.
+                    var panes = ['memo1','memo2','memo3','memo4','memo5','memo6','memo7','memo8','memo9','memo10'];
+                    var MAX_CHARS = 20000;
+                    function refreshCounts() {
+                        panes.forEach(function (p) {
+                            var ta = document.getElementById(p);
+                            var lbl = document.querySelector('.memo-char[data-for="' + p + '"]');
+                            if (!ta || !lbl) return;
+                            var n = (ta.value || '').length;
+                            lbl.textContent = n.toLocaleString() + ' 文字';
+                            lbl.classList.toggle('text-rose-600', n > MAX_CHARS);
+                            lbl.classList.toggle('text-slate-400', n <= MAX_CHARS);
+                            lbl.title = n > MAX_CHARS ? MAX_CHARS.toLocaleString() + '文字を超えています' : '';
+                        });
+                    }
+                    panes.forEach(function (p) {
+                        var ta = document.getElementById(p);
+                        if (ta) ta.addEventListener('input', refreshCounts);
+                    });
+                    refreshCounts();
+                    document.querySelectorAll('.memo-tab').forEach(function (tab) {
+                        tab.addEventListener('click', function (e) {
+                            var slot = tab.getAttribute('data-slot');
+                            panes.forEach(function (p, i) {
+                                var ta = document.getElementById(p);
+                                if (ta) ta.style.display = (String(i + 1) === String(slot)) ? '' : 'none';
+                            });
+                        });
+                    });
+                })();
+            </script>
+
+            <div>
+                <label class="block text-xs text-slate-500 mb-1">個別メモ <span class="text-slate-400 normal-case">(管理者用、返信画面には表示されません)</span></label>
+                <textarea class="tw-input" rows="3" th:field="*{internalMemo}"
+                          placeholder="このユーザーに関する社内メモ"></textarea>
+            </div>
+
+            <!-- Tag values are edited on the right panel; these hidden inputs carry the values. -->
+            <input type="hidden" th:field="*{amount}"/>
+            <input type="hidden" th:field="*{product}"/>
+            <input type="hidden" th:field="*{fullAddress}"/>
+            <input type="hidden" th:field="*{dateJp}"/>
+            <input type="hidden" name="confirmPassword" id="updateConfirmPassword"/>
+
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md">保存</button>
+                <a class="inline-flex items-center px-3 py-2 text-sm border border-sky-500 text-sky-700 hover:bg-sky-50 rounded-md"
+                   th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank">返信画面HTMLプレビュー (現在設定中)</a>
+                <a th:each="i : ${#numbers.sequence(1, 10)}"
+                   class="inline-flex items-center px-2 py-2 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded-md"
+                   th:classappend="${form.activeMemoSlot == i} ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-bold'"
+                   th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'(slot=${i})}" target="_blank"
+                   th:text="${circledNumbers.get(i - 1)}"></a>
+                <span class="ml-auto text-xs text-slate-500">ID: <code th:text="${user.id}"></code></span>
+            </div>
+        </form>
+
+        <!-- ===== RIGHT: tags + payments ===== -->
+        <div class="flex flex-col gap-4">
+
+            <!-- Built-in tags (read-only reference for the operator). Per request 2026-05-23
+                 these should be visible on the user detail page above the user-specific
+                 (editable) tags panel so the operator can see the full tag vocabulary at
+                 once when composing a message. -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
+                <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 mb-3">デフォルトの置き換えタグ</h2>
+                <p class="text-xs text-slate-500 mb-3">メッセージ送信時に自動的に差し替えられます。編集不可。</p>
+                <div class="grid grid-cols-1 gap-2">
+                    <div th:each="b : ${builtinTags}" class="grid grid-cols-12 gap-2 items-center">
+                        <code class="col-span-3 bg-emerald-50 text-emerald-700 px-2 py-1 rounded text-sm text-center"
+                              th:text="${b.token}"></code>
+                        <span class="col-span-9 text-sm text-slate-600" th:text="${b.description}"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Replacement tags (inline-edited via the SAME form above — we mirror the hidden inputs) -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
+                <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 mb-3">置き換えタグ（メッセージ送信時に差し替え）</h2>
+                <p class="text-xs text-slate-500 mb-3">
+                    値を編集して <strong>左の「保存」ボタン</strong> を押してください（左フォームと一体で送信されます）。
+                </p>
+                <form id="tagMirrorForm" onsubmit="return false;">
+                    <div class="grid grid-cols-1 gap-2">
+                        <div class="grid grid-cols-12 gap-2 items-center">
+                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%amount%</code>
+                            <input type="text" class="col-span-9 tw-input" th:value="${form.amount}" data-mirror="amount"/>
+                        </div>
+                        <div class="grid grid-cols-12 gap-2 items-center">
+                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%product%</code>
+                            <input type="text" class="col-span-9 tw-input" th:value="${form.product}" data-mirror="product"/>
+                        </div>
+                        <div class="grid grid-cols-12 gap-2 items-center">
+                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%full_address%</code>
+                            <input type="text" class="col-span-9 tw-input" th:value="${form.fullAddress}" data-mirror="fullAddress"/>
+                        </div>
+                        <div class="grid grid-cols-12 gap-2 items-center">
+                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%date_jp%</code>
+                            <input type="text" class="col-span-9 tw-input" th:value="${form.dateJp}" data-mirror="dateJp"
+                                   placeholder="空欄なら送信時の日付"/>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Carrier bindings -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
+                <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 mb-3">
+                    割当中キャリアアドレス
+                    <span class="text-xs font-normal text-slate-500" th:text="'(' + ${#lists.size(boundAddresses)} + ' 件)'">(0 件)</span>
+                </h2>
+                <div th:if="${boundAddresses.empty}" class="text-slate-400 text-sm">未割当</div>
+                <div th:unless="${boundAddresses.empty}" class="space-y-1 text-sm">
+                    <div th:each="p : ${boundAddresses}" class="flex items-center gap-2">
+                        <code class="text-slate-600 flex-1" th:text="${p.address}"></code>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700" th:text="${p.carrierCode}"></span>
+                        <form method="post" th:action="@{'/manager/users/' + ${user.id} + '/unbind-carrier/' + ${p.id}}"
+                              onsubmit="return confirm('この割り当てを解除します。よろしいですか?');">
+                            <button type="submit" class="px-2 py-0.5 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">解除</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <form method="post" th:action="@{'/manager/users/' + ${user.id} + '/bind-all-carriers'}"
+                          onsubmit="return confirm('AMGプール内の空きキャリアアドレスを全てこのユーザーへ割り当てます。よろしいですか?');">
+                        <button type="submit" class="px-2 py-1 text-xs border border-blue-500 text-blue-600 hover:bg-blue-50 rounded">キャリア登録割り当て</button>
+                    </form>
+                    <form th:if="${!boundAddresses.empty}" method="post" th:action="@{'/manager/users/' + ${user.id} + '/unbind-carrier'}"
+                          onsubmit="return confirm('このユーザーの全キャリアアドレス割り当てを解除します。よろしいですか?');">
+                        <button type="submit" class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">全解除</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- User stats -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
+                <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 mb-4">利用状況</h2>
+
+                <!-- Top row: 3 count tiles (送信 / 返信 / 入金額) — main KPIs -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
+                        <div class="text-xs text-blue-700 font-medium mb-1">累計送信数</div>
+                        <div class="text-2xl font-bold text-blue-700 leading-tight" th:text="${statTotalOut}">0</div>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
+                        <div class="text-xs text-emerald-700 font-medium mb-1">累計返信数</div>
+                        <div class="text-2xl font-bold text-emerald-700 leading-tight" th:text="${statTotalIn}">0</div>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
+                        <div class="text-xs text-amber-800 font-medium mb-1">累計入金額</div>
+                        <div class="text-xl font-bold text-amber-700 leading-tight"
+                             th:text="'¥' + ${#numbers.formatInteger(statTotalPaid, 1, 'COMMA')}">¥0</div>
+                    </div>
+                </div>
+
+                <!-- Bottom: 3 timestamp rows -->
+                <dl class="divide-y divide-slate-100 text-sm">
+                    <div class="flex items-center justify-between py-2">
+                        <dt class="text-slate-500">登録日時</dt>
+                        <dd class="text-slate-800 font-medium"
+                            th:text="${user.createdAt != null} ? ${#temporals.format(user.createdAt, 'yyyy-MM-dd HH:mm')} : '-'">-</dd>
+                    </div>
+                    <div class="flex items-center justify-between py-2">
+                        <dt class="text-slate-500">最終ログイン</dt>
+                        <dd class="text-slate-800 font-medium"
+                            th:text="${user.lastLoginAt != null} ? ${#temporals.format(user.lastLoginAt, 'yyyy-MM-dd HH:mm')} : '-'">-</dd>
+                    </div>
+                    <div class="flex items-center justify-between py-2">
+                        <dt class="text-slate-500">最終返信</dt>
+                        <dd class="text-slate-800 font-medium"
+                            th:text="${statLastReply != null} ? ${#temporals.format(statLastReply, 'yyyy-MM-dd HH:mm')} : '-'">-</dd>
+                    </div>
+                </dl>
+            </div>
+
+            <!-- Access log (アクセスログ): history of external short-link / reply-page clicks,
+                 newest first. Confirms to the operator that a specific user actually opened
+                 their tracked link, not just the single overwritten 最終ログイン timestamp. -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
+                <div class="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                    <span class="text-sm text-slate-700 font-medium">アクセスログ</span>
+                </div>
+                <div style="overflow-y:auto; max-height:176px;">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider"
+                           style="position:sticky;top:0;z-index:1;">
+                    <tr>
+                        <th class="px-3 py-2 text-left">日時</th>
+                        <th class="px-3 py-2 text-left">種別</th>
+                        <th class="px-3 py-2 text-left">IPアドレス</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                    <tr th:if="${accessLogs.empty}">
+                        <td colspan="3" class="px-3 py-4 text-center text-slate-400">アクセス履歴はありません</td>
+                    </tr>
+                    <tr th:each="a : ${accessLogs}">
+                        <td class="px-3 py-2 text-xs text-slate-600" th:text="${#temporals.format(a.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                        <td class="px-3 py-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700"
+                                  th:text="${a.source == 'REPLY_SUBMIT'} ? '返信送信' : (${a.source == 'INBOUND_MAIL'} ? 'メール受信' : 'リンククリック')"></span>
+                        </td>
+                        <td class="px-3 py-2 text-xs text-slate-500" th:text="${a.ipAddress} ?: '-'"></td>
+                    </tr>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+
+            <!-- Payments -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
+                <div class="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                    <span class="text-sm text-slate-700 font-medium">入金履歴</span>
+                </div>
+                <div style="overflow-y:auto; max-height:176px;">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider"
+                           style="position:sticky;top:0;z-index:1;">
+                    <tr>
+                        <th class="px-3 py-2 text-left">金額</th><th class="px-3 py-2 text-left">状態</th>
+                        <th class="px-3 py-2 text-left">方法</th><th class="px-3 py-2 text-left">入金日時</th>
+                        <th class="px-3 py-2 text-right">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                    <tr th:if="${payments.empty}">
+                        <td colspan="5" class="px-3 py-4 text-center text-slate-400">入金履歴はありません</td>
+                    </tr>
+                    <tr th:each="p : ${payments}">
+                        <td class="px-3 py-2 font-medium" th:text="'¥' + ${#numbers.formatInteger(p.amount, 1, 'COMMA')}"></td>
+                        <td class="px-3 py-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  th:classappend="${p.status == 'PAID'} ? 'bg-emerald-100 text-emerald-700'
+                                                   : (${p.status == 'PENDING'} ? 'bg-amber-100 text-amber-800'
+                                                   : (${p.status == 'OVERDUE'} ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'))"
+                                  th:text="${p.status}"></span>
+                        </td>
+                        <td class="px-3 py-2 text-xs text-slate-600" th:text="${p.paymentMethod}"></td>
+                        <td class="px-3 py-2 text-xs text-slate-500">
+                            <span th:if="${p.paidAt}" th:text="${#temporals.format(p.paidAt, 'yyyy-MM-dd HH:mm')}"></span>
+                            <span th:unless="${p.paidAt}" class="text-slate-400">-</span>
+                        </td>
+                        <td class="px-3 py-2 text-right whitespace-nowrap">
+                            <form th:if="${p.status != 'PAID'}" method="post"
+                                  th:action="@{'/manager/users/' + ${user.id} + '/payments/' + ${p.id} + '/mark-paid'}"
+                                  class="inline-block">
+                                <button type="submit" class="inline-flex items-center px-2 py-0.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded">入金済</button>
+                            </form>
+                            <form method="post"
+                                  th:action="@{'/manager/users/' + ${user.id} + '/payments/' + ${p.id} + '/delete'}"
+                                  class="inline-block ml-1"
+                                  onsubmit="return confirmPaymentDelete(this);">
+                                <input type="hidden" name="confirmPassword"/>
+                                <button type="submit" class="inline-flex items-center px-2 py-0.5 text-xs border border-red-500 text-red-600 hover:bg-red-50 rounded">削除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                </div>
+                <form method="post" th:action="@{'/manager/users/' + ${user.id} + '/payments'}" th:object="${paymentForm}"
+                      class="p-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+                    <div><label class="block text-xs text-slate-500 mb-1">金額 *</label>
+                        <input type="number" step="1" class="tw-input" th:field="*{amount}" placeholder="1200"/></div>
+                    <div><label class="block text-xs text-slate-500 mb-1">状態</label>
+                        <select class="tw-input" th:field="*{status}">
+                            <option th:each="s : ${paymentStatuses}" th:value="${s}" th:text="${s}"></option>
+                        </select></div>
+                    <div><label class="block text-xs text-slate-500 mb-1">方法</label>
+                        <select class="tw-input" th:field="*{paymentMethod}">
+                            <option value="">指定なし</option>
+                            <option th:each="m : ${paymentMethods}" th:value="${m}" th:text="${m}"></option>
+                        </select></div>
+                    <button type="submit" class="inline-flex justify-center items-center px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md">入金追加</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Danger zone: reset credentials + delete -->
+    <div class="mt-6 flex flex-wrap gap-2 bg-white rounded-lg shadow-sm border border-slate-100 p-4">
+        <form method="post" th:action="@{'/manager/users/' + ${user.id} + '/reset-credentials'}"
+              th:with="hasCred=${user.loginId != null}"
+              onsubmit="return confirm(this.dataset.confirmMsg);"
+              th:attr="data-confirm-msg=${hasCred ? 'パスワードを再発行します。以前のパスワードは使えなくなります。' : '認証情報を発行します。よろしいですか?'}">
+            <button type="submit" class="inline-flex items-center px-3 py-2 text-sm border border-amber-500 text-amber-700 hover:bg-amber-50 rounded-md"
+                    th:text="${user.loginId != null ? 'パスワード再発行' : '認証情報を発行'}"></button>
+        </form>
+        <form method="post" class="ml-auto"
+              th:action="@{'/manager/users/' + ${user.id} + '/delete'}"
+              onsubmit="return confirmDelete(this);">
+            <input type="hidden" name="confirmPassword" id="confirmPassword"/>
+            <button type="submit" class="inline-flex items-center px-3 py-2 text-sm border border-red-500 text-red-600 hover:bg-red-50 rounded-md">このユーザーを削除</button>
+        </form>
+    </div>
+    <p class="text-xs text-slate-500 mt-1">※ユーザー削除・メールアドレス変更には管理者パスワードの確認が必要です。</p>
+
+    <script>
+    // Right-panel tag inputs mirror into the hidden fields that are already in the left form.
+    (function () {
+        const mainForm = document.querySelector('form[action*="/manager/users/"]');
+        if (!mainForm) return;
+        document.querySelectorAll('input[data-mirror]').forEach(function (input) {
+            const name = input.getAttribute('data-mirror');
+            const hidden = mainForm.querySelector('input[type="hidden"][name="' + name + '"]');
+            if (!hidden) return;
+            hidden.value = input.value;
+            input.addEventListener('input', function () { hidden.value = input.value; });
+        });
+    })();
+
+    function maybeConfirmEmailChange(form) {
+        const emailField = form.querySelector('[name="email"]');
+        const orig = (emailField.getAttribute('data-original-email') || '').toLowerCase();
+        const current = (emailField.value || '').trim().toLowerCase();
+        if (orig === current) return true; // unchanged
+        const pw = prompt('メールアドレスを変更します。管理者パスワードを入力してください。');
+        if (pw === null || pw === '') return false;
+        form.querySelector('#updateConfirmPassword').value = pw;
+        return true;
+    }
+
+    function confirmDelete(form) {
+        if (!confirm('このユーザーを削除します。関連メッセージ・入金履歴も削除されます。')) return false;
+        const pw = prompt('管理者パスワードを入力してください（削除の確認）');
+        if (pw === null || pw === '') return false;
+        form.querySelector('#confirmPassword').value = pw;
+        return true;
+    }
+    function confirmPaymentDelete(form) {
+        if (!confirm('この入金を削除します。よろしいですか?')) return false;
+        const pw = prompt('管理者パスワードを入力してください（入金削除の確認）');
+        if (pw === null || pw === '') return false;
+        form.querySelector('input[name="confirmPassword"]').value = pw;
+        return true;
+    }
+    </script>
+</section>
+</body>
+</html>

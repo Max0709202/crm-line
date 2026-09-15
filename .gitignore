@@ -1,0 +1,12 @@
+target/
+.idea/
+*.iml
+*.class
+.DS_Store
+.vscode/
+logs/
+*.log
+
+uploads/
+crm-backups/
+__pycache__/

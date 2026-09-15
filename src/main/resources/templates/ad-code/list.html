@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>広告設定</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">広告設定</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm"
+           th:href="@{/manager/ad-codes/new}">新規発行</a>
+    </div>
+
+    <p class="text-sm text-slate-500 mb-4">
+        グループごとに代理店向けURLを発行し、その下に複数の広告コードを所属させます。
+        外部からアクセス可能な代理店画面では、グループ単位で集計表示されます。
+    </p>
+
+    <!-- Media-auth panel — shared Basic Auth credentials for the public agency dashboard. -->
+    <div class="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-center mb-2">
+            <h2 class="text-sm font-semibold text-blue-900 flex-1">代理店ダッシュボードのアクセス情報</h2>
+            <span th:if="${mediaAuthUser != null and !#strings.isEmpty(mediaAuthUser)}"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">設定済み</span>
+            <span th:unless="${mediaAuthUser != null and !#strings.isEmpty(mediaAuthUser)}"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">未設定</span>
+        </div>
+        <p class="text-xs text-blue-800 mb-3">
+            代理店向け管理画面 (<code th:text="${externalBaseUrl} + '/media/index/'"></code>) のBasic認証ID/パスワードを設定します。
+            設定後、グループごとのURL (各行の右端) と一緒にお渡しください。
+        </p>
+        <form method="post" th:action="@{/manager/ad-codes/media-auth}" class="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <div>
+                <label class="block text-xs text-blue-900 mb-1">ID</label>
+                <input type="text" name="user" th:value="${mediaAuthUser}"
+                       class="px-3 py-1.5 text-sm border border-blue-300 rounded bg-white"/>
+            </div>
+            <div>
+                <label class="block text-xs text-blue-900 mb-1">パスワード</label>
+                <input type="text" name="password" th:value="${mediaAuthPassword}"
+                       class="px-3 py-1.5 text-sm border border-blue-300 rounded bg-white"/>
+            </div>
+            <button type="submit" class="inline-flex items-center px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded">
+                保存
+            </button>
+        </form>
+    </div>
+
+    <!-- View toggle: groups (default) or all codes flat. -->
+    <div class="mb-3 flex items-center gap-2">
+        <a th:href="@{/manager/ad-codes(view='groups',q=${q})}"
+           class="px-3 py-1.5 text-sm rounded-md border"
+           th:classappend="${view == 'groups'} ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'">グループ表示</a>
+        <a th:href="@{/manager/ad-codes(view='codes',q=${q})}"
+           class="px-3 py-1.5 text-sm rounded-md border"
+           th:classappend="${view == 'codes'} ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'">広告コード一覧</a>
+        <form method="get" th:action="@{/manager/ad-codes}" class="flex-1 flex items-center gap-2 ml-3">
+            <input type="hidden" name="view" th:value="${view}"/>
+            <input type="text" name="q" th:value="${q}" placeholder="検索 (グループ名・コード・メモ)"
+                   class="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md">検索</button>
+            <a th:if="${q != null and !#strings.isEmpty(q)}" th:href="@{/manager/ad-codes(view=${view})}"
+               class="inline-flex items-center px-3 py-2 border border-slate-300 text-slate-600 text-sm rounded-md hover:bg-slate-50">クリア</a>
+        </form>
+    </div>
+
+    <!-- ログイン数（累計）列の表示切替。既定は非表示 — 有効にすると一覧に列が追加される。 -->
+    <form method="post" th:action="@{/manager/ad-codes/show-login-count}" class="mb-3 flex items-center gap-2">
+        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+        <input type="hidden" name="show" th:value="${showLoginCount} ? 'false' : 'true'"/>
+        <input type="checkbox" id="showLoginCountToggle" th:checked="${showLoginCount}"
+               onchange="this.form.submit()"
+               class="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"/>
+        <label for="showLoginCountToggle" class="text-sm text-slate-700 cursor-pointer">「ログイン数（累計）」列を表示する</label>
+    </form>
+
+    <!-- Group view (default) — one row per unique AD_CODE.name. Bulk-delete pattern matches
+         the user-list / relay-servers / templates pages: checkbox column on the left, 選択削除
+         button bottom-right. Group deletion requires the admin password (carried through as a
+         single prompt at submit time, same UX as users bulk-delete). -->
+    <form th:if="${view == 'groups'}" id="bulkForm" method="post"
+          th:action="@{/manager/ad-codes/group/bulk-delete}"
+          onsubmit="return confirmBulkGroupDelete();">
+        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <tr>
+                    <th class="px-3 py-2 text-center" style="width: 36px;">
+                        <input type="checkbox" id="checkAll" title="全選択"/>
+                    </th>
+                    <th class="px-3 py-2 text-left" style="width: 50px;">No</th>
+                    <th class="px-3 py-2 text-left">グループ名</th>
+                    <th class="px-3 py-2 text-left" style="width: 80px;">コード数</th>
+                    <th class="px-3 py-2 text-left">登録</th>
+                    <th class="px-3 py-2 text-left" style="color:#1d4ed8;">男性</th>
+                    <th class="px-3 py-2 text-left" style="color:#dc2626;">女性</th>
+                    <th th:if="${showLoginCount}" class="px-3 py-2 text-left">ログイン数 (累計)</th>
+                    <th class="px-3 py-2 text-left">入金 (累計)</th>
+                    <th class="px-3 py-2 text-left" style="color:#1d4ed8;">男性課金</th>
+                    <th class="px-3 py-2 text-left" style="color:#dc2626;">女性課金</th>
+                    <th class="px-3 py-2 text-left">代理店URL</th>
+                    <th class="px-3 py-2 text-right" style="width: 90px;">操作</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                <tr th:if="${groups == null or groups.empty}">
+                    <td th:colspan="${showLoginCount} ? 13 : 12" class="px-3 py-6 text-center text-slate-400">グループはまだ登録されていません</td>
+                </tr>
+                <tr th:each="g,it : ${groups}" class="hover:bg-slate-50">
+                    <td class="px-3 py-2 text-center">
+                        <input type="checkbox" class="row-item" name="names" th:value="${g.name}"/>
+                    </td>
+                    <td class="px-3 py-2"><code class="text-xs text-slate-600" th:text="${it.count}"></code></td>
+                    <!-- Group name is plain text (was a link; client asked to make it non-clickable —
+                         use the 詳細 button at the right edge to drill in). -->
+                    <td class="px-3 py-2 text-slate-700 font-medium" th:text="${g.name}"></td>
+                    <td class="px-3 py-2 text-slate-700" th:text="${g.codeCount} + ' 個'"></td>
+                    <td class="px-3 py-2 text-slate-700" th:text="${g.signupTotal} + ' 人'"></td>
+                    <td class="px-3 py-2" style="color:#1d4ed8;" th:text="${g.signupMale} + ' 人'"></td>
+                    <td class="px-3 py-2" style="color:#dc2626;" th:text="${g.signupFemale} + ' 人'"></td>
+                    <td th:if="${showLoginCount}" class="px-3 py-2 text-slate-700" th:text="${g.loginCount} + ' 人'"></td>
+                    <td class="px-3 py-2 text-slate-700" th:text="'¥ ' + ${#numbers.formatInteger(g.paidTotal, 1, 'COMMA')}"></td>
+                    <td class="px-3 py-2" style="color:#1d4ed8;" th:text="'¥ ' + ${#numbers.formatInteger(g.paidMale, 1, 'COMMA')}"></td>
+                    <td class="px-3 py-2" style="color:#dc2626;" th:text="'¥ ' + ${#numbers.formatInteger(g.paidFemale, 1, 'COMMA')}"></td>
+                    <td class="px-3 py-2 text-xs text-slate-500" style="max-width:280px; word-break:break-all;">
+                        <code th:text="${externalBaseUrl} + '/media/index/?g=' + ${g.slug}"></code>
+                    </td>
+                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                        <a class="inline-flex items-center px-3 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded"
+                           th:href="@{/manager/ad-codes/group(name=${g.name})}">詳細</a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="flex items-center justify-end gap-2 px-3 py-3 border-t border-slate-100 bg-slate-50">
+                <span id="selectedCount" class="text-xs text-slate-500 mr-2"></span>
+                <button type="submit" id="btnBulkDelete" disabled
+                        class="inline-flex items-center px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-medium rounded-md disabled:bg-slate-300 disabled:cursor-not-allowed">選択削除</button>
+            </div>
+        </div>
+    </form>
+
+    <script th:if="${view == 'groups'}">
+    (function () {
+        var checkAll = document.getElementById('checkAll');
+        var btn = document.getElementById('btnBulkDelete');
+        var count = document.getElementById('selectedCount');
+        function rows() { return document.querySelectorAll('.row-item'); }
+        function refresh() {
+            var ck = [].filter.call(rows(), function (c) { return c.checked; });
+            btn.disabled = ck.length === 0;
+            count.textContent = ck.length > 0 ? (ck.length + ' 件選択中') : '';
+            if (checkAll) {
+                checkAll.indeterminate = ck.length > 0 && ck.length < rows().length;
+                checkAll.checked = rows().length > 0 && ck.length === rows().length;
+            }
+        }
+        if (checkAll) checkAll.addEventListener('change', function () {
+            [].forEach.call(rows(), function (c) { c.checked = checkAll.checked; });
+            refresh();
+        });
+        document.addEventListener('change', function (e) {
+            if (e.target.classList && e.target.classList.contains('row-item')) refresh();
+        });
+        refresh();
+    })();
+    // Group delete is destructive (drops all ad-codes in each group + their group credentials).
+    // Same two-confirm + admin-password gate as the user-list bulk-delete path.
+    window.confirmBulkGroupDelete = function () {
+        var checked = document.querySelectorAll('.row-item:checked');
+        if (checked.length === 0) return false;
+        var names = Array.prototype.map.call(checked, function (c) { return c.value; });
+        if (!confirm(checked.length + ' 件のグループとその広告コード全てを削除します。\n紐付くユーザーの広告コードはNULLに更新されます。\n\n対象: ' + names.join(', ') + '\n\nよろしいですか?')) return false;
+        if (!confirm('本当に削除してよろしいですか? この操作は取り消せません。')) return false;
+        var pw = prompt('管理者パスワードを入力してください');
+        if (!pw) return false;
+        var form = document.getElementById('bulkForm');
+        var h = form.querySelector('input[name="confirmPassword"]');
+        if (!h) {
+            h = document.createElement('input');
+            h.type = 'hidden'; h.name = 'confirmPassword';
+            form.appendChild(h);
+        }
+        h.value = pw;
+        return true;
+    };
+    </script>
+
+    <!-- Flat-codes view — one row per AD_CODE. Same bulk-delete pattern as the groups view
+         but the ids are numeric AD_CODE.id and deletion is a soft op (CRM_USER.ad_code stays). -->
+    <form th:if="${view == 'codes'}" id="bulkCodesForm" method="post"
+          th:action="@{/manager/ad-codes/bulk-delete}"
+          onsubmit="return confirmBulkCodesDelete();">
+        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <tr>
+                    <th class="px-3 py-2 text-center" style="width: 36px;">
+                        <input type="checkbox" id="checkAllCodes" title="全選択"/>
+                    </th>
+                    <th class="px-3 py-2 text-left" style="width: 50px;">No</th>
+                    <th class="px-3 py-2 text-left">グループ名</th>
+                    <th class="px-3 py-2 text-left">広告コード</th>
+                    <th class="px-3 py-2 text-left">登録人数</th>
+                    <th class="px-3 py-2 text-left" style="color:#1d4ed8;">男性</th>
+                    <th class="px-3 py-2 text-left" style="color:#dc2626;">女性</th>
+                    <th class="px-3 py-2 text-left">入金額 (累計)</th>
+                    <th class="px-3 py-2 text-left" style="color:#1d4ed8;">男性課金</th>
+                    <th class="px-3 py-2 text-left" style="color:#dc2626;">女性課金</th>
+                    <th class="px-3 py-2 text-left">登録日</th>
+                    <th class="px-3 py-2 text-left" style="width: 70px;">状態</th>
+                    <th class="px-3 py-2 text-right" style="width: 90px;">操作</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                <tr th:if="${summaries == null or summaries.empty}">
+                    <td colspan="13" class="px-3 py-6 text-center text-slate-400">広告コードはまだ登録されていません</td>
+                </tr>
+                <tr th:each="s,it : ${summaries}" class="hover:bg-slate-50">
+                    <td class="px-3 py-2 text-center">
+                        <input type="checkbox" class="row-item-codes" name="ids" th:value="${s.adCode.id}"/>
+                    </td>
+                    <td class="px-3 py-2"><code class="text-xs text-slate-600" th:text="${it.count}"></code></td>
+                    <td class="px-3 py-2 text-slate-700" th:text="${s.adCode.name}"></td>
+                    <td class="px-3 py-2"><a class="text-blue-600 hover:underline" th:href="@{'/manager/ad-codes/' + ${s.adCode.id}}">
+                        <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs" th:text="${s.adCode.code}"></code></a></td>
+                    <td class="px-3 py-2 text-slate-700" th:text="${s.signupCount} + ' 人'"></td>
+                    <td class="px-3 py-2" style="color:#1d4ed8;" th:text="${s.signupMale} + ' 人'"></td>
+                    <td class="px-3 py-2" style="color:#dc2626;" th:text="${s.signupFemale} + ' 人'"></td>
+                    <td class="px-3 py-2 text-slate-700" th:text="'¥ ' + ${#numbers.formatInteger(s.paidTotal, 1, 'COMMA')}"></td>
+                    <td class="px-3 py-2" style="color:#1d4ed8;" th:text="'¥ ' + ${#numbers.formatInteger(s.paidMale, 1, 'COMMA')}"></td>
+                    <td class="px-3 py-2" style="color:#dc2626;" th:text="'¥ ' + ${#numbers.formatInteger(s.paidFemale, 1, 'COMMA')}"></td>
+                    <td class="px-3 py-2 text-xs text-slate-500"
+                        th:text="${#temporals.format(s.adCode.createdAt, 'yyyy-MM-dd')}"></td>
+                    <td class="px-3 py-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                              th:classappend="${s.adCode.isActive} ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'"
+                              th:text="${s.adCode.isActive} ? '有効' : '無効'"></span>
+                    </td>
+                    <td class="px-3 py-2 text-right">
+                        <a class="inline-flex items-center px-3 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded"
+                           th:href="@{'/manager/ad-codes/' + ${s.adCode.id}}">詳細</a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="flex items-center justify-end gap-2 px-3 py-3 border-t border-slate-100 bg-slate-50">
+                <span id="selectedCountCodes" class="text-xs text-slate-500 mr-2"></span>
+                <button type="submit" id="btnBulkDeleteCodes" disabled
+                        class="inline-flex items-center px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-medium rounded-md disabled:bg-slate-300 disabled:cursor-not-allowed">選択削除</button>
+            </div>
+        </div>
+    </form>
+
+    <script th:if="${view == 'codes'}">
+    (function () {
+        var checkAll = document.getElementById('checkAllCodes');
+        var btn = document.getElementById('btnBulkDeleteCodes');
+        var count = document.getElementById('selectedCountCodes');
+        function rows() { return document.querySelectorAll('.row-item-codes'); }
+        function refresh() {
+            var ck = [].filter.call(rows(), function (c) { return c.checked; });
+            btn.disabled = ck.length === 0;
+            count.textContent = ck.length > 0 ? (ck.length + ' 件選択中') : '';
+            if (checkAll) {
+                checkAll.indeterminate = ck.length > 0 && ck.length < rows().length;
+                checkAll.checked = rows().length > 0 && ck.length === rows().length;
+            }
+        }
+        if (checkAll) checkAll.addEventListener('change', function () {
+            [].forEach.call(rows(), function (c) { c.checked = checkAll.checked; });
+            refresh();
+        });
+        document.addEventListener('change', function (e) {
+            if (e.target.classList && e.target.classList.contains('row-item-codes')) refresh();
+        });
+        refresh();
+    })();
+    window.confirmBulkCodesDelete = function () {
+        var n = document.querySelectorAll('.row-item-codes:checked').length;
+        if (n === 0) return false;
+        return confirm(n + ' 件の広告コードを削除します。\n紐付くユーザーの広告コードはNULLに更新されます。よろしいですか?');
+    };
+    </script>
+</section>
+</body>
+</html>

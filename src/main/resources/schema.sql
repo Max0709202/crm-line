@@ -1,0 +1,501 @@
+-- CRM Carrier Messaging Platform - schema (idempotent)
+-- Runs on every boot via spring.sql.init.mode=always; IF NOT EXISTS makes it safe.
+-- MySQL 5.7, utf8mb4
+
+CREATE TABLE IF NOT EXISTS ADMIN_USER (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME            VARCHAR(255)  NOT NULL,
+  LOGIN_ID        VARCHAR(255)  NOT NULL,
+  LOGIN_PASSWORD  VARCHAR(255)  NOT NULL    COMMENT 'BCrypt hash',
+  ROLE            VARCHAR(32)   DEFAULT 'ADMIN'  COMMENT 'ADMIN | OPERATOR',
+  IS_ACTIVE       TINYINT(1)    DEFAULT 1,
+  CREATED_AT      DATETIME      NOT NULL,
+  UPDATED_AT      DATETIME      NOT NULL,
+  UNIQUE KEY UK_ADMIN_USER_LOGIN_ID (LOGIN_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS CRM_USER (
+  ID                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  EMAIL               VARCHAR(255)  DEFAULT NULL COMMENT 'user email address — optional; a user may instead have only PHONE_NUMBER (SMS-only). At least one of EMAIL/PHONE_NUMBER is enforced at the service layer, not here (MySQL allows multiple NULLs in a UNIQUE index, so relaxing NOT NULL does not weaken the email-uniqueness guarantee for users that do have one)',
+  PHONE_NUMBER        VARCHAR(20)   DEFAULT NULL COMMENT 'SMS delivery target, e.g. 09012345678 — optional unless EMAIL is blank, in which case it is required',
+  ADDRESS_INVALID_REASON VARCHAR(64) DEFAULT NULL
+    COMMENT 'RFC-invalid local-part flag, e.g. trailing_dot, leading_dot, double_dot — set at import time or retroactively after a relay-side SMTP reject; broadcast skips users with this flagged',
+  DISPLAY_NAME        VARCHAR(255)  DEFAULT NULL,
+  LOGIN_ID            VARCHAR(255)  DEFAULT NULL  COMMENT 'reply page login ID',
+  LOGIN_PASSWORD      VARCHAR(255)  DEFAULT NULL  COMMENT 'BCrypt hash',
+  -- CARRIER_CODE is DEPRECATED (removed from the entity 2026-04-25). Column kept on
+  -- existing DBs for backwards-compat; safe to ALTER TABLE DROP COLUMN when convenient.
+  CARRIER_CODE        VARCHAR(10)   DEFAULT NULL  COMMENT 'DEPRECATED — no longer written',
+  CARRIER_DOMAIN      VARCHAR(60)   DEFAULT NULL  COMMENT 'i.softbank.jp etc',
+  STATUS              VARCHAR(16)   DEFAULT 'ACTIVE'  COMMENT 'ACTIVE | SUSPENDED',
+  FOLDER              VARCHAR(64)   DEFAULT NULL      COMMENT 'grouping folder name',
+  LAST_LOGIN_AT       DATETIME      DEFAULT NULL,
+  MEMO                TEXT          DEFAULT NULL,
+  MEMO_2              LONGTEXT      DEFAULT NULL,
+  MEMO_3              LONGTEXT      DEFAULT NULL,
+  MEMO_4              LONGTEXT      DEFAULT NULL,
+  MEMO_5              LONGTEXT      DEFAULT NULL,
+  MEMO_6              LONGTEXT      DEFAULT NULL,
+  MEMO_7              LONGTEXT      DEFAULT NULL,
+  MEMO_8              LONGTEXT      DEFAULT NULL,
+  MEMO_9              LONGTEXT      DEFAULT NULL,
+  MEMO_10             LONGTEXT      DEFAULT NULL,
+  ACTIVE_MEMO_SLOT    INT           NOT NULL DEFAULT 1
+    COMMENT 'which of MEMO..MEMO_10 (1..10) the public /reply page currently renders',
+  INTERNAL_MEMO       LONGTEXT      DEFAULT NULL COMMENT 'admin-only, never shown to the user',
+  TAG1_KEY            VARCHAR(64)   DEFAULT NULL,
+  TAG1_VALUE          VARCHAR(500)  DEFAULT NULL,
+  TAG2_KEY            VARCHAR(64)   DEFAULT NULL,
+  TAG2_VALUE          VARCHAR(500)  DEFAULT NULL,
+  TAG3_KEY            VARCHAR(64)   DEFAULT NULL,
+  TAG3_VALUE          VARCHAR(500)  DEFAULT NULL,
+  TAG4_KEY            VARCHAR(64)   DEFAULT NULL,
+  TAG4_VALUE          VARCHAR(500)  DEFAULT NULL,
+  TAG5_KEY            VARCHAR(64)   DEFAULT NULL,
+  TAG5_VALUE          VARCHAR(500)  DEFAULT NULL,
+  LAST_PAYMENT_AT     DATETIME      DEFAULT NULL,
+  CREATED_AT          DATETIME      NOT NULL,
+  UPDATED_AT          DATETIME      NOT NULL,
+  UNIQUE KEY UK_CRM_USER_EMAIL (EMAIL),
+  AD_CODE             VARCHAR(64)   DEFAULT NULL  COMMENT 'agency / advertising campaign tag — links user to AD_CODE.code',
+  GENDER              VARCHAR(8)    DEFAULT NULL  COMMENT 'M | F | NULL — used for the agency-dashboard 男性/女性 split',
+  KEY IDX_CRM_USER_CARRIER (CARRIER_CODE, CARRIER_DOMAIN),
+  KEY IDX_CRM_USER_ADDR_INVALID (ADDRESS_INVALID_REASON),
+  KEY IDX_CRM_USER_STATUS (STATUS),
+  KEY IDX_CRM_USER_LOGIN_ID (LOGIN_ID),
+  KEY IDX_CRM_USER_AD_CODE (AD_CODE),
+  KEY IDX_CRM_USER_GENDER (GENDER)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS AD_GROUP_CREDENTIAL (
+  ID            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  GROUP_NAME    VARCHAR(255) NOT NULL  COMMENT 'matches AD_CODE.NAME — same value across all codes in the group',
+  AUTH_USER     VARCHAR(64)  NOT NULL  COMMENT 'per-group Basic Auth username for the agency dashboard',
+  AUTH_PASSWORD VARCHAR(64)  NOT NULL  COMMENT 'per-group Basic Auth password',
+  CREATED_AT    DATETIME     NOT NULL,
+  UPDATED_AT    DATETIME     NOT NULL,
+  UNIQUE KEY UK_AGC_NAME (GROUP_NAME),
+  KEY IDX_AGC_USER (AUTH_USER)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS AD_CODE (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  CODE            VARCHAR(64)   NOT NULL  COMMENT 'first URL segment, e.g. "zGCMWluNp4zr"',
+  ACCESS_TOKEN    VARCHAR(64)   NOT NULL  COMMENT 'second URL segment — verification token',
+  NAME            VARCHAR(255)  NOT NULL  COMMENT '内部表示用の名称 (代理店名など)',
+  MEMO            TEXT          DEFAULT NULL,
+  IS_ACTIVE       TINYINT(1)    DEFAULT 1,
+  CREATED_AT      DATETIME      NOT NULL,
+  UPDATED_AT      DATETIME      NOT NULL,
+  UNIQUE KEY UK_AD_CODE_CODE (CODE),
+  KEY IDX_AD_CODE_ACTIVE (IS_ACTIVE)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS CARRIER_ADDRESS_POOL (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ADDRESS         VARCHAR(255)  NOT NULL    COMMENT 'e.g. aus5mp3z@i.softbank.jp',
+  CARRIER_CODE    VARCHAR(10)   NOT NULL,
+  CARRIER_DOMAIN  VARCHAR(60)   NOT NULL,
+  SMTP_HOST       VARCHAR(255)  NOT NULL    COMMENT 'AMG SMTP host',
+  SMTP_PORT       INT           DEFAULT 587,
+  SMTP_USERNAME   VARCHAR(255)  NOT NULL,
+  SMTP_PASSWORD   VARCHAR(255)  NOT NULL    COMMENT 'AES-256 encrypted',
+  IS_ACTIVE       TINYINT(1)    DEFAULT 1,
+  CREATED_AT      DATETIME      NOT NULL,
+  UNIQUE KEY UK_POOL_ADDRESS (ADDRESS),
+  KEY IDX_POOL_CARRIER_ACTIVE (CARRIER_CODE, IS_ACTIVE)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS CARRIER_USER_BINDING (
+  ID         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  POOL_ID    BIGINT NOT NULL,
+  USER_ID    BIGINT NOT NULL,
+  CREATED_AT DATETIME NOT NULL,
+  UNIQUE KEY UK_POOL_USER (POOL_ID, USER_ID),
+  KEY IDX_CUB_USER (USER_ID),
+  KEY IDX_CUB_POOL (POOL_ID),
+  CONSTRAINT FK_CUB_POOL FOREIGN KEY (POOL_ID) REFERENCES CARRIER_ADDRESS_POOL(ID) ON DELETE CASCADE,
+  CONSTRAINT FK_CUB_USER FOREIGN KEY (USER_ID) REFERENCES CRM_USER(ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS MESSAGE (
+  ID                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  USER_ID           BIGINT        NOT NULL,
+  ADMIN_USER_ID     BIGINT        DEFAULT NULL,
+  DIRECTION         VARCHAR(8)    NOT NULL    COMMENT 'OUT | IN',
+  CHANNEL           VARCHAR(16)   NOT NULL    COMMENT 'EMAIL | WEB_REPLY | BROADCAST | SMS',
+  SUBJECT           TEXT          DEFAULT NULL,
+  BODY_TEXT         LONGTEXT      DEFAULT NULL,
+  BODY_HTML         LONGTEXT      DEFAULT NULL,
+  FROM_ADDRESS      VARCHAR(255)  DEFAULT NULL,
+  TO_ADDRESS        VARCHAR(255)  DEFAULT NULL,
+  REPLY_PAGE_TOKEN  VARCHAR(64)   DEFAULT NULL,
+  STATUS            VARCHAR(16)   DEFAULT 'DRAFT'  COMMENT 'DRAFT|QUEUED|SENT|DELIVERED|FAILED|READ|CANCELLED',
+  SCHEDULED_AT      DATETIME      DEFAULT NULL,
+  SENT_AT           DATETIME      DEFAULT NULL,
+  READ_AT           DATETIME      DEFAULT NULL,
+  INBOX_DISMISSED_AT DATETIME     DEFAULT NULL COMMENT 'set when admin clicks the per-row delete button on the thread inbox; filtered out of inboxGroupByUser so the user disappears from the 受信 list, but the message row is preserved so 過去のやり取り stays intact',
+  EXCLUDED_FROM_BOX TINYINT(1)    NOT NULL DEFAULT 0
+    COMMENT 'set at compose time when the %reply_url% embedded in this OUT message was built while an EXTERNAL_LINK_DOMAIN row was active in REDIRECT or CUSTOM_HTML landing mode; such messages never render the two-way reply form so they are excluded from メッセージボックス (both /reply/{token} and /manager/users/{id}/message-box)',
+  SENT_BODY_TEXT    LONGTEXT      DEFAULT NULL
+    COMMENT 'the body actually transmitted to the carrier/SMTP relay when it differs from BODY_TEXT (currently only the 15-char %reply_url% clip rule). NULL means "same as BODY_TEXT". BODY_TEXT always holds the FULL substituted body for メッセージボックス history display regardless of what was actually sent',
+  BOX_DISMISSED_AT DATETIME      DEFAULT NULL
+    COMMENT 'admin-only per-user メッセージボックス soft-delete (選択削除 on /manager/users/{id}/message-box). Distinct from INBOX_DISMISSED_AT (a different feature — the global /manager/inbox triage list, which filters IN rows). This filters OUT rows out of one user message-box view only; the row is preserved for thread history',
+  ERROR_MESSAGE     TEXT          DEFAULT NULL,
+  SEND_ATTEMPTS     INT           DEFAULT 0,
+  NEXT_RETRY_AT     DATETIME      DEFAULT NULL,
+  BROADCAST_ID      BIGINT        DEFAULT NULL,
+  REPLY_TO_MESSAGE_ID BIGINT      DEFAULT NULL  COMMENT 'if this outbound is a reply to an inbound MESSAGE.ID',
+  MESSAGE_ID_HEADER VARCHAR(255)  DEFAULT NULL  COMMENT 'RFC822 Message-ID used for inbound dedup',
+  CREATED_AT        DATETIME      NOT NULL,
+  UPDATED_AT        DATETIME      NOT NULL,
+  KEY IDX_MSG_USER_CREATED (USER_ID, CREATED_AT),
+  KEY IDX_MSG_DIR_CREATED (DIRECTION, CREATED_AT),
+  KEY IDX_MSG_STATUS (STATUS),
+  KEY IDX_MSG_STATUS_SCHED (STATUS, SCHEDULED_AT),
+  KEY IDX_MSG_BROADCAST (BROADCAST_ID),
+  KEY IDX_MSG_REPLY_TOKEN (REPLY_PAGE_TOKEN),
+  KEY IDX_MSG_REPLY_TO (REPLY_TO_MESSAGE_ID),
+  KEY IDX_MSG_MSGID (MESSAGE_ID_HEADER),
+  KEY IDX_MSG_BOX (USER_ID, DIRECTION, STATUS, EXCLUDED_FROM_BOX, BOX_DISMISSED_AT),
+  CONSTRAINT FK_MSG_USER FOREIGN KEY (USER_ID) REFERENCES CRM_USER(ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS BROADCAST (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ADMIN_USER_ID   BIGINT        NOT NULL,
+  TITLE           VARCHAR(500)  NOT NULL,
+  SUBJECT         TEXT          NOT NULL,
+  BODY_TEXT       LONGTEXT      NOT NULL,
+  BODY_HTML       LONGTEXT      DEFAULT NULL,
+  CHANNEL         VARCHAR(16)   DEFAULT 'EMAIL',
+  TARGET_FILTER   TEXT          DEFAULT NULL    COMMENT 'JSON filter criteria',
+  SCHEDULED_AT    DATETIME      DEFAULT NULL,
+  STATUS          VARCHAR(16)   DEFAULT 'DRAFT'  COMMENT 'DRAFT|SCHEDULED|SENDING|COMPLETED|CANCELLED',
+  RATE_PER_MINUTE INT           DEFAULT 60        COMMENT 'throttle for carrier rate limits',
+  TOTAL_COUNT     INT           DEFAULT 0,
+  SENT_COUNT      INT           DEFAULT 0,
+  FAILED_COUNT    INT           DEFAULT 0,
+  UNSENDABLE_COUNT INT          DEFAULT 0
+    COMMENT 'users in filter who were skipped at queue time because CRM_USER.ADDRESS_INVALID_REASON was set (RFC-invalid local-part, etc.)',
+  UNSENDABLE_USER_IDS TEXT      DEFAULT NULL
+    COMMENT 'comma-separated CRM_USER.ID list of skipped users; surfaced on the broadcast progress page エラー詳細',
+  DIFF_ORIGIN     TINYINT(1)    NOT NULL DEFAULT 0
+    COMMENT '差分スケジュールから実行された一斉送信かどうか',
+  CREATED_AT      DATETIME      NOT NULL,
+  UPDATED_AT      DATETIME      NOT NULL,
+  KEY IDX_BROADCAST_STATUS_SCHED (STATUS, SCHEDULED_AT)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS PAYMENT (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  USER_ID         BIGINT        NOT NULL,
+  AMOUNT          DECIMAL(12,2) NOT NULL,
+  PAYMENT_METHOD  VARCHAR(32)   DEFAULT NULL  COMMENT 'BANK_TRANSFER | CREDIT_CARD | CASH',
+  STATUS          VARCHAR(16)   DEFAULT 'PENDING'  COMMENT 'PENDING|PAID|OVERDUE|CANCELLED|REFUNDED',
+  DUE_DATE        DATE          DEFAULT NULL,
+  PAID_AT         DATETIME      DEFAULT NULL,
+  INVOICE_NUMBER  VARCHAR(64)   DEFAULT NULL,
+  MEMO            TEXT          DEFAULT NULL,
+  CREATED_AT      DATETIME      NOT NULL,
+  UPDATED_AT      DATETIME      NOT NULL,
+  KEY IDX_PAY_USER_CREATED (USER_ID, CREATED_AT),
+  KEY IDX_PAY_STATUS_DUE (STATUS, DUE_DATE),
+  CONSTRAINT FK_PAY_USER FOREIGN KEY (USER_ID) REFERENCES CRM_USER(ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS BILLING_PLAN (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME            VARCHAR(255)  NOT NULL,
+  AMOUNT          DECIMAL(12,2) NOT NULL,
+  BILLING_CYCLE   VARCHAR(16)   DEFAULT 'MONTHLY'  COMMENT 'MONTHLY|YEARLY|ONE_TIME',
+  DESCRIPTION     TEXT          DEFAULT NULL,
+  IS_ACTIVE       TINYINT(1)    DEFAULT 1,
+  CREATED_AT      DATETIME      NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS USER_BILLING (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  USER_ID         BIGINT        NOT NULL,
+  PLAN_ID         BIGINT        NOT NULL,
+  START_DATE      DATE          NOT NULL,
+  END_DATE        DATE          DEFAULT NULL,
+  STATUS          VARCHAR(16)   DEFAULT 'ACTIVE',
+  CREATED_AT      DATETIME      NOT NULL,
+  KEY IDX_UB_USER (USER_ID),
+  CONSTRAINT FK_UB_USER FOREIGN KEY (USER_ID) REFERENCES CRM_USER(ID) ON DELETE CASCADE,
+  CONSTRAINT FK_UB_PLAN FOREIGN KEY (PLAN_ID) REFERENCES BILLING_PLAN(ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS REPLY_PAGE (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  TOKEN           VARCHAR(64)   NOT NULL,
+  MESSAGE_ID      BIGINT        NOT NULL,
+  USER_ID         BIGINT        NOT NULL,
+  HEADER_HTML     LONGTEXT      DEFAULT NULL,
+  IS_ACTIVE       TINYINT(1)    DEFAULT 1,
+  EXPIRES_AT      DATETIME      DEFAULT NULL,
+  VIEW_COUNT      INT           DEFAULT 0,
+  LAST_VIEWED_AT  DATETIME      DEFAULT NULL,
+  CREATED_AT      DATETIME      NOT NULL,
+  UNIQUE KEY UK_REPLY_PAGE_TOKEN (TOKEN),
+  KEY IDX_REPLY_PAGE_MSG (MESSAGE_ID),
+  KEY IDX_REPLY_PAGE_USER (USER_ID),
+  CONSTRAINT FK_REPLY_PAGE_MSG FOREIGN KEY (MESSAGE_ID) REFERENCES MESSAGE(ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS REPLY_PAGE_SETTING (
+  ID                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  DEFAULT_HEADER_HTML LONGTEXT  DEFAULT NULL,
+  DEFAULT_CSS         LONGTEXT  DEFAULT NULL,
+  FOOTER_HTML         LONGTEXT  DEFAULT NULL,
+  REQUIRE_LOGIN       TINYINT(1) DEFAULT 0,
+  CSS_PREVIEW_MODE    VARCHAR(16) NOT NULL DEFAULT 'ON'
+    COMMENT 'ON | OFF | HIDDEN — controls the "▶ CSS プレビュー" pane on /manager/settings/reply-page. ON = pane always shown. OFF = pane collapsed by default, admin can still expand it per-session. HIDDEN = pane never rendered, no way to expand',
+  CSS_PREVIEW_LABEL   VARCHAR(200) DEFAULT NULL
+    COMMENT 'Operator-editable heading text shown above the CSS-preview iframe on the settings page. Admin-UI label only — no effect on the public /reply/{token} page. NULL/empty falls back to the default "CSS プレビュー (ミニ返信フォームに適用)".',
+  HEADER_VISIBLE      TINYINT(1) NOT NULL DEFAULT 1
+    COMMENT 'Controls whether the ヘッダー (header HTML block) actually renders on the public /reply/{token} page. Independent of CSS_PREVIEW_MODE, which only affects the admin settings-page preview pane.',
+  REPLY_FORM_VISIBLE  TINYINT(1) NOT NULL DEFAULT 1
+    COMMENT 'Controls whether the 本文入力フォーム (subject/body textarea + send button) actually renders on the public /reply/{token} page. When both HEADER_VISIBLE and REPLY_FORM_VISIBLE are 0, only the メッセージボックス section is shown.',
+  URL_LEAD_TEXT       VARCHAR(500) DEFAULT NULL
+    COMMENT 'Optional one-line text (e.g. "返信はこちら") inserted on its own line directly above the expanded URL whenever %reply_url% or %external_url% is substituted into a message body. Default empty — when blank, only the line break before the URL is added (no extra line of text).',
+  UPDATED_AT          DATETIME  NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS REPLY_PAGE_ATTACHMENT (
+  ID           BIGINT AUTO_INCREMENT PRIMARY KEY,
+  USER_ID      BIGINT       NOT NULL,
+  MESSAGE_ID   BIGINT       DEFAULT NULL
+    COMMENT 'optional link to the MESSAGE row this attachment was sent with',
+  SLOT_NO      INT          NOT NULL DEFAULT 1 COMMENT 'reply-HTML slot (1..6), matches CRM_USER.ACTIVE_MEMO_SLOT',
+  FILE_NAME    VARCHAR(255) NOT NULL COMMENT 'operator-visible original filename',
+  STORED_PATH  VARCHAR(500) NOT NULL COMMENT 'path on disk relative to the app uploads dir',
+  CONTENT_TYPE VARCHAR(120) NOT NULL,
+  SIZE_BYTES   BIGINT       NOT NULL,
+  UPLOADED_BY  VARCHAR(40)  DEFAULT NULL COMMENT 'visitor IP from the reply-page POST, for audit',
+  CREATED_AT   DATETIME     NOT NULL,
+  KEY IDX_RPA_USER (USER_ID),
+  KEY IDX_RPA_MESSAGE (MESSAGE_ID),
+  KEY IDX_RPA_USER_SLOT (USER_ID, SLOT_NO),
+  CONSTRAINT FK_RPA_USER FOREIGN KEY (USER_ID) REFERENCES CRM_USER(ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS INBOUND_MAIL_LOG (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  FROM_ADDRESS    VARCHAR(255)  NOT NULL,
+  TO_ADDRESS      VARCHAR(255)  NOT NULL,
+  SUBJECT         TEXT          DEFAULT NULL,
+  BODY_TEXT       LONGTEXT      DEFAULT NULL,
+  RAW_CONTENT     LONGTEXT      DEFAULT NULL,
+  MATCHED_USER_ID BIGINT        DEFAULT NULL,
+  IS_PROCESSED    TINYINT(1)    DEFAULT 0,
+  IS_REJECTED     TINYINT(1)    DEFAULT 0,
+  REJECT_REASON   VARCHAR(255)  DEFAULT NULL,
+  MESSAGE_ID_HEADER VARCHAR(255) DEFAULT NULL,
+  CREATED_AT      DATETIME      NOT NULL,
+  KEY IDX_INBOUND_FROM (FROM_ADDRESS),
+  KEY IDX_INBOUND_TO (TO_ADDRESS),
+  KEY IDX_INBOUND_USER (MATCHED_USER_ID),
+  KEY IDX_INBOUND_CREATED (CREATED_AT),
+  KEY IDX_INBOUND_MSGID (MESSAGE_ID_HEADER)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS RELAY_SERVER (
+  ID BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME        VARCHAR(255) NOT NULL,
+  IP_ADDRESS  VARCHAR(64)  NOT NULL,
+  PORT        INT          NOT NULL,
+  IS_ACTIVE   TINYINT(1)   DEFAULT 1,
+  MEMO        TEXT         DEFAULT NULL,
+  CREATED_AT  DATETIME     NOT NULL,
+  UPDATED_AT  DATETIME     NOT NULL,
+  UNIQUE KEY UK_RELAY_NAME (NAME)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS EXTERNAL_LINK_DOMAIN (
+  ID BIGINT AUTO_INCREMENT PRIMARY KEY,
+  DOMAIN_URL   VARCHAR(255) NOT NULL,
+  IS_ACTIVE    TINYINT(1)   DEFAULT 0,
+  MEMO         TEXT         DEFAULT NULL,
+  LANDING_MODE VARCHAR(32)  NOT NULL DEFAULT 'REPLY_FORM'
+    COMMENT 'REPLY_FORM (default) / REDIRECT / CUSTOM_HTML — what /reply/{token} does after logging the access',
+  REDIRECT_URL VARCHAR(500) DEFAULT NULL,
+  LANDING_HTML LONGTEXT     DEFAULT NULL,
+  SHORT_TOKEN_LENGTH INT    DEFAULT NULL
+    COMMENT 'SMS short-token length override, 4-20; NULL = use TokenGenerator.DEFAULT_SHORT_LENGTH (10)',
+  CERT_STATUS  VARCHAR(32)  DEFAULT NULL
+    COMMENT 'Last durably-known TLS cert result: NULL (never requested) / PENDING / SUCCESS / FAILED_*. Persisted here because the root-side script''s /tmp result file is not guaranteed to survive.',
+  CREATED_AT   DATETIME     NOT NULL,
+  UPDATED_AT   DATETIME     NOT NULL,
+  UNIQUE KEY UK_EXTERNAL_LINK_DOMAIN_URL (DOMAIN_URL),
+  KEY IDX_EXTERNAL_LINK_DOMAIN_ACTIVE (IS_ACTIVE)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS MESSAGE_TEMPLATE (
+  ID BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME          VARCHAR(255) NOT NULL,
+  SUBJECT       TEXT         DEFAULT NULL,
+  BODY          LONGTEXT     DEFAULT NULL,
+  COLOR         VARCHAR(16)  DEFAULT NULL
+    COMMENT 'accent color name (slate/blue/sky/cyan/emerald/lime/amber/rose/pink/violet) — shown as a left-border on the thread template panel for visual distinction',
+  PAGE_NO       INT          NOT NULL DEFAULT 1
+    COMMENT 'page bucket 1..5 — operators group templates by use-case and switch via the tab strip on the thread page',
+  DISPLAY_ORDER INT          DEFAULT 0,
+  CREATED_AT    DATETIME     NOT NULL,
+  UPDATED_AT    DATETIME     NOT NULL,
+  KEY IDX_TEMPLATE_ORDER (DISPLAY_ORDER),
+  KEY IDX_TEMPLATE_PAGE (PAGE_NO)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS AUDIT_LOG (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  ADMIN_USER_ID   BIGINT        DEFAULT NULL,
+  ADMIN_NAME      VARCHAR(255)  DEFAULT NULL,
+  ACTION          VARCHAR(64)   NOT NULL,
+  ENTITY_TYPE     VARCHAR(64)   DEFAULT NULL,
+  ENTITY_ID       VARCHAR(64)   DEFAULT NULL,
+  DETAIL          TEXT          DEFAULT NULL,
+  IP_ADDRESS      VARCHAR(64)   DEFAULT NULL,
+  CREATED_AT      DATETIME      NOT NULL,
+  KEY IDX_AUDIT_CREATED (CREATED_AT),
+  KEY IDX_AUDIT_ADMIN (ADMIN_USER_ID),
+  KEY IDX_AUDIT_ACTION (ACTION)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS USER_ACCESS_LOG (
+  ID          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  USER_ID     BIGINT        NOT NULL,
+  SOURCE      VARCHAR(32)   NOT NULL,
+  IP_ADDRESS  VARCHAR(64)   DEFAULT NULL,
+  USER_AGENT  VARCHAR(500)  DEFAULT NULL,
+  DOMAIN_HOST VARCHAR(255)  DEFAULT NULL,
+  CREATED_AT  DATETIME      NOT NULL,
+  KEY IDX_USER_ACCESS_LOG_USER (USER_ID, CREATED_AT),
+  KEY IDX_USER_ACCESS_LOG_CREATED (CREATED_AT),
+  KEY IDX_USER_ACCESS_LOG_DOMAIN (DOMAIN_HOST)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS CRM_SETTING (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  SETTING_KEY     VARCHAR(128)  NOT NULL,
+  SETTING_VALUE   TEXT          DEFAULT NULL,
+  DESCRIPTION     VARCHAR(500)  DEFAULT NULL,
+  UPDATED_AT      DATETIME      NOT NULL,
+  UNIQUE KEY UK_SETTING_KEY (SETTING_KEY)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS SHARED_MEMO (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  TITLE           VARCHAR(255)  DEFAULT NULL,
+  CONTENT         TEXT          DEFAULT NULL,
+  ADMIN_USER_ID   BIGINT        DEFAULT NULL,
+  CREATED_AT      DATETIME      NOT NULL,
+  UPDATED_AT      DATETIME      NOT NULL,
+  KEY IDX_SHARED_MEMO_UPDATED (UPDATED_AT)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS HOME_HTML (
+  ID              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME            VARCHAR(120)  NOT NULL  COMMENT 'admin-facing label for this variant (e.g. ランディングA)',
+  HTML_CONTENT    LONGTEXT      DEFAULT NULL,
+  IS_ACTIVE       TINYINT(1)    NOT NULL DEFAULT 0  COMMENT 'exactly one row should be 1 at a time; the service enforces it',
+  CREATED_AT      DATETIME      NOT NULL,
+  UPDATED_AT      DATETIME      NOT NULL,
+  KEY IDX_HOME_HTML_ACTIVE (IS_ACTIVE, ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS HTML_IMAGE (
+  ID           BIGINT AUTO_INCREMENT PRIMARY KEY,
+  LABEL        VARCHAR(255) DEFAULT NULL COMMENT 'operator-facing display name',
+  FILE_NAME    VARCHAR(255) NOT NULL COMMENT 'original uploaded filename (sanitised)',
+  STORED_PATH  VARCHAR(500) NOT NULL COMMENT 'path on disk relative to app.html-images-uploads-root',
+  CONTENT_TYPE VARCHAR(120) NOT NULL,
+  SIZE_BYTES   BIGINT       NOT NULL,
+  UPLOADED_BY  VARCHAR(40)  DEFAULT NULL COMMENT 'admin display name at upload time',
+  CREATED_AT   DATETIME     NOT NULL,
+  UPDATED_AT   DATETIME     NOT NULL,
+  KEY IDX_HTML_IMAGE_CREATED (CREATED_AT)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS DIFF_DEFINITION (
+  ID            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME          VARCHAR(100) NOT NULL COMMENT '差分名 — a reusable multi-step timeline template (max 20 per install)',
+  DISPLAY_ORDER INT          DEFAULT 0,
+  CREATED_AT    DATETIME     NOT NULL,
+  UPDATED_AT    DATETIME     NOT NULL,
+  KEY IDX_DIFF_DEFINITION_ORDER (DISPLAY_ORDER)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS DIFF_STEP (
+  ID                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  DIFF_DEFINITION_ID BIGINT       NOT NULL,
+  STEP_ORDER         INT          NOT NULL COMMENT '0-based position in the timeline (max 20 steps per definition)',
+  OFFSET_MODE        VARCHAR(16)  NOT NULL COMMENT 'MINUTES (当日 X分後) | DAYS (翌日以降 N日後 HH:mm), both relative to the parent schedule''s SET_AT',
+  OFFSET_MINUTES     INT          DEFAULT NULL,
+  OFFSET_DAYS        INT          DEFAULT NULL,
+  OFFSET_CLOCK_TIME  VARCHAR(5)   DEFAULT NULL COMMENT 'HH:mm, used when OFFSET_MODE=DAYS',
+  STEP_TYPE          VARCHAR(16)  NOT NULL COMMENT 'MESSAGE (real send) | HTML_SWITCH (ユーザーHTML切替)',
+  CHANNEL            VARCHAR(16)  DEFAULT NULL COMMENT 'EMAIL | SMS — only meaningful when STEP_TYPE=MESSAGE',
+  SUBJECT            VARCHAR(500) DEFAULT NULL COMMENT 'EMAIL only — SMS has no subject line',
+  BODY               LONGTEXT     DEFAULT NULL COMMENT 'message body for MESSAGE steps; supports %reply_url%/%name%-style placeholder tags',
+  MEMO_SLOT          INT          DEFAULT NULL COMMENT 'target CRM_USER memo slot (1..10) for HTML_SWITCH steps',
+  CREATED_AT         DATETIME     NOT NULL,
+  UPDATED_AT         DATETIME     NOT NULL,
+  KEY IDX_DIFF_STEP_DEFINITION_ORDER (DIFF_DEFINITION_ID, STEP_ORDER),
+  CONSTRAINT FK_DIFF_STEP_DEFINITION FOREIGN KEY (DIFF_DEFINITION_ID) REFERENCES DIFF_DEFINITION(ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS DIFF_SCHEDULE (
+  ID                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  DIFF_DEFINITION_ID BIGINT       NOT NULL,
+  DIFF_NAME_SNAPSHOT VARCHAR(100) NOT NULL COMMENT 'copy of DIFF_DEFINITION.NAME at SET time — survives later rename/delete',
+  TARGET_TYPE        VARCHAR(16)  NOT NULL COMMENT 'PHONE | EMAIL | FOLDER',
+  TARGET_VALUE       VARCHAR(500) DEFAULT NULL COMMENT 'operator-entered raw target (folder name, or a short display summary for phone/email list)',
+  TARGET_USER_IDS    LONGTEXT     NOT NULL COMMENT 'comma-separated CRM_USER.ID snapshot resolved at SET time — frozen recipient list, same semantics as BROADCAST scheduled-send',
+  SET_AT             DATETIME     NOT NULL COMMENT 'セット時刻 — every DIFF_SCHEDULE_STEP''s offset is relative to this',
+  SET_BY_ADMIN_ID    BIGINT       DEFAULT NULL COMMENT 'used as the sending admin for real message sends via BroadcastService',
+  SET_BY_ADMIN_NAME  VARCHAR(255) DEFAULT NULL,
+  CREATED_AT         DATETIME     NOT NULL,
+  UPDATED_AT         DATETIME     NOT NULL,
+  KEY IDX_DIFF_SCHEDULE_DEFINITION (DIFF_DEFINITION_ID),
+  CONSTRAINT FK_DIFF_SCHEDULE_DEFINITION FOREIGN KEY (DIFF_DEFINITION_ID) REFERENCES DIFF_DEFINITION(ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS DIFF_SCHEDULE_STEP (
+  ID                      BIGINT AUTO_INCREMENT PRIMARY KEY,
+  DIFF_SCHEDULE_ID        BIGINT       NOT NULL,
+  STEP_ORDER              INT          NOT NULL,
+  OFFSET_MODE             VARCHAR(16)  NOT NULL,
+  OFFSET_MINUTES          INT          DEFAULT NULL,
+  OFFSET_DAYS             INT          DEFAULT NULL,
+  OFFSET_CLOCK_TIME       VARCHAR(5)   DEFAULT NULL,
+  SCHEDULED_FOR           DATETIME     NOT NULL COMMENT 'computed absolute fire datetime = parent SET_AT + this step''s offset',
+  STEP_TYPE               VARCHAR(16)  NOT NULL,
+  CHANNEL                 VARCHAR(16)  DEFAULT NULL,
+  SUBJECT_SNAPSHOT        VARCHAR(500) DEFAULT NULL COMMENT 'copy of DIFF_STEP.SUBJECT at SET time — survives later template edits',
+  BODY_SNAPSHOT           LONGTEXT     DEFAULT NULL COMMENT 'copy of DIFF_STEP.BODY at SET time',
+  MEMO_SLOT_SNAPSHOT      INT          DEFAULT NULL COMMENT 'copy of DIFF_STEP.MEMO_SLOT at SET time',
+  STATUS                  VARCHAR(16)  NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING | EXECUTED | CANCELLED | FAILED',
+  EXECUTED_AT             DATETIME     DEFAULT NULL,
+  CANCELLED_AT            DATETIME     DEFAULT NULL,
+  CANCELLED_BY_ADMIN_NAME VARCHAR(255) DEFAULT NULL,
+  RESULT_DETAIL           TEXT         DEFAULT NULL,
+  CREATED_AT              DATETIME     NOT NULL,
+  UPDATED_AT              DATETIME     NOT NULL,
+  KEY IDX_DIFF_SCHEDULE_STEP_STATUS_FOR (STATUS, SCHEDULED_FOR),
+  KEY IDX_DIFF_SCHEDULE_STEP_SCHEDULE (DIFF_SCHEDULE_ID),
+  CONSTRAINT FK_DIFF_SCHEDULE_STEP_SCHEDULE FOREIGN KEY (DIFF_SCHEDULE_ID) REFERENCES DIFF_SCHEDULE(ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS FOLDER_AUTO_MOVE_RULE (
+  ID            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  SOURCE_FOLDER VARCHAR(64) DEFAULT NULL COMMENT 'NULL = 未設定 (FOLDER IS NULL) as source',
+  DEST_FOLDER   VARCHAR(64) DEFAULT NULL COMMENT 'NULL = 未設定 (FOLDER IS NULL) as destination',
+  MOVE_TIME     VARCHAR(5)  NOT NULL COMMENT 'HH:mm — daily local time this rule fires',
+  ENABLED       TINYINT(1)  NOT NULL DEFAULT 1,
+  LAST_RUN_AT   DATETIME    DEFAULT NULL COMMENT 'last time this rule actually executed — guards against double-fire within the same matching minute across ticks',
+  CREATED_AT    DATETIME    NOT NULL,
+  UPDATED_AT    DATETIME    NOT NULL,
+  KEY IDX_FOLDER_AUTO_MOVE_ENABLED_TIME (ENABLED, MOVE_TIME)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

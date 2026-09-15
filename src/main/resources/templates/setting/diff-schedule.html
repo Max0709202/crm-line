@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>差分スケジュール設定</title>
+    <style>
+        .target-panel { display: none; }
+        .target-panel.active { display: block; }
+        .pending-scroll { max-height: calc(100vh - 260px); min-height: 300px; overflow-y: auto; }
+        .pending-scroll thead th { position: sticky; top: 0; background: #f8fafc; z-index: 1; }
+    </style>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">差分スケジュール設定</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md mr-2" th:href="@{/manager/settings/diff-schedule/definitions}">差分定義を管理</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md mr-2" th:href="@{/manager/settings/diff-schedule/history}">履歴を見る</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/settings}">設定に戻る</a>
+    </div>
+
+    <div th:if="${definitions == null or definitions.empty}" class="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-4 text-sm text-amber-800">
+        まだ差分定義が登録されていません。先に<a class="underline font-semibold" th:href="@{/manager/settings/diff-schedule/definitions}">差分定義を管理</a>から差分名とステップを登録してください。
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <!-- 左: 登録フォーム -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
+            <h2 class="text-base font-semibold text-slate-800 mb-4">差分スケジュールをセット</h2>
+            <p class="text-xs text-slate-500 mb-4">差分名を選ぶと、その差分に登録済みの全ステップ（複数のタイミング・送信・HTML切替）が対象ユーザーに一括セットされます。</p>
+            <form method="post" th:action="@{/manager/settings/diff-schedule/register}">
+                <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">差分名</label>
+                    <select name="diffDefinitionId" class="tw-input" required>
+                        <option th:each="d : ${definitions}" th:value="${d.id}" th:text="${d.name}"></option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">対象</label>
+                    <div class="flex gap-4 mb-2 text-sm">
+                        <label><input type="radio" name="targetTypeRadio" value="PHONE" onchange="switchTargetPanel('PHONE')" checked/> 番号縛り</label>
+                        <label><input type="radio" name="targetTypeRadio" value="EMAIL" onchange="switchTargetPanel('EMAIL')"/> アドレス縛り</label>
+                        <label><input type="radio" name="targetTypeRadio" value="FOLDER" onchange="switchTargetPanel('FOLDER')"/> フォルダ縛り</label>
+                    </div>
+                    <input type="hidden" name="targetType" id="targetTypeField" value="PHONE"/>
+
+                    <div class="target-panel active" data-panel="PHONE">
+                        <textarea class="tw-input" rows="3" placeholder="電話番号を改行区切りで入力" id="targetRawPhone"></textarea>
+                    </div>
+                    <div class="target-panel" data-panel="EMAIL">
+                        <textarea class="tw-input" rows="3" placeholder="メールアドレスを改行区切りで入力" id="targetRawEmail"></textarea>
+                    </div>
+                    <div class="target-panel" data-panel="FOLDER">
+                        <select class="tw-input" id="targetRawFolder">
+                            <option value="">選択してください</option>
+                            <option th:each="f : ${folders}" th:value="${f}" th:text="${f}"></option>
+                        </select>
+                    </div>
+                    <input type="hidden" name="targetRaw" id="targetRawField"/>
+                </div>
+
+                <button type="submit" class="inline-flex items-center px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md"
+                        onclick="return prepareSubmit();">セット</button>
+            </form>
+        </div>
+
+        <!-- 右: 保留中一覧 -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
+            <h2 class="text-base font-semibold text-slate-800 mb-4">保留中の差分ステップ</h2>
+
+            <div th:if="${pending == null or pending.empty}" class="text-sm text-slate-400 text-center py-6">
+                保留中のスケジュールはありません
+            </div>
+
+            <div class="pending-scroll overflow-x-auto" th:if="${pending != null and !pending.empty}">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                        <tr>
+                            <th class="px-2 py-2 text-left">差分名</th>
+                            <th class="px-2 py-2 text-left">対象</th>
+                            <th class="px-2 py-2 text-right">対象ユーザー</th>
+                            <th class="px-2 py-2 text-left">ステップ</th>
+                            <th class="px-2 py-2 text-left">セット日時</th>
+                            <th class="px-2 py-2 text-left">実行日時</th>
+                            <th class="px-2 py-2 text-right">取消</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr th:each="s : ${pending}" th:with="sched=${schedulesById.get(s.diffScheduleId)}">
+                            <td class="px-2 py-1.5" th:text="${sched != null ? sched.diffNameSnapshot : '-'}"></td>
+                            <td class="px-2 py-1.5 text-xs" th:if="${sched != null}">
+                                <span th:if="${sched.targetType == 'PHONE'}">番号</span>
+                                <span th:if="${sched.targetType == 'EMAIL'}">アドレス</span>
+                                <span th:if="${sched.targetType == 'FOLDER'}" th:text="'フォルダ:' + ${sched.targetValue}"></span>
+                            </td>
+                            <td class="px-2 py-1.5 text-right" th:if="${sched != null}">
+                                <a class="font-mono text-blue-600 hover:underline"
+                                   th:href="@{/manager/users(ids=${sched.targetUserIds})}"
+                                   th:text="${#strings.arraySplit(sched.targetUserIds, ',').length}"></a>
+                            </td>
+                            <td class="px-2 py-1.5 text-xs">
+                                <span th:if="${s.stepType == 'MESSAGE'}" th:text="'送信(' + ${s.channel} + ')'"
+                                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                      th:classappend="${s.channel == 'SMS'} ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-700'"></span>
+                                <span th:if="${s.stepType == 'HTML_SWITCH'}" th:text="'HTML切替→スロット' + ${s.memoSlotSnapshot}"></span>
+                            </td>
+                            <td class="px-2 py-1.5 text-xs" th:text="${sched != null ? #temporals.format(sched.setAt, 'MM-dd HH:mm') : '-'}"></td>
+                            <td class="px-2 py-1.5 text-xs" th:text="${#temporals.format(s.scheduledFor, 'MM-dd HH:mm')}"></td>
+                            <td class="px-2 py-1.5 text-right">
+                                <form method="post" th:action="@{'/manager/settings/diff-schedule/steps/' + ${s.id} + '/cancel'}"
+                                      onsubmit="return confirm('このステップを取消します。よろしいですか?');">
+                                    <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                                    <button type="submit" class="px-2 py-1 text-xs bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded">取消</button>
+                                </form>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 条件で一括取消 -->
+            <div class="mt-4 pt-4 border-t border-slate-100">
+                <h3 class="text-xs font-semibold text-slate-600 mb-2">条件で一括取消（残りステップすべて）</h3>
+                <div class="flex items-end gap-4 flex-wrap">
+                    <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-target}"
+                          class="flex items-end gap-2 flex-wrap"
+                          onsubmit="return confirm('条件に一致する保留中のステップをすべて取消します。よろしいですか?');">
+                        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">フォルダ</label>
+                            <select name="targetValue" class="tw-input" style="font-size:.8rem;">
+                                <option value="">選択してください</option>
+                                <option th:each="f : ${folders}" th:value="${f}" th:text="${f}"></option>
+                            </select>
+                            <input type="hidden" name="targetType" value="FOLDER"/>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">フォルダで一括取消</button>
+                    </form>
+                    <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-target}"
+                          class="flex items-end gap-2 flex-wrap"
+                          onsubmit="return confirm('条件に一致する保留中のステップをすべて取消します。よろしいですか?');">
+                        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">差分名</label>
+                            <select name="diffDefinitionId" class="tw-input" style="font-size:.8rem;">
+                                <option value="">選択してください</option>
+                                <option th:each="d : ${definitions}" th:value="${d.id}" th:text="${d.name}"></option>
+                            </select>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">差分名で一括取消</button>
+                    </form>
+                    <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-user-search}"
+                          class="flex items-end gap-2 flex-wrap"
+                          onsubmit="return confirm('条件に一致する保留中のステップをすべて取消します。よろしいですか?');">
+                        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                        <input type="hidden" name="targetType" value="PHONE"/>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">番号</label>
+                            <input type="text" name="query" class="tw-input" style="font-size:.8rem;" placeholder="部分一致"/>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">番号で一括取消</button>
+                    </form>
+                    <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-user-search}"
+                          class="flex items-end gap-2 flex-wrap"
+                          onsubmit="return confirm('条件に一致する保留中のステップをすべて取消します。よろしいですか?');">
+                        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                        <input type="hidden" name="targetType" value="EMAIL"/>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">アドレス</label>
+                            <input type="text" name="query" class="tw-input" style="font-size:.8rem;" placeholder="部分一致"/>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">アドレスで一括取消</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTargetPanel(type) {
+            document.getElementById('targetTypeField').value = type;
+            document.querySelectorAll('.target-panel').forEach(function (p) {
+                p.classList.toggle('active', p.getAttribute('data-panel') === type);
+            });
+        }
+        function prepareSubmit() {
+            var type = document.getElementById('targetTypeField').value;
+            var raw = '';
+            if (type === 'PHONE') raw = document.getElementById('targetRawPhone').value;
+            else if (type === 'EMAIL') raw = document.getElementById('targetRawEmail').value;
+            else if (type === 'FOLDER') raw = document.getElementById('targetRawFolder').value;
+            if (!raw || !raw.trim()) {
+                alert('対象を指定してください');
+                return false;
+            }
+            document.getElementById('targetRawField').value = raw;
+            return true;
+        }
+    </script>
+</section>
+</body>
+</html>

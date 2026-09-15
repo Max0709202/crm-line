@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>返信画面設定</title>
+    <style>
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .field-row > .editor-side > textarea { width: 100%; }
+        .preview-pane {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        .preview-pane .preview-label {
+            background: #f1f5f9; color: #475569; font-size: .68rem; font-weight: 600;
+            padding: 4px 8px; border-bottom: 1px solid #cbd5e1; letter-spacing: .05em;
+        }
+        .preview-pane iframe { flex: 1; border: 0; width: 100%; background: #fff; min-height: 0; }
+        /* Header preview deserves much more vertical room — operators paste 800px tall
+         * landing pages (Mt-Fuji hero etc.) and need to scroll through the full content. */
+        .preview-pane.header-preview { min-height: 600px; }
+        .preview-pane.header-preview iframe { height: 600px; }
+        .preview-pane .preview-html-body {
+            flex: 1; padding: 10px; overflow: auto; font-family: sans-serif;
+            font-size: .85rem; color: #1e293b; background: #fff; line-height: 1.5;
+        }
+        @media (max-width: 1100px) {
+            .field-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">返信画面設定</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-sm mr-2"
+           th:href="@{/manager/settings/memo-html-bulk}">専用返信画面HTML 一括編集</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/settings}">設定に戻る</a>
+    </div>
+
+    <p class="text-sm text-slate-500 mb-4">
+        ここで設定した内容は、ユーザー宛の返信ページ (<code class="bg-slate-100 px-1 rounded">/reply/{token}</code>) 全体の共通ヘッダーとフッター、追加CSSとして適用されます。
+        各ユーザーのメモ欄が空の場合はここで設定したヘッダーが使われます。
+    </p>
+    <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
+        <strong>HTMLは生のまま入力してください。</strong>
+        右側のプレビューは入力中に自動更新されます (保存前の見た目確認用)。
+    </div>
+
+    <form method="post" th:action="@{/manager/settings/reply-page}" th:object="${form}"
+          class="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
+
+        <div class="field-row">
+            <div class="editor-side">
+                <label class="block text-sm font-semibold text-slate-800 mb-1">共通ヘッダーHTML</label>
+                <p class="text-xs text-slate-500 mb-2">
+                    返信ページの上部に表示されるHTML。画像、装飾タグ、リンクが使えます。
+                </p>
+                <textarea id="headerEditor" th:field="*{defaultHeaderHtml}" rows="14"
+                          class="tw-input font-mono"
+                          style="white-space:pre; font-size:0.78rem; line-height:1.45; min-height:320px;"
+                          placeholder="例) &lt;!DOCTYPE html&gt;&#10;&lt;html lang=&quot;ja&quot;&gt;&#10;..."></textarea>
+            </div>
+            <div class="preview-pane header-preview">
+                <div class="preview-label" style="display:flex; align-items:center; justify-content:space-between;">
+                    <span>▶ ヘッダー プレビュー (sandboxed iframe — 上下スクロール可)</span>
+                    <span style="font-weight:normal; letter-spacing:normal;">
+                        <label style="margin-right:8px;"><input type="checkbox" th:field="*{headerVisible}"/> ユーザー側に表示する</label>
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500" style="padding:4px 8px 0;">
+                    オフにすると、返信ページ (/reply/{token}) 上でヘッダー部分自体が表示されなくなります（このプレビュー欄は編集用に常時表示されます）。
+                </p>
+                <!-- sandbox flags match the real reply page (/reply/{token} and
+                     /manager/users/{id}/reply-preview) so external fonts, JS animations,
+                     and embedded scripts behave the same here as in production. -->
+                <iframe id="headerPreview"
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
+            </div>
+        </div>
+
+        <div class="field-row">
+            <div class="editor-side">
+                <label class="block text-sm font-semibold text-slate-800 mb-1">共通フッターHTML</label>
+                <p class="text-xs text-slate-500 mb-2">
+                    ここに入力したHTMLが、返信ページ (/reply/{token}) の一番下・本文入力フォームより後ろに、
+                    そのまま挿入されます。右側の「▶ フッター プレビュー」に入力内容がリアルタイムで反映されます。
+                </p>
+                <textarea id="footerEditor" th:field="*{footerHtml}" rows="6"
+                          class="tw-input font-mono"
+                          style="white-space:pre; font-size:0.78rem; line-height:1.45; min-height:180px;"
+                          placeholder="例) &lt;p style=&quot;text-align:center;color:#94a3b8;font-size:12px;&quot;&gt;お問い合わせは上記フォームよりお願いいたします&lt;/p&gt;"></textarea>
+                <p class="text-xs text-slate-400 mt-1">
+                    入力例: <code>&lt;p style="text-align:center;color:#94a3b8;font-size:12px;"&gt;お問い合わせは上記フォームよりお願いいたします&lt;/p&gt;</code>
+                    のように書くと、右側プレビューのように中央寄せ・グレー文字の一行が表示されます。
+                </p>
+            </div>
+            <div class="preview-pane" style="min-height:180px;">
+                <div class="preview-label">▶ フッター プレビュー</div>
+                <p class="text-xs text-slate-500" style="padding:4px 8px 0;">
+                    左のHTMLを入力すると、実際に返信ページの下部に表示される見た目がここに反映されます。
+                </p>
+                <div id="footerPreview" class="preview-html-body"></div>
+            </div>
+        </div>
+
+        <div class="field-row">
+            <div class="editor-side">
+                <label class="block text-sm font-semibold text-slate-800 mb-1">追加CSS</label>
+                <p class="text-xs text-slate-500 mb-2">
+                    ここに入力したCSSが、返信ページ全体（上のヘッダーHTML・本文フォーム・フッターHTMLすべて）に適用されます。
+                    通常のCSS構文（セレクタ { プロパティ: 値; }）で記述してください。右側のプレビューに即座に反映されます。
+                </p>
+                <textarea id="cssEditor" class="tw-input font-mono" rows="8" th:field="*{defaultCss}"
+                          style="white-space:pre; font-size:0.78rem; line-height:1.45; min-height:220px;"
+                          placeholder=".reply-banner { background: #003366; }"></textarea>
+                <p class="text-xs text-slate-400 mt-1">
+                    入力例: <code>.reply-banner { background: #003366; color: #fff; }</code> のように、
+                    対象にしたい要素のクラス名（返信ページのHTML内で使われているもの）を左に、変更したいスタイルを { } の中に書きます。
+                    どの要素がどんなクラス名かは、上の「共通ヘッダーHTML」に自分で入れたタグ、または開発担当にご確認ください。
+                </p>
+            </div>
+            <div class="preview-pane" style="min-height:220px;">
+                <div class="preview-label" style="display:block;">
+                    <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                        <span style="font-weight:normal; font-size:.68rem; color:#94a3b8; letter-spacing:normal;">見出し:</span>
+                        <input type="text" th:field="*{cssPreviewLabel}" maxlength="200"
+                               style="flex:1; font-weight:normal; font-size:.78rem; letter-spacing:normal; border:1px solid #cbd5e1; border-radius:4px; padding:2px 6px; background:#fff; color:#1e293b;"/>
+                    </div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <span th:text="'▶ ' + ${form.cssPreviewLabel}">▶ CSS プレビュー</span>
+                    </div>
+                </div>
+                <div class="css-preview-mode-toggle" style="padding:6px 8px; font-size:.75rem;">
+                    <label style="display:block; margin-bottom:3px;">
+                        <input type="radio" th:field="*{cssPreviewMode}" th:value="'ON'"/>
+                        <strong>オン</strong> — この設定画面で、下のプレビュー欄を常に表示したままにします
+                    </label>
+                    <label style="display:block; margin-bottom:3px;">
+                        <input type="radio" th:field="*{cssPreviewMode}" th:value="'OFF'"/>
+                        <strong>オフ</strong> — プレビュー欄を折りたたんで表示します（「プレビューを表示」ボタンでその場だけ展開可能）
+                    </label>
+                    <label style="display:block;">
+                        <input type="radio" th:field="*{cssPreviewMode}" th:value="'HIDDEN'"/>
+                        <strong>表示しない</strong> — プレビュー欄自体を非表示にします（展開ボタンもなくなります）
+                    </label>
+                </div>
+                <div id="cssPreviewCollapseWrap" th:if="${form.cssPreviewMode != 'HIDDEN'}">
+                    <button type="button" id="cssPreviewToggleBtn" th:if="${form.cssPreviewMode == 'OFF'}"
+                            style="font-size:.75rem; color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 8px; margin:6px;">
+                        プレビューを表示 ▼
+                    </button>
+                    <iframe id="cssPreview"
+                            th:style="${form.cssPreviewMode == 'OFF' ? 'display:none;' : ''}"
+                            sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
+                </div>
+                <div th:if="${form.cssPreviewMode == 'HIDDEN'}" class="text-xs text-slate-400" style="padding:10px;">
+                    CSSプレビューは非表示に設定されています
+                </div>
+                <p class="text-xs text-slate-500" style="padding:4px 8px;">
+                    ※このオン/オフ/表示しないは、あくまで<strong>この設定画面内のプレビュー欄</strong>の見え方です。ユーザー側の返信ページに表示される本文入力フォーム自体を消したい場合は、下の「本文入力フォームをユーザー側に表示する」を使用してください。
+                </p>
+            </div>
+        </div>
+
+        <div class="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="flex items-center">
+                <input type="checkbox" class="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500" id="replyFormVisible" th:field="*{replyFormVisible}"/>
+                <label class="ml-2 text-sm font-medium text-slate-800" for="replyFormVisible">本文入力フォームをユーザー側に表示する</label>
+            </div>
+            <p class="text-xs text-slate-500 mt-1 ml-6">
+                オフにすると、返信ページ (/reply/{token}) から件名・本文の入力欄と送信ボタンが消えます。
+                上のヘッダー表示と両方オフにした場合、返信ページには<strong>メッセージボックスのみ</strong>が表示されます。
+            </p>
+        </div>
+
+        <div class="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <label class="block text-sm font-medium text-slate-800 mb-1" for="urlLeadTextField">URL前文言</label>
+            <input type="text" class="tw-input" id="urlLeadTextField" th:field="*{urlLeadText}"
+                   placeholder="例: 返信はこちら／本文はこちら（空欄可）" maxlength="500"/>
+            <p class="text-xs text-slate-500 mt-1">
+                %reply_url% / %external_url% を含めて送信するメッセージ（個別送信・一斉送信いずれも）で、
+                URLの直上に改行して自動的に挿入されます（空欄の場合は改行のみ）。
+                この項目はメッセージスレッド画面・一斉送信画面からも同じ内容を保存・編集できます。
+            </p>
+        </div>
+
+        <div class="mb-4 flex items-center">
+            <input type="checkbox" class="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500" id="requireLogin" th:field="*{requireLogin}"/>
+            <label class="ml-2 text-sm text-slate-700" for="requireLogin">ログインを必須にする (ユーザーのログインID/パスワードを要求)</label>
+        </div>
+        <p class="text-xs text-slate-500 mb-4 ml-6">将来の拡張用。現時点では設定のみ保存されます。</p>
+
+        <div class="flex items-center gap-3">
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
+            <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/settings}">キャンセル</a>
+        </div>
+    </form>
+
+    <script>
+    (function () {
+        // Live preview wiring. Each editor's input event updates its preview pane.
+        // Header → iframe srcdoc (sandboxed; safe for full-document HTML).
+        // Footer → innerHTML on a plain div (matches th:utext at runtime, sanitized server-side on save).
+        // CSS    → mini reply-form mockup iframe with the CSS injected so selectors like
+        //          .reply-banner / .reply-form / button preview correctly.
+
+        var headerEd = document.getElementById('headerEditor');
+        var headerPv = document.getElementById('headerPreview');
+        function updateHeader() { headerPv.srcdoc = headerEd.value || '<p style="padding:24px;color:#94a3b8;">(空)</p>'; }
+
+        var footerEd = document.getElementById('footerEditor');
+        var footerPv = document.getElementById('footerPreview');
+        function updateFooter() { footerPv.innerHTML = footerEd.value || '<span style="color:#94a3b8;">(空)</span>'; }
+
+        var cssEd = document.getElementById('cssEditor');
+        var cssPv = document.getElementById('cssPreview'); // absent when cssPreviewMode == HIDDEN
+        function updateCss() {
+            if (!cssPv) return;
+            var css = cssEd.value || '/* (空) */';
+            var html = '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">'
+                     + '<link rel="stylesheet" href="/css/reply.css">'
+                     + '<style>' + css + '</style>'
+                     + '<style>body{margin:0;padding:8px;background:#fff;}</style>'
+                     + '</head><body><div class="reply-shell">'
+                     + '<div class="reply-banner"><h1>入力欄</h1></div>'
+                     + '<form class="reply-form" onsubmit="return false;">'
+                     + '<div class="field"><textarea rows="3" placeholder="(プレビュー用の本文)"></textarea></div>'
+                     + '<div class="actions"><button type="submit">送信する</button></div>'
+                     + '</form>'
+                     + '</div></body></html>';
+            cssPv.srcdoc = html;
+        }
+
+        headerEd.addEventListener('input', updateHeader);
+        footerEd.addEventListener('input', updateFooter);
+        cssEd.addEventListener('input', updateCss);
+
+        // Initial render on page load.
+        updateHeader(); updateFooter(); updateCss();
+
+        // OFF mode: pane starts collapsed, admin can expand it for the rest of this page view
+        // (session-local, not persisted — the stored setting stays OFF until explicitly changed
+        // via the radio buttons above and saved).
+        var cssToggleBtn = document.getElementById('cssPreviewToggleBtn');
+        if (cssToggleBtn && cssPv) {
+            cssToggleBtn.addEventListener('click', function () {
+                cssPv.style.display = '';
+                cssToggleBtn.style.display = 'none';
+            });
+        }
+    })();
+    </script>
+
+</section>
+</body>
+</html>

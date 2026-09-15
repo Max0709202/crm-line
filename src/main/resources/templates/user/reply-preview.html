@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>返信画面プレビュー</title>
+    <link rel="stylesheet" th:href="@{/css/reply.css}"/>
+    <style>
+        /* Mirror the user-facing reply page (templates/reply/page.html) structurally, but
+           per operator request (2026-09-09) the preview's HTML fills the full remaining
+           viewport height — the 入力欄 compose form is fine sitting below the fold, since
+           this is a read-only preview (the send button is disabled here anyway). */
+        .reply-header-frame {
+            display: block; width: 100%; height: calc(100vh - 52px);
+            border: 0; background: #fff;
+        }
+        .preview-banner { position: sticky; top: 0; z-index: 30; }
+    </style>
+</head>
+<body>
+
+<!-- Banners use inline styles because reply.css is the only stylesheet loaded
+     on this page (Tailwind is NOT available here, so utility classes like
+     bg-amber-50 / flex / gap-3 have no effect). Keep tokens inline. -->
+<div class="preview-banner"
+     style="position:sticky;top:0;z-index:30;background:#fffbeb;border-bottom:1px solid #fde68a;padding:10px 16px;font-size:.85rem;color:#78350f;font-family:sans-serif;display:flex;align-items:center;gap:14px;flex-wrap:wrap;line-height:1.5;">
+    <strong style="color:#7c2d12;">管理者プレビュー</strong>
+    <span>ユーザーID
+        <code th:text="${user.id}" style="background:#fff;padding:1px 6px;border-radius:3px;border:1px solid #fde68a;"></code>
+    </span>
+    <span th:if="${user.displayName}" th:text="'(' + ${user.displayName} + ')'"></span>
+    <span style="opacity:.85;color:#92400e;">置き換えタグはこのユーザーの値で差し替えています。 / 「送信する」ボタンはプレビュー上では動作しません。</span>
+    <a href="javascript:history.back()" style="margin-left:auto;color:#2563eb;text-decoration:underline;">戻る</a>
+</div>
+
+<div th:if="${usingDefaultHtml}"
+     style="background:#f0f9ff;border-bottom:1px solid #bae6fd;padding:8px 16px;font-size:.78rem;color:#075985;font-family:sans-serif;line-height:1.5;">
+    このユーザーには専用返信画面HTMLが未設定です。<strong>設定ページのデフォルト返信画面HTML</strong>を表示しています。
+    <a th:href="@{/manager/settings/reply-page}" style="color:#2563eb;text-decoration:underline;margin-left:8px;">設定ページへ</a>
+</div>
+<div th:if="${repaired}"
+     style="background:#fef2f2;border-bottom:1px solid #fecaca;padding:8px 16px;font-size:.78rem;color:#991b1b;font-family:sans-serif;line-height:1.5;">
+    メモのHTMLに <code style="background:#fff;padding:1px 6px;border-radius:3px;border:1px solid #fecaca;">&lt;/style&gt;</code> または
+    <code style="background:#fff;padding:1px 6px;border-radius:3px;border:1px solid #fecaca;">&lt;script&gt;</code> の不足が検出されたため、プレビューでは自動修復しています。
+    実際のユーザー画面でも正しく表示されるよう、専用返信画面HTMLの保存内容をご確認のうえ修正ください。
+</div>
+
+<!-- Same DOM structure as templates/reply/page.html so reply.css applies identically. -->
+<div class="reply-shell">
+
+    <iframe class="reply-header-frame"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+            th:attr="srcdoc=${memoText} ?: '&lt;p style=&quot;padding:24px;color:#94a3b8;&quot;&gt;専用返信画面HTMLが未設定です。&lt;/p&gt;'"></iframe>
+
+    <div class="reply-banner">
+        <h1>入力欄</h1>
+    </div>
+
+    <form class="reply-form" onsubmit="event.preventDefault(); alert('プレビュー時は送信できません。');">
+
+        <div class="field">
+            <textarea id="body" name="body" rows="9" maxlength="10000"></textarea>
+        </div>
+
+        <div class="actions">
+            <button type="submit">送信する</button>
+        </div>
+    </form>
+
+</div>
+
+<div class="preview-tags" style="background:#f8fafc;max-width:768px;margin:0 auto;padding:24px;font-family:sans-serif;">
+    <h2 style="font-size:14px;font-weight:600;color:#334155;margin-bottom:12px;">タグ解決状況</h2>
+    <table style="width:100%;font-size:14px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;border-collapse:collapse;overflow:hidden;">
+        <thead style="background:#f8fafc;font-size:12px;color:#64748b;text-transform:uppercase;">
+            <tr>
+                <th style="padding:8px 12px;text-align:left;width:176px;">タグ</th>
+                <th style="padding:8px 12px;text-align:left;">現在の値</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="b : ${bindings}" style="border-top:1px solid #f1f5f9;">
+                <td style="padding:8px 12px;"><code style="background:#f1f5f9;padding:2px 8px;border-radius:3px;" th:text="${b.key}"></code></td>
+                <td style="padding:8px 12px;" th:text="${b.value}"></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

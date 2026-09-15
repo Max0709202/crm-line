@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>差分スケジュール履歴</title>
+    <style>
+        .diff-tbl-body { max-width:260px; }
+        .diff-tbl-body .diff-tbl-body-text {
+            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+            overflow:hidden; line-height:1.35; font-size:.78rem; color:#475569; white-space:pre-wrap;
+        }
+    </style>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">差分スケジュール履歴</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md mr-2" th:href="@{/manager/messages}">個別メッセージ管理へ</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/settings/diff-schedule}">差分スケジュール設定に戻る</a>
+    </div>
+
+    <p class="text-sm text-slate-500 mb-4">
+        どのユーザーに、どの条件で、どの差分が発動したのかを確認できます。取消されたスケジュールも表示されます。
+    </p>
+
+    <form method="get" th:action="@{/manager/settings/diff-schedule/history}"
+          class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-end gap-3 flex-wrap">
+        <div>
+            <label class="block text-xs text-slate-500 mb-1">ステータス</label>
+            <select name="status" class="tw-input">
+                <option value="">すべて</option>
+                <option value="PENDING" th:selected="${status == 'PENDING'}">保留中</option>
+                <option value="EXECUTED" th:selected="${status == 'EXECUTED'}">実行済み</option>
+                <option value="CANCELLED" th:selected="${status == 'CANCELLED'}">取消済み</option>
+                <option value="FAILED" th:selected="${status == 'FAILED'}">失敗</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-slate-500 mb-1">条件種別</label>
+            <select name="targetType" class="tw-input">
+                <option value="">すべて</option>
+                <option value="PHONE" th:selected="${targetType == 'PHONE'}">番号縛り</option>
+                <option value="EMAIL" th:selected="${targetType == 'EMAIL'}">アドレス縛り</option>
+                <option value="FOLDER" th:selected="${targetType == 'FOLDER'}">フォルダ縛り</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-slate-500 mb-1">差分名</label>
+            <select name="diffDefinitionId" class="tw-input">
+                <option value="">すべて</option>
+                <option th:each="d : ${definitions}" th:value="${d.id}" th:text="${d.name}"
+                        th:selected="${diffDefinitionId != null and diffDefinitionId == d.id}"></option>
+            </select>
+        </div>
+        <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded">検索</button>
+        <a class="inline-flex items-center px-3 py-2 border border-slate-300 bg-white text-slate-600 text-sm rounded hover:bg-slate-50"
+           th:href="@{/manager/settings/diff-schedule/history}">クリア</a>
+    </form>
+
+    <form id="diffHistoryDeleteForm" method="post" th:action="@{/manager/settings/diff-schedule/history/delete}"></form>
+
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto">
+        <table th:replace="~{fragment/diff-step-table :: table(${results.content}, ${schedulesById}, ${userInfoById}, ${results.number * results.size}, 'diffHistoryDeleteForm')}"></table>
+    </div>
+
+    <nav class="mt-4" th:if="${results.totalPages > 1}">
+        <ul class="flex items-center gap-1 text-sm">
+            <li>
+                <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50"
+                   th:classappend="${results.first} ? 'opacity-50 pointer-events-none'"
+                   th:href="@{/manager/settings/diff-schedule/history(page=${results.number - 1},status=${status},targetType=${targetType},diffDefinitionId=${diffDefinitionId})}">前へ</a>
+            </li>
+            <li th:each="i : ${#numbers.sequence(0, results.totalPages - 1)}">
+                <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50"
+                   th:classappend="${i == results.number} ? 'bg-blue-600 text-white border-blue-600'"
+                   th:href="@{/manager/settings/diff-schedule/history(page=${i},status=${status},targetType=${targetType},diffDefinitionId=${diffDefinitionId})}" th:text="${i + 1}"></a>
+            </li>
+            <li>
+                <a class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-50"
+                   th:classappend="${results.last} ? 'opacity-50 pointer-events-none'"
+                   th:href="@{/manager/settings/diff-schedule/history(page=${results.number + 1},status=${status},targetType=${targetType},diffDefinitionId=${diffDefinitionId})}">次へ</a>
+            </li>
+        </ul>
+    </nav>
+    <div class="flex items-center justify-between mt-3">
+        <p class="text-sm text-slate-500">全<span th:text="${results.totalElements}">0</span>件</p>
+        <button type="submit" form="diffHistoryDeleteForm" id="diffHistoryDeleteBtn" disabled
+                class="px-4 py-2 text-sm font-bold rounded-md text-white bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                onclick="return confirm('選択した履歴を削除します。よろしいですか?');">選択削除</button>
+    </div>
+
+    <script>
+        (function () {
+            var checkAll = document.querySelector('.diff-tbl-check-all');
+            var items = document.querySelectorAll('.diff-tbl-row-item');
+            var deleteBtn = document.getElementById('diffHistoryDeleteBtn');
+            function refresh() {
+                var n = 0;
+                items.forEach(function (c) { if (c.checked) n++; });
+                if (deleteBtn) deleteBtn.disabled = (n === 0);
+            }
+            if (checkAll) checkAll.addEventListener('change', function () {
+                items.forEach(function (c) { c.checked = checkAll.checked; });
+                refresh();
+            });
+            items.forEach(function (c) { c.addEventListener('change', refresh); });
+            refresh();
+        })();
+    </script>
+</section>
+</body>
+</html>
