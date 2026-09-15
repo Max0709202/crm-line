@@ -112,6 +112,10 @@ app:
       read-timeout-ms: 30000
   sms:
     adapter: ${SMS_ADAPTER:stub}
+  line:
+    adapter: ${LINE_ADAPTER:stub}
+    connect-timeout-ms: 10000
+    read-timeout-ms: 15000
   relay-server:
     url: ${RELAY_URL:http://160.251.199.135/api/send}
     connect-timeout-ms: 5000

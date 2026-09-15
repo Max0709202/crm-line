@@ -21,6 +21,7 @@ public class Message {
     public static final String CHANNEL_WEB_REPLY = "WEB_REPLY";
     public static final String CHANNEL_BROADCAST = "BROADCAST";
     public static final String CHANNEL_SMS = "SMS";
+    public static final String CHANNEL_LINE = "LINE";
 
     public static final String STATUS_DRAFT = "DRAFT";
     public static final String STATUS_QUEUED = "QUEUED";
@@ -106,6 +107,10 @@ public class Message {
     @Column(name = "MESSAGE_ID_HEADER", length = 255)
     private String messageIdHeader;
 
+    /** Which LINE Official Account this message went through — null for non-LINE channels. */
+    @Column(name = "LINE_ACCOUNT_ID")
+    private Long lineAccountId;
+
     @Column(name = "CREATED_AT", nullable = false)
     private LocalDateTime createdAt;
 
@@ -177,6 +182,8 @@ public class Message {
     public void setReplyToMessageId(Long replyToMessageId) { this.replyToMessageId = replyToMessageId; }
     public String getMessageIdHeader() { return messageIdHeader; }
     public void setMessageIdHeader(String messageIdHeader) { this.messageIdHeader = messageIdHeader; }
+    public Long getLineAccountId() { return lineAccountId; }
+    public void setLineAccountId(Long lineAccountId) { this.lineAccountId = lineAccountId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

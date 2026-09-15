@@ -30,6 +30,15 @@ public class AdminUser {
     @Column(name = "ROLE")
     private String role;
 
+    /** LINE persona shown to customers when replying with the support-character/group-chat
+     *  mode (sender-name override) — null falls back to {@code name}. Self-service only:
+     *  an admin/operator edits their own, not someone else's. */
+    @Column(name = "DISPLAY_NAME")
+    private String displayName;
+
+    @Column(name = "AVATAR_URL")
+    private String avatarUrl;
+
     @Column(name = "IS_ACTIVE")
     private Boolean isActive;
 
@@ -67,6 +76,11 @@ public class AdminUser {
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }

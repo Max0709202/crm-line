@@ -35,4 +35,17 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         return true;
     }
+
+    /**
+     * True when the current session belongs to an ADMIN (not OPERATOR). {@code role} is
+     * stored in the session at login ({@code LoginController}) but until this helper existed
+     * nothing anywhere in the app ever read it back — every controller that needs an
+     * admin-only gate (e.g. LINE account settings) should call this rather than inlining
+     * its own session-attribute check, so the ADMIN/OPERATOR distinction can't drift across
+     * call sites.
+     */
+    public static boolean isAdmin(HttpSession session) {
+        if (session == null) return false;
+        return "ADMIN".equals(session.getAttribute(SESSION_ADMIN_ROLE));
+    }
 }

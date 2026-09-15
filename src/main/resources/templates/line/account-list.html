@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>LINE設定</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">LINE設定</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm text-white rounded-md"
+           style="background:#06C755;" th:href="@{/manager/line-settings/new}">＋ 親アカウント新規登録</a>
+    </div>
+
+    <p class="text-sm text-slate-500 mb-4">
+        1つの親LINEアカウントに対し、最大100件程度の子アカウントを登録できます。
+        Channel Secret / Access Tokenは常にAES-256で暗号化して保存され、画面には表示されません。
+    </p>
+
+    <div th:if="${parents == null or parents.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 text-center text-slate-400">
+        LINEアカウントはまだ登録されていません
+    </div>
+
+    <div th:each="p : ${parents}" class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto mb-4">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <tr>
+                    <th class="px-3 py-2 text-left">アカウント名</th>
+                    <th class="px-3 py-2 text-left">Channel ID</th>
+                    <th class="px-3 py-2 text-left" style="width:110px;">ステータス</th>
+                    <th class="px-3 py-2 text-left" style="width:160px;">最終接続確認</th>
+                    <th class="px-3 py-2 text-right" style="width:260px;">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                <tr>
+                    <td class="px-3 py-2 font-semibold text-slate-800">
+                        <span th:text="${p.name}"></span>
+                        <span class="ml-1 text-xs text-slate-400">(親)</span>
+                    </td>
+                    <td class="px-3 py-2 text-slate-600 font-mono text-xs" th:text="${p.channelId}"></td>
+                    <td class="px-3 py-2">
+                        <span th:replace="~{::statusBadge(${p})}"></span>
+                    </td>
+                    <td class="px-3 py-2 text-slate-500 text-xs"
+                        th:text="${p.lastConnectionCheckAt != null ? #temporals.format(p.lastConnectionCheckAt, 'yyyy-MM-dd HH:mm') : '未確認'}"></td>
+                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                        <span th:replace="~{::rowActions(${p})}"></span>
+                    </td>
+                </tr>
+                <tr th:each="c : ${childrenByParent.get(p.id)}">
+                    <td class="px-3 py-2 text-slate-700">
+                        <span class="text-slate-400">└</span> <span th:text="${c.name}"></span>
+                    </td>
+                    <td class="px-3 py-2 text-slate-600 font-mono text-xs" th:text="${c.channelId}"></td>
+                    <td class="px-3 py-2">
+                        <span th:replace="~{::statusBadge(${c})}"></span>
+                    </td>
+                    <td class="px-3 py-2 text-slate-500 text-xs"
+                        th:text="${c.lastConnectionCheckAt != null ? #temporals.format(c.lastConnectionCheckAt, 'yyyy-MM-dd HH:mm') : '未確認'}"></td>
+                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                        <span th:replace="~{::rowActions(${c})}"></span>
+                    </td>
+                </tr>
+                <tr th:if="${childrenByParent.get(p.id) == null or childrenByParent.get(p.id).empty}">
+                    <td colspan="5" class="px-3 py-3 text-center text-slate-400 text-xs">子アカウントはまだ登録されていません</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="px-3 py-2 border-t border-slate-100 flex items-center justify-between">
+            <span class="text-xs text-slate-400"
+                  th:text="'子アカウント ' + ${childrenByParent.get(p.id) == null ? 0 : childrenByParent.get(p.id).size()} + ' / 100'"></span>
+            <a class="text-xs px-2 py-1 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded"
+               th:href="@{/manager/line-settings/new(parentAccountId=${p.id})}">＋ この親に子アカウントを追加</a>
+        </div>
+    </div>
+
+    <!-- Reusable fragments: status badge + per-row action forms (out-of-band, HTML forbids
+         a <form> wrapping <td> elements — same pattern as diff-schedule-definitions.html). -->
+    <div th:fragment="statusBadge(a)">
+        <span th:if="${a.status == 'ACTIVE'}" class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">使用中</span>
+        <span th:if="${a.status == 'UNUSED'}" class="px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600">未使用</span>
+        <span th:if="${a.status == 'ERROR'}" class="px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-700">接続エラー</span>
+    </div>
+
+    <div th:fragment="rowActions(a)">
+        <form th:id="'checkForm' + ${a.id}" method="post" th:action="@{'/manager/line-settings/' + ${a.id} + '/check-connection'}" style="display:inline;">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <button type="submit" class="px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 hover:bg-blue-100 rounded">接続確認</button>
+        </form>
+        <a th:href="@{'/manager/line-settings/' + ${a.id} + '/edit'}"
+           class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>
+        <form th:id="'delForm' + ${a.id}" method="post" th:action="@{'/manager/line-settings/' + ${a.id} + '/delete'}" style="display:inline;">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <button type="button" class="px-2 py-1 text-xs bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded"
+                    th:attr="onclick=|deleteAccount(${a.id})|">削除</button>
+        </form>
+    </div>
+
+    <script>
+        function deleteAccount(id) {
+            if (!confirm('このLINEアカウントを削除します。子アカウントが残っている場合は削除できません。よろしいですか?')) return;
+            var f = document.getElementById('delForm' + id);
+            if (f) f.submit();
+        }
+    </script>
+</section>
+</body>
+</html>

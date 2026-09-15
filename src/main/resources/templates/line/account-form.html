@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title th:text="${editing} ? 'LINEアカウント編集' : 'LINEアカウント登録'">LINEアカウント</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1"
+            th:text="${editing} ? 'LINEアカウント編集' : 'LINEアカウント登録'">LINEアカウント</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md"
+           th:href="@{/manager/line-settings}">一覧に戻る</a>
+    </div>
+
+    <div class="lg:col-span-2" style="max-width:640px;">
+    <form method="post"
+          th:action="@{${editing} ? '/manager/line-settings/' + ${accountId} : '/manager/line-settings'}"
+          th:object="${form}"
+          class="bg-white rounded-lg shadow-sm border border-slate-100 p-6">
+
+        <div th:if="${#fields.hasGlobalErrors()}" class="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+            <p th:each="err : ${#fields.globalErrors()}" th:text="${err}"></p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-700 mb-1">親アカウント</label>
+            <select class="tw-input" th:field="*{parentAccountId}"
+                    th:classappend="${#fields.hasErrors('parentAccountId')} ? 'border-red-400'">
+                <option value="">なし（この登録自体を親アカウントにする）</option>
+                <option th:each="p : ${parents}" th:if="${accountId == null or p.id != accountId}"
+                        th:value="${p.id}" th:text="${p.name} + ' (' + ${p.channelId} + ')'"></option>
+            </select>
+            <p class="text-sm text-red-600 mt-1" th:if="${#fields.hasErrors('parentAccountId')}" th:errors="*{parentAccountId}"></p>
+            <p class="text-xs text-slate-500 mt-1">未選択のまま登録すると、これが新しい親アカウントになります（子アカウントは親を選択してください）。</p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-700 mb-1">アカウント名 <span class="text-red-500">*</span></label>
+            <input type="text" class="tw-input" th:field="*{name}"
+                   placeholder="例: 本店公式アカウント"
+                   th:classappend="${#fields.hasErrors('name')} ? 'border-red-400'"/>
+            <p class="text-sm text-red-600 mt-1" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-700 mb-1">LINE公式アカウントID</label>
+            <input type="text" class="tw-input" th:field="*{officialAccountId}" placeholder="例: @123abcde"/>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Channel ID <span class="text-red-500">*</span></label>
+            <input type="text" class="tw-input" th:field="*{channelId}"
+                   th:classappend="${#fields.hasErrors('channelId')} ? 'border-red-400'"/>
+            <p class="text-sm text-red-600 mt-1" th:if="${#fields.hasErrors('channelId')}" th:errors="*{channelId}"></p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-700 mb-1">
+                Channel Secret <span class="text-red-500" th:if="${!editing}">*</span>
+            </label>
+            <input type="password" class="tw-input" th:field="*{channelSecret}" autocomplete="new-password"/>
+            <p class="text-xs text-slate-500 mt-1"
+               th:text="${editing} ? '変更する場合のみ入力してください。空欄なら既存の値を保持します。' : 'AES-256で暗号化して保存します'">AES-256で暗号化して保存します</p>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-slate-700 mb-1">
+                Messaging API Access Token <span class="text-red-500" th:if="${!editing}">*</span>
+            </label>
+            <input type="password" class="tw-input" th:field="*{accessToken}" autocomplete="new-password"/>
+            <p class="text-xs text-slate-500 mt-1"
+               th:text="${editing} ? '変更する場合のみ入力してください。空欄なら既存の値を保持します。' : 'AES-256で暗号化して保存します'">AES-256で暗号化して保存します</p>
+        </div>
+
+        <div class="flex justify-end gap-2">
+            <button type="submit" class="px-4 py-2 text-white text-sm font-bold rounded-md" style="background:#06C755;">
+                <span th:text="${editing} ? '更新する' : '登録する'">登録する</span>
+            </button>
+        </div>
+    </form>
+    </div>
+</section>
+</body>
+</html>

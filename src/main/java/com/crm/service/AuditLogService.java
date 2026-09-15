@@ -50,6 +50,12 @@ public class AuditLogService {
     public static final String ACTION_DIFF_SCHEDULE_CANCEL = "DIFF_SCHEDULE_CANCEL";
     public static final String ACTION_DIFF_SCHEDULE_EXECUTE = "DIFF_SCHEDULE_EXECUTE";
     public static final String ACTION_DIFF_SCHEDULE_DELETE = "DIFF_SCHEDULE_DELETE";
+    public static final String ACTION_LINE_ACCOUNT_CREATE = "LINE_ACCOUNT_CREATE";
+    public static final String ACTION_LINE_ACCOUNT_UPDATE = "LINE_ACCOUNT_UPDATE";
+    public static final String ACTION_LINE_ACCOUNT_DELETE = "LINE_ACCOUNT_DELETE";
+    public static final String ACTION_LINE_ACCOUNT_STATUS_CHANGE = "LINE_ACCOUNT_STATUS_CHANGE";
+    public static final String ACTION_LINE_SETTINGS_CHANGE = "LINE_SETTINGS_CHANGE";
+    public static final String ACTION_LINE_USER_LINK = "LINE_USER_LINK";
 
     private final AuditLogRepository repository;
 
