@@ -1,11 +1,16 @@
 package com.crm.service;
 
+import com.crm.dto.LineComposeForm;
 import com.crm.dto.MessageComposeForm;
 import com.crm.entity.CarrierAddressPool;
 import com.crm.entity.CrmUser;
+import com.crm.entity.LineAccount;
+import com.crm.entity.LineUser;
 import com.crm.entity.Message;
 import com.crm.repository.CarrierAddressPoolRepository;
 import com.crm.repository.CrmUserRepository;
+import com.crm.repository.LineAccountRepository;
+import com.crm.repository.LineUserRepository;
 import com.crm.repository.MessageRepository;
 import com.crm.util.AesEncryptionUtil;
 import org.springframework.data.domain.Page;
@@ -52,6 +57,9 @@ public class MessageService {
     private final ReplyPageService replyPageService;
     private final DomainSettingService domainSettingService;
     private final ReplyPageSettingService replyPageSettingService;
+    private final OutboundLineService outboundLineService;
+    private final LineAccountRepository lineAccountRepository;
+    private final LineUserRepository lineUserRepository;
     /** Lazy reference — broadcast counter update is optional and avoids a circular dependency. */
     private final org.springframework.context.ApplicationContext ctx;
 
@@ -67,6 +75,9 @@ public class MessageService {
                           ReplyPageService replyPageService,
                           DomainSettingService domainSettingService,
                           ReplyPageSettingService replyPageSettingService,
+                          OutboundLineService outboundLineService,
+                          LineAccountRepository lineAccountRepository,
+                          LineUserRepository lineUserRepository,
                           org.springframework.context.ApplicationContext ctx) {
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
@@ -80,6 +91,9 @@ public class MessageService {
         this.replyPageService = replyPageService;
         this.domainSettingService = domainSettingService;
         this.replyPageSettingService = replyPageSettingService;
+        this.outboundLineService = outboundLineService;
+        this.lineAccountRepository = lineAccountRepository;
+        this.lineUserRepository = lineUserRepository;
         this.ctx = ctx;
     }
 
@@ -546,6 +560,64 @@ public class MessageService {
         return saved;
     }
 
+    /** LINE messages are capped at 5000 chars by LINE itself; this leaves headroom for the
+     *  lead-text/URL suffix appended after clipping. Unlike SMS there's no per-segment
+     *  billing reason to clip much shorter, so this is a safety cap, not a real limit. */
+    private static final int LINE_REPLY_URL_CLIP_LENGTH = 4900;
+
+    /**
+     * LINE reply from the thread page — mirrors {@link #composeSms}. Only available once
+     * the customer has a linked {@link LineUser} row (LINE only lets you message someone
+     * who has already followed the Official Account and triggered a webhook event — there's
+     * no "type in an id and message them" the way email/SMS work).
+     */
+    @Transactional
+    public Message composeLine(Long userId, Long adminUserId, LineComposeForm form) {
+        CrmUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new MessageException("ユーザーが見つかりません"));
+        List<LineUser> linked = lineUserRepository.findByCrmUserId(userId);
+        if (linked.isEmpty()) {
+            throw new MessageException("このユーザーはLINEと連携されていません");
+        }
+        LineUser lineUser = linked.get(0);
+
+        String renderedBody = placeholderService.substitute(form.getBody(), user);
+
+        Message msg = new Message();
+        msg.setUserId(userId);
+        msg.setAdminUserId(adminUserId);
+        msg.setDirection(Message.DIR_OUT);
+        msg.setChannel(Message.CHANNEL_LINE);
+        msg.setLineAccountId(lineUser.getLineAccountId());
+        msg.setBodyText(renderedBody);
+        msg.setToAddress(lineUser.getLineUserId());
+        msg.setReplyToMessageId(form.getReplyToMessageId());
+
+        boolean needsAnyUrl = renderedBody != null
+                && (renderedBody.contains(REPLY_URL_PLACEHOLDER) || renderedBody.contains(EXTERNAL_URL_PLACEHOLDER));
+        if (needsAnyUrl) {
+            msg.setStatus(Message.STATUS_DRAFT);
+            msg = messageRepository.save(msg);
+            applyUrlPlaceholders(msg, renderedBody, replyPageService.createReplyPageFor(msg), domainSettingService,
+                    replyPageSettingService.getOrCreate().getUrlLeadText(),
+                    LINE_REPLY_URL_CLIP_LENGTH);
+            msg.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
+        }
+
+        LocalDateTime scheduled = form.getScheduledAt();
+        LocalDateTime now = LocalDateTime.now();
+        if (scheduled != null && scheduled.isAfter(now)) {
+            msg.setStatus(Message.STATUS_QUEUED);
+            msg.setScheduledAt(scheduled);
+            return messageRepository.save(msg);
+        }
+
+        msg.setStatus(Message.STATUS_QUEUED); // transient; updated below
+        Message saved = messageRepository.save(msg);
+        sendNow(saved, null);
+        return saved;
+    }
+
     /**
      * Dispatch a saved outbound message via the relay. Called on immediate send
      * and (future) by the scheduler for QUEUED entries whose scheduled time has arrived.
@@ -584,6 +656,24 @@ public class MessageService {
             success = result.success;
             retriable = result.retriable;
             errorMessage = result.errorMessage;
+        } else if (Message.CHANNEL_LINE.equals(msg.getChannel())) {
+            LineAccount account = msg.getLineAccountId() == null ? null
+                    : lineAccountRepository.findById(msg.getLineAccountId()).orElse(null);
+            if (account == null) {
+                success = false;
+                retriable = false;
+                errorMessage = "LINEアカウントが見つかりません (id=" + msg.getLineAccountId() + ")";
+            } else {
+                OutboundLineService.LineSendRequest req = new OutboundLineService.LineSendRequest(
+                        aes.decrypt(account.getAccessToken()),
+                        msg.getToAddress(),
+                        transmitBody == null ? "" : transmitBody,
+                        null, null); // sender-name/icon override added in the character/group-mode phase
+                OutboundLineService.SendResult result = outboundLineService.send(req);
+                success = result.success;
+                retriable = result.retriable;
+                errorMessage = result.errorMessage;
+            }
         } else {
             String smtpPwd = pool == null ? null : aes.decrypt(pool.getSmtpPassword());
             String smtpHost = pool == null ? null : pool.getSmtpHost();

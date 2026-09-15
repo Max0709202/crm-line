@@ -39,6 +39,8 @@ public class MessageController {
     private final com.crm.repository.ReplyPageAttachmentRepository attachmentRepo;
     private final com.crm.service.ReplyPageSettingService replyPageSettingService;
     private final com.crm.service.DiffScheduleService diffScheduleService;
+    private final com.crm.service.AuditLogService auditLog;
+    private final com.crm.repository.LineUserRepository lineUserRepository;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -49,7 +51,9 @@ public class MessageController {
                              com.crm.service.PaymentService paymentService,
                              com.crm.repository.ReplyPageAttachmentRepository attachmentRepo,
                              com.crm.service.ReplyPageSettingService replyPageSettingService,
-                             com.crm.service.DiffScheduleService diffScheduleService) {
+                             com.crm.service.DiffScheduleService diffScheduleService,
+                             com.crm.service.AuditLogService auditLog,
+                             com.crm.repository.LineUserRepository lineUserRepository) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -60,6 +64,8 @@ public class MessageController {
         this.attachmentRepo = attachmentRepo;
         this.replyPageSettingService = replyPageSettingService;
         this.diffScheduleService = diffScheduleService;
+        this.auditLog = auditLog;
+        this.lineUserRepository = lineUserRepository;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -180,6 +186,9 @@ public class MessageController {
         model.addAttribute("attachmentsByMessageId", attsByMsg);
         // Left-upper inbox list (all users with any inbound, newest first).
         model.addAttribute("inboxRows", messageService.inboxByUser(false));
+        // Gates the LINE返信 button — LINE only lets you message someone who has already
+        // followed the Official Account (see LineWebhookService's javadoc).
+        model.addAttribute("hasLineLink", !lineUserRepository.findByCrmUserId(userId).isEmpty());
         if (!model.containsAttribute("form")) {
             MessageComposeForm form = new MessageComposeForm();
             if (replyTo != null) {
@@ -250,6 +259,30 @@ public class MessageController {
             Message sent = messageService.composeSms(userId, adminId, form);
             String kind = Message.STATUS_QUEUED.equals(sent.getStatus()) ? "予約送信" : "送信";
             ra.addFlashAttribute("flashSuccess", "SMSを" + kind + "しました");
+        } catch (MessageService.MessageException e) {
+            ra.addFlashAttribute("flashError", e.getMessage());
+        }
+        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+    }
+
+    @PostMapping("/manager/users/{userId}/messages/line")
+    public String sendLine(@PathVariable Long userId,
+                           @RequestParam(name = "returnTo", required = false) String returnTo,
+                           @Valid @ModelAttribute("lineForm") com.crm.dto.LineComposeForm form,
+                           BindingResult br,
+                           HttpSession session,
+                           RedirectAttributes ra,
+                           Model model) {
+        if (br.hasErrors()) {
+            ra.addFlashAttribute("flashError", "本文を入力してください");
+            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+        }
+        Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
+        try {
+            Message sent = messageService.composeLine(userId, adminId, form);
+            String kind = Message.STATUS_QUEUED.equals(sent.getStatus()) ? "予約送信" : "送信";
+            auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_SEND, "Message", sent.getId(), "channel=LINE");
+            ra.addFlashAttribute("flashSuccess", "LINEメッセージを" + kind + "しました");
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }

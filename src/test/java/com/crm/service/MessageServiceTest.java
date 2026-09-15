@@ -2,9 +2,13 @@ package com.crm.service;
 
 import com.crm.entity.CarrierAddressPool;
 import com.crm.entity.CrmUser;
+import com.crm.entity.LineAccount;
+import com.crm.entity.LineUser;
 import com.crm.entity.Message;
 import com.crm.repository.CarrierAddressPoolRepository;
 import com.crm.repository.CrmUserRepository;
+import com.crm.repository.LineAccountRepository;
+import com.crm.repository.LineUserRepository;
 import com.crm.repository.MessageRepository;
 import com.crm.util.AesEncryptionUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +55,9 @@ class MessageServiceTest {
 
     private DomainSettingService domainSettings;
     private ReplyPageSettingService replyPageSettingService;
+    private OutboundLineService outboundLine;
+    private LineAccountRepository lineAccountRepo;
+    private LineUserRepository lineUserRepo;
 
     private MessageService svc;
 
@@ -69,6 +76,9 @@ class MessageServiceTest {
         ctx = mock(ApplicationContext.class);
         domainSettings = mock(DomainSettingService.class);
         replyPageSettingService = mock(ReplyPageSettingService.class);
+        outboundLine = mock(OutboundLineService.class);
+        lineAccountRepo = mock(LineAccountRepository.class);
+        lineUserRepo = mock(LineUserRepository.class);
         // Default: no operator-configured lead text — matches production default (blank column).
         com.crm.entity.ReplyPageSetting defaultSetting = new com.crm.entity.ReplyPageSetting();
         when(replyPageSettingService.getOrCreate()).thenReturn(defaultSetting);
@@ -79,7 +89,8 @@ class MessageServiceTest {
 
         svc = new MessageService(messageRepo, userRepo, poolRepo, bindingService,
                 placeholderService, outboundMail, outboundSms, smsSettingService,
-                aes, replyPageService, domainSettings, replyPageSettingService, ctx);
+                aes, replyPageService, domainSettings, replyPageSettingService,
+                outboundLine, lineAccountRepo, lineUserRepo, ctx);
     }
 
     private static Message queued() {
@@ -697,5 +708,79 @@ class MessageServiceTest {
         assertThat(saved.getSentBodyText())
                 .isEqualTo("012345678901234\nhttps://nbbv7g.jp/r/ab12");
         assertThat(saved.getExcludedFromBox()).isFalse();
+    }
+
+    @Test
+    void composeLine_noLinkedLineUser_throwsMessageException() {
+        CrmUser user = new CrmUser();
+        user.setId(60L);
+        when(userRepo.findById(60L)).thenReturn(Optional.of(user));
+        when(lineUserRepo.findByCrmUserId(60L)).thenReturn(java.util.Collections.emptyList());
+
+        com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
+        form.setBody("こんにちは");
+
+        assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> svc.composeLine(60L, 1L, form)))
+                .isInstanceOf(MessageService.MessageException.class);
+    }
+
+    @Test
+    void composeLine_linkedUser_sendsImmediatelyViaOutboundLineService() {
+        CrmUser user = new CrmUser();
+        user.setId(61L);
+        when(userRepo.findById(61L)).thenReturn(Optional.of(user));
+
+        LineUser lineUser = new LineUser();
+        lineUser.setLineAccountId(5L);
+        lineUser.setLineUserId("Uabc123");
+        when(lineUserRepo.findByCrmUserId(61L)).thenReturn(java.util.Collections.singletonList(lineUser));
+        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LineAccount account = new LineAccount();
+        account.setId(5L);
+        account.setAccessToken("enc-token");
+        when(lineAccountRepo.findById(5L)).thenReturn(Optional.of(account));
+        when(aes.decrypt("enc-token")).thenReturn("plain-token");
+        when(outboundLine.send(any())).thenReturn(OutboundLineService.SendResult.ok());
+
+        com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
+        form.setBody("ご予約ありがとうございます");
+
+        Message saved = svc.composeLine(61L, 1L, form);
+
+        assertThat(saved.getChannel()).isEqualTo(Message.CHANNEL_LINE);
+        assertThat(saved.getLineAccountId()).isEqualTo(5L);
+        assertThat(saved.getToAddress()).isEqualTo("Uabc123");
+        assertThat(saved.getStatus()).isEqualTo(Message.STATUS_SENT);
+
+        ArgumentCaptor<OutboundLineService.LineSendRequest> cap = ArgumentCaptor.forClass(OutboundLineService.LineSendRequest.class);
+        verify(outboundLine).send(cap.capture());
+        assertThat(cap.getValue().accessToken).isEqualTo("plain-token");
+        assertThat(cap.getValue().toLineUserId).isEqualTo("Uabc123");
+    }
+
+    @Test
+    void composeLine_scheduledInFuture_doesNotSendImmediately() {
+        CrmUser user = new CrmUser();
+        user.setId(62L);
+        when(userRepo.findById(62L)).thenReturn(Optional.of(user));
+        LineUser lineUser = new LineUser();
+        lineUser.setLineAccountId(5L);
+        lineUser.setLineUserId("Uabc999");
+        when(lineUserRepo.findByCrmUserId(62L)).thenReturn(java.util.Collections.singletonList(lineUser));
+        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
+        form.setBody("予約メッセージ");
+        form.setScheduledAt(java.time.LocalDateTime.now().plusDays(1));
+
+        Message saved = svc.composeLine(62L, 1L, form);
+
+        assertThat(saved.getStatus()).isEqualTo(Message.STATUS_QUEUED);
+        verify(outboundLine, never()).send(any());
     }
 }

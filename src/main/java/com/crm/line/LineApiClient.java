@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
@@ -16,6 +19,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Thin HTTP client for LINE's Messaging API. Deliberately has zero dependency on any
@@ -117,6 +122,78 @@ public class LineApiClient {
             log.warn("[LINE] getProfile error: {}", LogSafe.of(e.toString()));
             return null;
         }
+    }
+
+    /**
+     * Calls {@code POST /v2/bot/message/push} to send a text message. Always push, never
+     * the reply API — LINE's {@code replyToken} expires in roughly a minute, far too short
+     * for a human staffer to read an inbound message and answer it.
+     *
+     * <p>{@code senderName}/{@code senderIconUrl} are the support-character/group-chat
+     * persona override (both null means send as the Official Account itself with no
+     * override) — see LINE's {@code sender} message field.
+     *
+     * <p>Returns an HTTP-level result rather than throwing or returning null; mapping that
+     * to this app's retriable/fail/success semantics is {@code LineMessagingOutboundService}'s
+     * job, not this class's — {@code com.crm.line} stays free of any com.crm.service type.
+     */
+    public PushResult push(String accessToken, String toLineUserId, String text,
+                            String senderName, String senderIconUrl) {
+        RequestConfig rc = RequestConfig.custom()
+                .setConnectTimeout(connectTimeoutMs)
+                .setConnectionRequestTimeout(connectTimeoutMs)
+                .setSocketTimeout(readTimeoutMs)
+                .build();
+
+        Map<String, Object> textMessage = new LinkedHashMap<>();
+        textMessage.put("type", "text");
+        textMessage.put("text", text);
+        if (senderName != null || senderIconUrl != null) {
+            Map<String, Object> sender = new LinkedHashMap<>();
+            if (senderName != null) sender.put("name", senderName);
+            if (senderIconUrl != null) sender.put("iconUrl", senderIconUrl);
+            textMessage.put("sender", sender);
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("to", toLineUserId);
+        payload.put("messages", java.util.Collections.singletonList(textMessage));
+
+        try (CloseableHttpClient http = HttpClientBuilder.create().setDefaultRequestConfig(rc).build()) {
+            String body = objectMapper.writeValueAsString(payload);
+            HttpPost post = new HttpPost(API_BASE + "/v2/bot/message/push");
+            post.setHeader("Authorization", "Bearer " + accessToken);
+            post.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
+
+            try (CloseableHttpResponse resp = http.execute(post)) {
+                int code = resp.getStatusLine().getStatusCode();
+                String respBody = resp.getEntity() == null ? ""
+                        : EntityUtils.toString(resp.getEntity(), StandardCharsets.UTF_8);
+                if (code != 200) {
+                    log.warn("[LINE] push failed: to={} status={} body={}",
+                            LogSafe.of(toLineUserId), code, LogSafe.of(truncate(respBody, 500)));
+                }
+                return new PushResult(code, respBody);
+            }
+        } catch (java.net.SocketTimeoutException | java.net.ConnectException e) {
+            log.warn("[LINE] push network error: to={} error={}", LogSafe.of(toLineUserId), LogSafe.of(e.toString()));
+            return new PushResult(-1, e.toString());
+        } catch (Exception e) {
+            log.warn("[LINE] push error: to={} error={}", LogSafe.of(toLineUserId), LogSafe.of(e.toString()));
+            return new PushResult(-1, e.toString());
+        }
+    }
+
+    /** {@code httpStatus} of -1 means a network-level failure (no response at all) rather
+     *  than an HTTP error response — callers should treat both as retriable, but the two
+     *  are worth distinguishing in logs. */
+    public static class PushResult {
+        public final int httpStatus;
+        public final String body;
+        public PushResult(int httpStatus, String body) {
+            this.httpStatus = httpStatus;
+            this.body = body;
+        }
+        public boolean isSuccess() { return httpStatus == 200; }
     }
 
     private static String truncate(String s, int n) {
