@@ -5,9 +5,11 @@ import com.crm.entity.Broadcast;
 import com.crm.entity.CarrierAddressPool;
 import com.crm.entity.CrmUser;
 import com.crm.entity.Message;
+import com.crm.entity.LineUser;
 import com.crm.repository.BroadcastRepository;
 import com.crm.repository.CarrierAddressPoolRepository;
 import com.crm.repository.CrmUserRepository;
+import com.crm.repository.LineUserRepository;
 import com.crm.repository.MessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,7 @@ public class BroadcastService {
     private final DomainSettingService domainSettingService;
     private final ReplyPageSettingService replyPageSettingService;
     private final SmsSettingService smsSettingService;
+    private final LineUserRepository lineUserRepository;
 
     public BroadcastService(BroadcastRepository broadcastRepository,
                             CrmUserRepository userRepository,
@@ -49,7 +52,8 @@ public class BroadcastService {
                             ReplyPageService replyPageService,
                             DomainSettingService domainSettingService,
                             ReplyPageSettingService replyPageSettingService,
-                            SmsSettingService smsSettingService) {
+                            SmsSettingService smsSettingService,
+                            LineUserRepository lineUserRepository) {
         this.broadcastRepository = broadcastRepository;
         this.userRepository = userRepository;
         this.poolRepository = poolRepository;
@@ -60,6 +64,7 @@ public class BroadcastService {
         this.replyPageService = replyPageService;
         this.replyPageSettingService = replyPageSettingService;
         this.smsSettingService = smsSettingService;
+        this.lineUserRepository = lineUserRepository;
     }
 
     public Page<Broadcast> list(int page, int size) {
@@ -85,6 +90,9 @@ public class BroadcastService {
     public Broadcast createAndQueue(BroadcastForm form, Long adminUserId) {
         if ("SMS".equals(form.getChannel())) {
             return createAndQueueSms(form, adminUserId);
+        }
+        if ("LINE".equals(form.getChannel())) {
+            return createAndQueueLine(form, adminUserId);
         }
         List<CrmUser> targets = findTargetUsers(form);
 
@@ -314,6 +322,108 @@ public class BroadcastService {
             }
         }
         log.info("SMS broadcast {} created: {} queued (filter matched {}, skipped no-phone {})",
+                saved.getId(), saved.getTotalCount(), targets.size(), unsendableIds.size());
+        return saved;
+    }
+
+    /**
+     * LINE broadcast — mirrors {@link #createAndQueueSms}. Unlike email/SMS there is no
+     * single "identity" to send from; the operator picks a specific {@code LineAccount}
+     * (form.getLineAccountId()) and only targets already linked to THAT account (via a
+     * {@link LineUser} row) are deliverable — LINE only allows messaging contacts who have
+     * already followed the Official Account being sent from, per-account.
+     */
+    @Transactional
+    public Broadcast createAndQueueLine(BroadcastForm form, Long adminUserId) {
+        Long lineAccountId = form.getLineAccountId();
+        if (lineAccountId == null) {
+            throw new NoTargetsException("送信元のLINEアカウントを選択してください");
+        }
+        List<CrmUser> targets = findTargetUsers(form);
+
+        java.util.Map<Long, LineUser> lineUserByCrmUserId = new java.util.HashMap<>();
+        java.util.List<Long> targetIds = new ArrayList<>();
+        for (CrmUser u : targets) targetIds.add(u.getId());
+        for (LineUser lu : lineUserRepository.findByLineAccountIdAndCrmUserIdIn(lineAccountId, targetIds)) {
+            if (lu.getCrmUserId() != null) lineUserByCrmUserId.put(lu.getCrmUserId(), lu);
+        }
+
+        List<CrmUser> deliverable = new ArrayList<>();
+        List<Long> unsendableIds = new ArrayList<>();
+        for (CrmUser u : targets) {
+            if (lineUserByCrmUserId.containsKey(u.getId())) {
+                deliverable.add(u);
+            } else {
+                unsendableIds.add(u.getId());
+            }
+        }
+
+        if (deliverable.isEmpty()) {
+            throw new NoTargetsException(
+                    "条件に合致し、選択したLINEアカウントと連携済みのユーザーが見つかりませんでした。"
+                  + " (絞り込みに合致したユーザー: " + targets.size()
+                  + "件、うち未連携: " + unsendableIds.size() + "件)");
+        }
+
+        Broadcast b = new Broadcast();
+        b.setAdminUserId(adminUserId);
+        String t = form.getTitle();
+        String label = (t == null || t.trim().isEmpty()) ? "LINE配信" : t.trim();
+        b.setTitle(label);
+        b.setSubject(label);
+        b.setBodyText(form.getBody());
+        b.setChannel("LINE");
+        b.setRatePerMinute(form.getRatePerMinute() == null || form.getRatePerMinute() < 1
+                ? 60 : form.getRatePerMinute());
+        b.setTargetFilter(buildFilterSummary(form, targets.size(), unsendableIds.size()));
+        b.setTotalCount(deliverable.size());
+        b.setUnsendableCount(unsendableIds.size());
+        if (!unsendableIds.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < unsendableIds.size(); i++) {
+                if (i > 0) sb.append(',');
+                sb.append(unsendableIds.get(i));
+            }
+            b.setUnsendableUserIds(sb.toString());
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startAt = form.getScheduledAt() != null && form.getScheduledAt().isAfter(now)
+                ? form.getScheduledAt() : now;
+        b.setScheduledAt(form.getScheduledAt());
+        b.setStatus(startAt.isAfter(now) ? Broadcast.STATUS_SCHEDULED : Broadcast.STATUS_SENDING);
+        Broadcast saved = broadcastRepository.save(b);
+
+        long intervalMs = 60_000L / b.getRatePerMinute();
+        for (int i = 0; i < deliverable.size(); i++) {
+            CrmUser user = deliverable.get(i);
+            LineUser lineUser = lineUserByCrmUserId.get(user.getId());
+            LocalDateTime when = startAt.plusNanos(intervalMs * 1_000_000L * i);
+            Message m = new Message();
+            m.setUserId(user.getId());
+            m.setAdminUserId(adminUserId);
+            m.setDirection(Message.DIR_OUT);
+            m.setChannel(Message.CHANNEL_LINE);
+            m.setLineAccountId(lineAccountId);
+            String body = placeholderService.substitute(form.getBody(), user);
+            m.setBodyText(body);
+            m.setToAddress(lineUser.getLineUserId());
+            m.setBroadcastId(saved.getId());
+            m.setStatus(Message.STATUS_QUEUED);
+            m.setScheduledAt(when);
+            Message persisted = messageRepository.save(m);
+
+            boolean needsAnyUrl = body.contains(MessageService.REPLY_URL_PLACEHOLDER)
+                    || body.contains(MessageService.EXTERNAL_URL_PLACEHOLDER);
+            if (needsAnyUrl) {
+                String url = replyPageService.createReplyPageFor(persisted);
+                MessageService.applyUrlPlaceholders(persisted, body, url, domainSettingService,
+                        replyPageSettingService.getOrCreate().getUrlLeadText(),
+                        MessageService.LINE_REPLY_URL_CLIP_LENGTH);
+                persisted.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
+                messageRepository.save(persisted);
+            }
+        }
+        log.info("LINE broadcast {} created: {} queued (filter matched {}, skipped unlinked {})",
                 saved.getId(), saved.getTotalCount(), targets.size(), unsendableIds.size());
         return saved;
     }

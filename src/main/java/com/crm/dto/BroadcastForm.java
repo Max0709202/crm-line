@@ -49,13 +49,20 @@ public class BroadcastForm {
      */
     private java.util.List<Long> targetUserIds;
 
-    /** "EMAIL" (default) or "SMS" — set by the 選択一斉SMS配信 button on the user list. */
+    /** "EMAIL" (default), "SMS", or "LINE" — set by the corresponding 選択一斉送信 button
+     *  on the user list. */
     private String channel = "EMAIL";
+
+    /** Required when channel=="LINE" — which LineAccount to send from; only targets already
+     *  linked to that specific account are deliverable. */
+    private Long lineAccountId;
 
     public java.util.List<Long> getTargetUserIds() { return targetUserIds; }
     public void setTargetUserIds(java.util.List<Long> targetUserIds) { this.targetUserIds = targetUserIds; }
     public String getChannel() { return channel; }
     public void setChannel(String channel) { this.channel = channel; }
+    public Long getLineAccountId() { return lineAccountId; }
+    public void setLineAccountId(Long lineAccountId) { this.lineAccountId = lineAccountId; }
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }

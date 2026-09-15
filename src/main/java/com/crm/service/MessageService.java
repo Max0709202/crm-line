@@ -563,7 +563,7 @@ public class MessageService {
     /** LINE messages are capped at 5000 chars by LINE itself; this leaves headroom for the
      *  lead-text/URL suffix appended after clipping. Unlike SMS there's no per-segment
      *  billing reason to clip much shorter, so this is a safety cap, not a real limit. */
-    private static final int LINE_REPLY_URL_CLIP_LENGTH = 4900;
+    static final int LINE_REPLY_URL_CLIP_LENGTH = 4900;
 
     /**
      * LINE reply from the thread page — mirrors {@link #composeSms}. Only available once

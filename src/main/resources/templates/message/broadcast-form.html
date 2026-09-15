@@ -3,7 +3,7 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/default}">
 <head>
-    <title th:text="${form.channel == 'SMS'} ? 'SMS一斉送信 新規作成' : '一斉送信 新規作成'">一斉送信 新規作成</title>
+    <title th:text="${form.channel == 'SMS'} ? 'SMS一斉送信 新規作成' : (${form.channel == 'LINE'} ? 'LINE一斉送信 新規作成' : '一斉送信 新規作成')">一斉送信 新規作成</title>
     <style>
         /* Override the default layout's main padding so this page fits one screen. */
         main.flex-1.p-6 { padding: 0 !important; }
@@ -111,7 +111,7 @@
 
     <div class="bcast-top">
         <h1 style="font-size:1.1rem;font-weight:700;color:#1e293b;flex:1;"
-            th:text="${form.channel == 'SMS'} ? 'SMS一斉送信 新規作成' : '一斉送信 新規作成'">一斉送信 新規作成</h1>
+            th:text="${form.channel == 'SMS'} ? 'SMS一斉送信 新規作成' : (${form.channel == 'LINE'} ? 'LINE一斉送信 新規作成' : '一斉送信 新規作成')">一斉送信 新規作成</h1>
         <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/messages/broadcast}">一覧に戻る</a>
     </div>
 
@@ -198,6 +198,18 @@
                 <input type="hidden" th:field="*{title}"/>
                 <input type="hidden" th:field="*{channel}"/>
 
+                <div th:if="${form.channel == 'LINE'}">
+                    <label>送信元LINEアカウント <span class="text-red-500">*</span></label>
+                    <select th:field="*{lineAccountId}">
+                        <option value="">選択してください</option>
+                        <option th:each="a : ${lineAccounts}" th:value="${a.id}"
+                                th:text="${a.name} + ' (' + ${a.channelId} + ')'"></option>
+                    </select>
+                    <p class="text-xs text-slate-500" style="margin-top:2px;">
+                        選択したアカウントと連携済みの顧客のみに送信されます（未連携の顧客はスキップされます）。
+                    </p>
+                </div>
+
                 <!-- Targeting lock-in: when admin came in via "選択一斉送信", show the picked
                      users explicitly and pin the targetUserIds[] so filters won't widen the list. -->
                 <!-- Selected-users summary. The address list itself is intentionally NOT
@@ -209,20 +221,21 @@
                     <div style="font-weight:700;color:#92400e;">
                         選択ユーザー <span th:text="'(' + ${#lists.size(selectedUsers)} + '名)'"></span> のみに送信
                         <span th:if="${form.channel == 'SMS'}" style="color:#b45309;">(SMS配信)</span>
+                        <span th:if="${form.channel == 'LINE'}" style="color:#046c3a;">(LINE配信)</span>
                     </div>
                     <input type="hidden" th:each="u : ${selectedUsers}" name="targetUserIds" th:value="${u.id}"/>
                 </div>
 
-                <div th:if="${form.channel != 'SMS'}">
+                <div th:if="${form.channel != 'SMS' and form.channel != 'LINE'}">
                     <label>件名</label>
                     <input type="text" id="subject" th:field="*{subject}" placeholder="例: %name% 様 ご案内"/>
                 </div>
-                <!-- SMS has no subject line. subject isn't required for this channel (see
-                     BroadcastForm/BroadcastController); BroadcastService.createAndQueueSms
-                     derives the broadcast label from title/body instead. -->
-                <input type="hidden" th:if="${form.channel == 'SMS'}" th:field="*{subject}"/>
+                <!-- SMS/LINE have no subject line. subject isn't required for these channels
+                     (see BroadcastForm/BroadcastController); BroadcastService.createAndQueueSms/
+                     createAndQueueLine derive the broadcast label from title/body instead. -->
+                <input type="hidden" th:if="${form.channel == 'SMS' or form.channel == 'LINE'}" th:field="*{subject}"/>
                 <div style="flex:1; display:flex; flex-direction:column;">
-                    <label th:text="${form.channel == 'SMS'} ? 'SMS本文' : '本文'">本文</label>
+                    <label th:text="${form.channel == 'SMS'} ? 'SMS本文' : (${form.channel == 'LINE'} ? 'LINE本文' : '本文')">本文</label>
                     <textarea id="body" th:field="*{body}"
                               th:placeholder="${form.channel == 'SMS'}
                                   ? '例: %name% 様 いつもありがとうございます。%amount% のお支払いをお願いいたします。'

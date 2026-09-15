@@ -572,6 +572,7 @@
         <div class="footer-divider"></div>
         <button type="button" class="btn-broadcast" id="btnBroadcast" disabled onclick="goBroadcast()">選択一斉送信</button>
         <button type="button" class="btn-broadcast" id="btnBroadcastSms" disabled onclick="goBroadcast('SMS')">選択一斉SMS配信</button>
+        <button type="button" class="btn-broadcast" id="btnBroadcastLine" disabled onclick="goBroadcast('LINE')">選択一斉LINE配信</button>
 
         <div class="footer-divider"></div>
         <button type="submit" class="btn-move" id="btnDelete" disabled
@@ -698,6 +699,7 @@ function formatFolderLabel(values) {
     var btnMove = document.getElementById('btnMove');
     var btnBroad = document.getElementById('btnBroadcast');
     var btnBroadSms = document.getElementById('btnBroadcastSms');
+    var btnBroadLine = document.getElementById('btnBroadcastLine');
 
     function rows() { return document.querySelectorAll('.row-item'); }
 
@@ -758,6 +760,7 @@ function formatFolderLabel(values) {
         btnBroad.disabled = !enable;
         // SMS now supports folder/filter-scope targeting too (2026-08-08), same as email.
         if (btnBroadSms) btnBroadSms.disabled = !enable;
+        if (btnBroadLine) btnBroadLine.disabled = !enable;
         if (poolSel)          poolSel.disabled = !enable;
         if (btnBindCarrier)   btnBindCarrier.disabled = !enable;
         if (btnUnbindCarrier) btnUnbindCarrier.disabled = !enable;
@@ -782,6 +785,7 @@ function formatFolderLabel(values) {
             if (btnBindCarrier)   { btnBindCarrier.textContent = 'フォルダ対象件数割り当て'; btnBindCarrier.style.background = '#d97706'; }
             if (btnBroad)         { btnBroad.textContent = '対象件数一斉送信'; btnBroad.style.background = '#d97706'; }
             if (btnBroadSms)      { btnBroadSms.textContent = '対象件数一斉SMS配信'; btnBroadSms.style.background = '#d97706'; }
+            if (btnBroadLine)     { btnBroadLine.textContent = '対象件数一斉LINE配信'; btnBroadLine.style.background = '#d97706'; }
         } else {
             btnMove.textContent = '選択フォルダ移動';
             btnMove.style.background = '';
@@ -790,6 +794,7 @@ function formatFolderLabel(values) {
             if (btnBindCarrier)   { btnBindCarrier.textContent = '選択へキャリア割り当て'; btnBindCarrier.style.background = ''; }
             if (btnBroad)         { btnBroad.textContent = '選択一斉送信'; btnBroad.style.background = ''; }
             if (btnBroadSms)      { btnBroadSms.textContent = '選択一斉SMS配信'; btnBroadSms.style.background = ''; }
+            if (btnBroadLine)     { btnBroadLine.textContent = '選択一斉LINE配信'; btnBroadLine.style.background = '#06C755'; }
         }
     }
     if (checkAll) checkAll.addEventListener('change', function () {

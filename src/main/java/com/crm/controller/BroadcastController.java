@@ -38,6 +38,7 @@ public class BroadcastController {
     private final com.crm.service.MessageService messageService;
     private final com.crm.service.AuditLogService auditLog;
     private final com.crm.service.ReplyPageSettingService replyPageSettingService;
+    private final com.crm.service.LineAccountService lineAccountService;
 
     public BroadcastController(BroadcastService broadcastService,
                                MessageTemplateService templateService,
@@ -48,7 +49,8 @@ public class BroadcastController {
                                com.crm.service.SmsSettingService smsSettingService,
                                com.crm.service.MessageService messageService,
                                com.crm.service.AuditLogService auditLog,
-                               com.crm.service.ReplyPageSettingService replyPageSettingService) {
+                               com.crm.service.ReplyPageSettingService replyPageSettingService,
+                               com.crm.service.LineAccountService lineAccountService) {
         this.broadcastService = broadcastService;
         this.templateService = templateService;
         this.userService = userService;
@@ -59,6 +61,7 @@ public class BroadcastController {
         this.messageService = messageService;
         this.auditLog = auditLog;
         this.replyPageSettingService = replyPageSettingService;
+        this.lineAccountService = lineAccountService;
     }
 
     /** Email-domain choices for the broadcast filter (replaces old carrierCode dropdown). */
@@ -84,7 +87,7 @@ public class BroadcastController {
         String addrTrim = (addr == null) ? null : addr.trim();
         String addrLike = (addrTrim == null || addrTrim.isEmpty())
                 ? null : "%" + addrTrim.toLowerCase() + "%";
-        String channelFilter = "SMS".equals(channel) ? "SMS" : null;
+        String channelFilter = ("SMS".equals(channel) || "LINE".equals(channel)) ? channel : null;
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
                 page, 100,
                 org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
@@ -190,8 +193,8 @@ public class BroadcastController {
         // Condition/filter-based SMS broadcast (2026-08-08 — previously only row-selection
         // worked for SMS; folder+filter targeting was email-only, forcing the operator to
         // hand-check hundreds of rows to send SMS to a filtered segment).
-        if ("SMS".equals(channel)) {
-            session.setAttribute("broadcastSelectedChannel", "SMS");
+        if ("SMS".equals(channel) || "LINE".equals(channel)) {
+            session.setAttribute("broadcastSelectedChannel", channel);
         } else {
             session.removeAttribute("broadcastSelectedChannel");
         }
@@ -237,8 +240,8 @@ public class BroadcastController {
         } else {
             session.removeAttribute("broadcastSelectedUserIds");
         }
-        if ("SMS".equals(channel)) {
-            session.setAttribute("broadcastSelectedChannel", "SMS");
+        if ("SMS".equals(channel) || "LINE".equals(channel)) {
+            session.setAttribute("broadcastSelectedChannel", channel);
         } else {
             session.removeAttribute("broadcastSelectedChannel");
         }
@@ -266,13 +269,14 @@ public class BroadcastController {
         if (!model.containsAttribute("form")) {
             BroadcastForm f = new BroadcastForm();
             if (userIds != null && !userIds.isEmpty()) f.setTargetUserIds(userIds);
-            if ("SMS".equals(channel)) f.setChannel("SMS");
+            if ("SMS".equals(channel) || "LINE".equals(channel)) f.setChannel(channel);
             // Rate-per-minute is configured globally on the settings page; the broadcast form
             // no longer exposes it (operator request) but the field is still wired through.
             // SMS and EMAIL have SEPARATE rate settings (SMS配信設定 vs リレーサーバー設定) —
             // this used to always read the email/relay-server rate regardless of channel, so
             // an SMS broadcast silently ran at the relay-server's rate (e.g. 600/min) instead
-            // of the configured SMS interval. Fixed 2026-08-08.
+            // of the configured SMS interval. Fixed 2026-08-08. LINE has no dedicated rate
+            // setting yet, so it shares the broadcast (email) rate for now.
             f.setRatePerMinute("SMS".equals(channel)
                     ? smsSettingService.getRatePerMinute()
                     : settingService.getBroadcastRatePerMinute());
@@ -300,20 +304,36 @@ public class BroadcastController {
             }
         }
         model.addAttribute("history", history);
+        model.addAttribute("lineAccounts", allLineAccountsFlat());
         return "message/broadcast-form";
+    }
+
+    /** Parents + their children, flattened, for the LINE-account picker — a broadcast can
+     *  be sent from any registered account, not just parents. */
+    private List<com.crm.entity.LineAccount> allLineAccountsFlat() {
+        List<com.crm.entity.LineAccount> out = new java.util.ArrayList<>();
+        for (com.crm.entity.LineAccount parent : lineAccountService.listParents()) {
+            out.add(parent);
+            out.addAll(lineAccountService.listChildren(parent.getId()));
+        }
+        return out;
     }
 
     @PostMapping
     public String create(@Valid @ModelAttribute("form") BroadcastForm form,
                          BindingResult br, HttpSession session, RedirectAttributes ra, Model model) {
-        if (!"SMS".equals(form.getChannel())
+        if (!"SMS".equals(form.getChannel()) && !"LINE".equals(form.getChannel())
                 && (form.getSubject() == null || form.getSubject().trim().isEmpty())) {
             br.rejectValue("subject", "required", "件名を入力してください");
+        }
+        if ("LINE".equals(form.getChannel()) && form.getLineAccountId() == null) {
+            br.rejectValue("lineAccountId", "required", "送信元のLINEアカウントを選択してください");
         }
         if (br.hasErrors()) {
             model.addAttribute("templates", templateService.listAll());
         model.addAttribute("templatePageTitles", templateService.listPageTitles());
         model.addAttribute("templateActivePages", templateService.listActivePageNumbers());
+            model.addAttribute("lineAccounts", allLineAccountsFlat());
             return "message/broadcast-form";
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);

@@ -35,6 +35,7 @@ class BroadcastServiceEmailOnlyGuardTest {
     private DomainSettingService domainSettingService;
     private ReplyPageSettingService replyPageSettingService;
     private SmsSettingService smsSettingService;
+    private com.crm.repository.LineUserRepository lineUserRepo;
     private BroadcastService svc;
 
     @BeforeEach
@@ -50,10 +51,11 @@ class BroadcastServiceEmailOnlyGuardTest {
         replyPageSettingService = mock(ReplyPageSettingService.class);
         when(replyPageSettingService.getOrCreate()).thenReturn(new com.crm.entity.ReplyPageSetting());
         smsSettingService = mock(SmsSettingService.class);
+        lineUserRepo = mock(com.crm.repository.LineUserRepository.class);
 
         svc = new BroadcastService(broadcastRepo, userRepo, poolRepo, bindingService,
                 messageRepo, placeholderService, replyPageService, domainSettingService,
-                replyPageSettingService, smsSettingService);
+                replyPageSettingService, smsSettingService, lineUserRepo);
 
         when(bindingService.firstBoundFor(org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(java.util.Optional.empty());

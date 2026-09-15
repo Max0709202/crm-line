@@ -40,6 +40,7 @@ class BroadcastServiceUrlPlaceholderTest {
     private DomainSettingService domainSettingService;
     private ReplyPageSettingService replyPageSettingService;
     private SmsSettingService smsSettingService;
+    private com.crm.repository.LineUserRepository lineUserRepo;
     private BroadcastService svc;
 
     @BeforeEach
@@ -55,10 +56,11 @@ class BroadcastServiceUrlPlaceholderTest {
         replyPageSettingService = mock(ReplyPageSettingService.class);
         when(replyPageSettingService.getOrCreate()).thenReturn(new com.crm.entity.ReplyPageSetting());
         smsSettingService = mock(SmsSettingService.class);
+        lineUserRepo = mock(com.crm.repository.LineUserRepository.class);
 
         svc = new BroadcastService(broadcastRepo, userRepo, poolRepo, bindingService,
                 messageRepo, placeholderService, replyPageService, domainSettingService,
-                replyPageSettingService, smsSettingService);
+                replyPageSettingService, smsSettingService, lineUserRepo);
 
         when(bindingService.firstBoundFor(anyLong())).thenReturn(Optional.empty());
         when(domainSettingService.buildFromAddress()).thenReturn("info@example.com");
