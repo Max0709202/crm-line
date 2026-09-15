@@ -1,6 +1,7 @@
 package com.crm.line;
 
 import com.crm.line.dto.LineBotInfoResponse;
+import com.crm.line.dto.LineProfileResponse;
 import com.crm.util.LogSafe;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.config.RequestConfig;
@@ -77,6 +78,43 @@ public class LineApiClient {
             }
         } catch (Exception e) {
             log.warn("[LINE] getBotInfo error: {}", LogSafe.of(e.toString()));
+            return null;
+        }
+    }
+
+    /**
+     * Calls {@code GET /v2/bot/profile/{userId}} to fetch a display name/photo for a LINE
+     * contact — used only to make the unmatched-contacts screen show a human name/photo
+     * instead of a bare opaque userId. Returns null on any failure (logged, not thrown);
+     * a failed profile lookup is not a reason to fail processing the message itself.
+     */
+    public LineProfileResponse getProfile(String accessToken, String lineUserId) {
+        if (accessToken == null || accessToken.trim().isEmpty() || lineUserId == null || lineUserId.trim().isEmpty()) {
+            return null;
+        }
+        RequestConfig rc = RequestConfig.custom()
+                .setConnectTimeout(connectTimeoutMs)
+                .setConnectionRequestTimeout(connectTimeoutMs)
+                .setSocketTimeout(readTimeoutMs)
+                .build();
+
+        try (CloseableHttpClient http = HttpClientBuilder.create().setDefaultRequestConfig(rc).build()) {
+            String encodedUserId = java.net.URLEncoder.encode(lineUserId, StandardCharsets.UTF_8.name());
+            HttpGet get = new HttpGet(API_BASE + "/v2/bot/profile/" + encodedUserId);
+            get.setHeader("Authorization", "Bearer " + accessToken);
+
+            try (CloseableHttpResponse resp = http.execute(get)) {
+                int code = resp.getStatusLine().getStatusCode();
+                String body = resp.getEntity() == null ? ""
+                        : EntityUtils.toString(resp.getEntity(), StandardCharsets.UTF_8);
+                if (code == 200) {
+                    return objectMapper.readValue(body, LineProfileResponse.class);
+                }
+                log.warn("[LINE] getProfile failed: status={} body={}", code, LogSafe.of(truncate(body, 500)));
+                return null;
+            }
+        } catch (Exception e) {
+            log.warn("[LINE] getProfile error: {}", LogSafe.of(e.toString()));
             return null;
         }
     }

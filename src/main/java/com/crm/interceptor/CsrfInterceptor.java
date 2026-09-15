@@ -68,6 +68,15 @@ public class CsrfInterceptor implements HandlerInterceptor {
      */
     private static final Pattern SMS_INBOUND_EXEMPT = Pattern.compile("^/api/inbound/sms/[A-Za-z0-9]+$");
 
+    /**
+     * LINE webhook — external caller (LINE's servers), no session. Auth is
+     * {@code LineSignatureVerifier}'s HMAC-SHA256 check on the request body (the
+     * {@code webhookToken} path segment only routes to the right LineAccount, it isn't
+     * itself the security boundary the way the SMS token is). Exact pattern, not a prefix,
+     * for the same reason as {@link #SMS_INBOUND_EXEMPT}.
+     */
+    private static final Pattern LINE_INBOUND_EXEMPT = Pattern.compile("^/api/inbound/line/[A-Za-z0-9]+$");
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         HttpSession session = request.getSession(true);
@@ -91,6 +100,7 @@ public class CsrfInterceptor implements HandlerInterceptor {
         // only (not a prefix) so future /reply/* endpoints don't auto-inherit the bypass.
         if (path != null && REPLY_EXEMPT.matcher(path).matches()) return true;
         if (path != null && SMS_INBOUND_EXEMPT.matcher(path).matches()) return true;
+        if (path != null && LINE_INBOUND_EXEMPT.matcher(path).matches()) return true;
         // /media/** is the agency dashboard — gated by Basic Auth, no admin session, GET-only.
         if (path != null && path.startsWith("/media/")) return true;
 

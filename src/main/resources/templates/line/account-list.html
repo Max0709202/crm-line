@@ -7,8 +7,10 @@
 </head>
 <body>
 <section layout:fragment="content">
-    <div class="flex items-center mb-4">
+    <div class="flex items-center mb-4 gap-2">
         <h1 class="text-2xl font-semibold text-slate-800 flex-1">LINE設定</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md"
+           th:href="@{/manager/line-settings/unmatched}">未紐付けの連絡先</a>
         <a class="inline-flex items-center px-3 py-1.5 text-sm text-white rounded-md"
            style="background:#06C755;" th:href="@{/manager/line-settings/new}">＋ 親アカウント新規登録</a>
     </div>
@@ -41,12 +43,24 @@
                     </td>
                     <td class="px-3 py-2 text-slate-600 font-mono text-xs" th:text="${p.channelId}"></td>
                     <td class="px-3 py-2">
-                        <span th:replace="~{::statusBadge(${p})}"></span>
+                        <span th:if="${p.status == 'ACTIVE'}" class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">使用中</span>
+                        <span th:if="${p.status == 'UNUSED'}" class="px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600">未使用</span>
+                        <span th:if="${p.status == 'ERROR'}" class="px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-700">接続エラー</span>
                     </td>
                     <td class="px-3 py-2 text-slate-500 text-xs"
                         th:text="${p.lastConnectionCheckAt != null ? #temporals.format(p.lastConnectionCheckAt, 'yyyy-MM-dd HH:mm') : '未確認'}"></td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
-                        <span th:replace="~{::rowActions(${p})}"></span>
+                        <form th:id="'checkForm' + ${p.id}" method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/check-connection'}" style="display:inline;">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="submit" class="px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 hover:bg-blue-100 rounded">接続確認</button>
+                        </form>
+                        <a th:href="@{'/manager/line-settings/' + ${p.id} + '/edit'}"
+                           class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>
+                        <form th:id="'delForm' + ${p.id}" method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/delete'}" style="display:inline;">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="button" class="px-2 py-1 text-xs bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded"
+                                    th:attr="onclick=|deleteAccount(${p.id})|">削除</button>
+                        </form>
                     </td>
                 </tr>
                 <tr th:each="c : ${childrenByParent.get(p.id)}">
@@ -55,12 +69,24 @@
                     </td>
                     <td class="px-3 py-2 text-slate-600 font-mono text-xs" th:text="${c.channelId}"></td>
                     <td class="px-3 py-2">
-                        <span th:replace="~{::statusBadge(${c})}"></span>
+                        <span th:if="${c.status == 'ACTIVE'}" class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">使用中</span>
+                        <span th:if="${c.status == 'UNUSED'}" class="px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600">未使用</span>
+                        <span th:if="${c.status == 'ERROR'}" class="px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-700">接続エラー</span>
                     </td>
                     <td class="px-3 py-2 text-slate-500 text-xs"
                         th:text="${c.lastConnectionCheckAt != null ? #temporals.format(c.lastConnectionCheckAt, 'yyyy-MM-dd HH:mm') : '未確認'}"></td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
-                        <span th:replace="~{::rowActions(${c})}"></span>
+                        <form th:id="'checkForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/check-connection'}" style="display:inline;">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="submit" class="px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 hover:bg-blue-100 rounded">接続確認</button>
+                        </form>
+                        <a th:href="@{'/manager/line-settings/' + ${c.id} + '/edit'}"
+                           class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>
+                        <form th:id="'delForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/delete'}" style="display:inline;">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="button" class="px-2 py-1 text-xs bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded"
+                                    th:attr="onclick=|deleteAccount(${c.id})|">削除</button>
+                        </form>
                     </td>
                 </tr>
                 <tr th:if="${childrenByParent.get(p.id) == null or childrenByParent.get(p.id).empty}">
@@ -74,28 +100,6 @@
             <a class="text-xs px-2 py-1 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded"
                th:href="@{/manager/line-settings/new(parentAccountId=${p.id})}">＋ この親に子アカウントを追加</a>
         </div>
-    </div>
-
-    <!-- Reusable fragments: status badge + per-row action forms (out-of-band, HTML forbids
-         a <form> wrapping <td> elements — same pattern as diff-schedule-definitions.html). -->
-    <div th:fragment="statusBadge(a)">
-        <span th:if="${a.status == 'ACTIVE'}" class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">使用中</span>
-        <span th:if="${a.status == 'UNUSED'}" class="px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600">未使用</span>
-        <span th:if="${a.status == 'ERROR'}" class="px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-700">接続エラー</span>
-    </div>
-
-    <div th:fragment="rowActions(a)">
-        <form th:id="'checkForm' + ${a.id}" method="post" th:action="@{'/manager/line-settings/' + ${a.id} + '/check-connection'}" style="display:inline;">
-            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
-            <button type="submit" class="px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 hover:bg-blue-100 rounded">接続確認</button>
-        </form>
-        <a th:href="@{'/manager/line-settings/' + ${a.id} + '/edit'}"
-           class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>
-        <form th:id="'delForm' + ${a.id}" method="post" th:action="@{'/manager/line-settings/' + ${a.id} + '/delete'}" style="display:inline;">
-            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
-            <button type="button" class="px-2 py-1 text-xs bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded"
-                    th:attr="onclick=|deleteAccount(${a.id})|">削除</button>
-        </form>
     </div>
 
     <script>

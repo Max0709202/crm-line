@@ -68,6 +68,10 @@
          * per operator request so the three reply channels are visually distinguishable at a glance. */
         .hist-item.in.sms { background:#fef9c3; color:#854d0e; }
         .hist-item.out.sms { background:#fef3c7; color:#78350f; }
+        /* LINE — brand green (#06C755-derived tint), deliberately distinct from the emerald
+         * used for .in.web above so the two channels don't read as the same one in the feed. */
+        .hist-item.in.line { background:#d9f7e6; color:#046c3a; }
+        .hist-item.out.line { background:#bdf0d3; color:#046c3a; }
         .hist-item .meta { font-size:.66rem; color:#475569; margin-top:3px; }
         /* 差分予約 — pending diff-schedule send, styled as an individual history card
            like a normal 予約送信 row but in the violet accent used for diff features
@@ -271,7 +275,7 @@
 
             <div th:if="${thread.empty}" class="text-center text-xs text-slate-400 py-6">まだメッセージはありません</div>
             <div th:each="m : ${thread}" class="hist-item"
-                 th:classappend="${m.channel == 'SMS'} ? (${m.direction == 'OUT'} ? 'out sms' : 'in sms') : (${m.direction == 'OUT'} ? 'out' : (${m.channel == 'WEB_REPLY'} ? 'in web' : 'in'))">
+                 th:classappend="${m.channel == 'SMS'} ? (${m.direction == 'OUT'} ? 'out sms' : 'in sms') : (${m.channel == 'LINE'} ? (${m.direction == 'OUT'} ? 'out line' : 'in line') : (${m.direction == 'OUT'} ? 'out' : (${m.channel == 'WEB_REPLY'} ? 'in web' : 'in')))">
                 <div class="font-medium">
                     <span th:text="${m.subject} ?: '(件名なし)'"></span>
                     <!-- 📎 badge next to subject when this inbound carries images -->

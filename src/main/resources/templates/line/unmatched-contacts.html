@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>未紐付けのLINE連絡先</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">未紐付けのLINE連絡先</h1>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md"
+           th:href="@{/manager/line-settings}">LINE設定に戻る</a>
+    </div>
+
+    <p class="text-sm text-slate-500 mb-4">
+        LINEでメッセージを送ってきたが、まだ顧客情報と紐付けられていない相手です。
+        <a class="text-blue-600 hover:underline" th:href="@{/manager/users}">ユーザー管理</a>で該当の顧客IDを確認し、下記フォームに入力してください。
+    </p>
+
+    <div th:if="${unmatched == null or unmatched.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 text-center text-slate-400">
+        未紐付けの連絡先はありません
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto" th:if="${unmatched != null and !unmatched.empty}">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <tr>
+                    <th class="px-3 py-2 text-left">LINE表示名</th>
+                    <th class="px-3 py-2 text-left">最新メッセージ</th>
+                    <th class="px-3 py-2 text-left" style="width:150px;">最終受信</th>
+                    <th class="px-3 py-2 text-right" style="width:220px;">顧客IDと紐付け</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                <tr th:each="u : ${unmatched}">
+                    <td class="px-3 py-2">
+                        <img th:if="${u.linePictureUrl != null}" th:src="${u.linePictureUrl}" class="inline-block w-6 h-6 rounded-full mr-2" alt=""/>
+                        <span th:text="${u.lineDisplayName != null ? u.lineDisplayName : '(表示名不明)'}"></span>
+                    </td>
+                    <td class="px-3 py-2 text-slate-600 max-w-xs truncate" th:text="${u.lastMessagePreview}"></td>
+                    <td class="px-3 py-2 text-slate-500 text-xs"
+                        th:text="${u.lastMessageAt != null ? #temporals.format(u.lastMessageAt, 'yyyy-MM-dd HH:mm') : ''}"></td>
+                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                        <form method="post" th:action="@{'/manager/line-settings/unmatched/' + ${u.id} + '/link'}" class="inline-flex gap-1 items-center">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <input type="number" name="crmUserId" placeholder="顧客ID" required class="tw-input" style="width:90px; padding:0.25rem 0.5rem; font-size:0.8rem;"/>
+                            <button type="submit" class="px-2 py-1 text-xs text-white rounded" style="background:#06C755;">紐付け</button>
+                        </form>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+</body>
+</html>
