@@ -1,5 +1,6 @@
 package com.crm.controller;
 
+import com.crm.service.AuditLogService;
 import com.crm.service.LineUserLinkService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,9 +21,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class LineUserLinkController {
 
     private final LineUserLinkService service;
+    private final AuditLogService auditLog;
 
-    public LineUserLinkController(LineUserLinkService service) {
+    public LineUserLinkController(LineUserLinkService service, AuditLogService auditLog) {
         this.service = service;
+        this.auditLog = auditLog;
     }
 
     @GetMapping
@@ -35,6 +38,7 @@ public class LineUserLinkController {
     public String link(@PathVariable Long id, @RequestParam Long crmUserId, RedirectAttributes ra) {
         try {
             service.link(id, crmUserId);
+            auditLog.record(AuditLogService.ACTION_LINE_USER_LINK, "LineUser", id, "crmUserId=" + crmUserId);
             ra.addFlashAttribute("flashSuccess", "顧客と紐付けました");
         } catch (LineUserLinkService.NotFoundException | LineUserLinkService.CrmUserNotFoundException e) {
             ra.addFlashAttribute("flashError", e.getMessage());

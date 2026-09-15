@@ -3,6 +3,7 @@ package com.crm.controller;
 import com.crm.entity.AdminUser;
 import com.crm.interceptor.AuthInterceptor;
 import com.crm.repository.AdminUserRepository;
+import com.crm.service.AuditLogService;
 import com.crm.service.DomainSettingService;
 import com.crm.service.HtmlImageService;
 import org.springframework.stereotype.Controller;
@@ -31,13 +32,16 @@ public class LinePersonaController {
     private final AdminUserRepository adminUserRepository;
     private final HtmlImageService htmlImageService;
     private final DomainSettingService domainSettingService;
+    private final AuditLogService auditLog;
 
     public LinePersonaController(AdminUserRepository adminUserRepository,
                                   HtmlImageService htmlImageService,
-                                  DomainSettingService domainSettingService) {
+                                  DomainSettingService domainSettingService,
+                                  AuditLogService auditLog) {
         this.adminUserRepository = adminUserRepository;
         this.htmlImageService = htmlImageService;
         this.domainSettingService = domainSettingService;
+        this.auditLog = auditLog;
     }
 
     @GetMapping
@@ -66,6 +70,7 @@ public class LinePersonaController {
             }
         }
         adminUserRepository.save(admin);
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "AdminUser", admin.getId(), "persona update");
         ra.addFlashAttribute("flashSuccess", "LINE表示名/アイコンを更新しました");
         return "redirect:/manager/line-settings/my-persona";
     }
