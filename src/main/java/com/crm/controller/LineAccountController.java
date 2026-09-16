@@ -31,10 +31,13 @@ public class LineAccountController {
 
     private final LineAccountService service;
     private final AuditLogService auditLog;
+    private final com.crm.service.DomainSettingService domainSettingService;
 
-    public LineAccountController(LineAccountService service, AuditLogService auditLog) {
+    public LineAccountController(LineAccountService service, AuditLogService auditLog,
+                                  com.crm.service.DomainSettingService domainSettingService) {
         this.service = service;
         this.auditLog = auditLog;
+        this.domainSettingService = domainSettingService;
     }
 
     /** Returns a redirect string if the session isn't ADMIN, or null if it's fine to proceed. */
@@ -56,6 +59,7 @@ public class LineAccountController {
         }
         model.addAttribute("parents", parents);
         model.addAttribute("childrenByParent", childrenByParent);
+        model.addAttribute("webhookBaseUrl", domainSettingService.getReplyBaseUrl() + "/api/inbound/line/");
         return "line/account-list";
     }
 

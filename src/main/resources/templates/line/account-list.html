@@ -22,6 +22,9 @@
         Channel Secret / Access Tokenは常にAES-256で暗号化して保存され、画面には表示されません。
         「グループモード」を有効にしたアカウントで送信すると、担当者ごとの表示名/アイコンで送信されます
         （<a class="text-blue-600 hover:underline" th:href="@{/manager/line-settings/my-persona}">自分のLINE表示名/アイコン</a>で設定）。
+        各アカウントのChannel IDの下に表示されているURLは、LINE Developersコンソールの該当アカウント「Messaging API」タブの
+        「Webhook URL」欄に貼り付けて「Verify」→「Webhookの利用」をONにしてください。これを設定しないと、
+        友達追加やメッセージが届いても本システムには反映されません。
     </p>
 
     <div th:if="${parents == null or parents.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 text-center text-slate-400">
@@ -46,7 +49,15 @@
                         <span th:text="${p.name}"></span>
                         <span class="ml-1 text-xs text-slate-400">(親)</span>
                     </td>
-                    <td class="px-3 py-2 text-slate-600 font-mono text-xs" th:text="${p.channelId}"></td>
+                    <td class="px-3 py-2 text-slate-600 font-mono text-xs">
+                        <div th:text="${p.channelId}"></div>
+                        <div class="flex items-center gap-1 mt-1">
+                            <input type="text" readonly th:id="'webhookUrl' + ${p.id}" th:value="${webhookBaseUrl} + ${p.webhookToken}"
+                                   class="text-xs text-slate-400" style="width:220px; border:none; background:transparent; padding:0;"/>
+                            <button type="button" class="px-1.5 py-0.5 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded"
+                                    th:attr="onclick=|copyWebhookUrl(${p.id}, this)|">コピー</button>
+                        </div>
+                    </td>
                     <td class="px-3 py-2">
                         <span th:if="${p.status == 'ACTIVE'}" class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">使用中</span>
                         <span th:if="${p.status == 'UNUSED'}" class="px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600">未使用</span>
@@ -81,7 +92,15 @@
                     <td class="px-3 py-2 text-slate-700">
                         <span class="text-slate-400">└</span> <span th:text="${c.name}"></span>
                     </td>
-                    <td class="px-3 py-2 text-slate-600 font-mono text-xs" th:text="${c.channelId}"></td>
+                    <td class="px-3 py-2 text-slate-600 font-mono text-xs">
+                        <div th:text="${c.channelId}"></div>
+                        <div class="flex items-center gap-1 mt-1">
+                            <input type="text" readonly th:id="'webhookUrl' + ${c.id}" th:value="${webhookBaseUrl} + ${c.webhookToken}"
+                                   class="text-xs text-slate-400" style="width:220px; border:none; background:transparent; padding:0;"/>
+                            <button type="button" class="px-1.5 py-0.5 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded"
+                                    th:attr="onclick=|copyWebhookUrl(${c.id}, this)|">コピー</button>
+                        </div>
+                    </td>
                     <td class="px-3 py-2">
                         <span th:if="${c.status == 'ACTIVE'}" class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">使用中</span>
                         <span th:if="${c.status == 'UNUSED'}" class="px-2 py-0.5 text-xs rounded bg-slate-200 text-slate-600">未使用</span>
@@ -130,6 +149,16 @@
             if (!confirm('このLINEアカウントを削除します。子アカウントが残っている場合は削除できません。よろしいですか?')) return;
             var f = document.getElementById('delForm' + id);
             if (f) f.submit();
+        }
+        function copyWebhookUrl(id, btn) {
+            var input = document.getElementById('webhookUrl' + id);
+            if (!input) return;
+            input.select();
+            navigator.clipboard.writeText(input.value).then(function () {
+                var orig = btn.textContent;
+                btn.textContent = 'コピー済';
+                setTimeout(function () { btn.textContent = orig; }, 1500);
+            }).catch(function () {});
         }
     </script>
 </section>
