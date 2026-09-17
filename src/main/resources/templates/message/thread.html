@@ -383,6 +383,9 @@
                     <button type="submit" th:if="${user.phoneNumber != null and !#strings.isEmpty(user.phoneNumber)}"
                             th:formaction="@{'/manager/users/' + ${user.id} + '/messages/sms'}"
                             class="btn" style="background:#0891b2;">SMS返信</button>
+                    <span th:if="${hasLineLink}" id="lineCharCount" class="text-xs text-slate-400"
+                          th:attr="data-max=${lineMaxBodyLength}"
+                          th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
                     <button type="submit" th:if="${hasLineLink}"
                             th:formaction="@{'/manager/users/' + ${user.id} + '/messages/line'}"
                             class="btn" style="background:#06C755;">LINE返信</button>
@@ -564,6 +567,21 @@ function applyTemplateFromElement(el) {
         var n = ta.value.length;
         counter.textContent = '60文字以内で送信 (' + n + '文字' + (n > 60 ? ' / 2通以上になります' : '') + ')';
         counter.style.color = n > 60 ? '#dc2626' : '';
+    }
+    ta.addEventListener('input', update);
+    update();
+})();
+
+// LINE本文の目安文字数(LINE設定で設定可能) — SMSと違い課金上の制約ではなく運用上の目安表示。
+(function () {
+    var ta = document.getElementById('body');
+    var counter = document.getElementById('lineCharCount');
+    if (!ta || !counter) return;
+    var max = parseInt(counter.getAttribute('data-max'), 10) || 1000;
+    function update() {
+        var n = ta.value.length;
+        counter.textContent = max + '文字以内 (' + n + '文字' + (n > max ? ' / 上限超過' : '') + ')';
+        counter.style.color = n > max ? '#dc2626' : '';
     }
     ta.addEventListener('input', update);
     update();

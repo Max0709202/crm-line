@@ -35,6 +35,7 @@ public class DomainSettingService {
     public static final String KEY_FROM_RANDOM_LOCAL         = "from.random_local_enabled";
     public static final String KEY_FROM_RANDOM_LENGTH        = "from.random_local_length";
     public static final String KEY_FROM_FIXED_LOCAL          = "from.fixed_local";
+    public static final String KEY_LINE_MAX_BODY_LENGTH      = "line.max_body_length";
 
     /** Auto-expire policy for CARRIER_USER_BINDING (deletes rows older than N days). */
     public static final String KEY_BINDING_EXPIRE_ENABLED    = "binding.auto_expire_enabled";
@@ -344,6 +345,25 @@ public class DomainSettingService {
             if (n > MAX_LEN) return MAX_LEN;
             return n;
         } catch (NumberFormatException e) { return def; }
+    }
+
+    /** Operator-configurable cap on LINE reply/broadcast body length (client request,
+     *  2026-09-17) — shown as a live counter on the compose screens and enforced
+     *  server-side in MessageService.composeLine()/BroadcastService.createAndQueueLine().
+     *  Clamped to [1, 5000]; LINE's own hard limit on a single text message is 5000 chars,
+     *  independent of the MIN_LEN/MAX_LEN range used elsewhere in this class for token
+     *  lengths (4-64), which doesn't fit this setting. */
+    public int getLineMaxBodyLength() {
+        String v = get(KEY_LINE_MAX_BODY_LENGTH);
+        if (v == null) return 1000;
+        try {
+            int n = Integer.parseInt(v.trim());
+            if (n < 1) return 1;
+            if (n > 5000) return 5000;
+            return n;
+        } catch (NumberFormatException e) {
+            return 1000;
+        }
     }
 
     @Transactional

@@ -22,15 +22,27 @@ public class LineUserLinkController {
 
     private final LineUserLinkService service;
     private final AuditLogService auditLog;
+    private final com.crm.repository.LineAccountRepository lineAccountRepository;
 
-    public LineUserLinkController(LineUserLinkService service, AuditLogService auditLog) {
+    public LineUserLinkController(LineUserLinkService service, AuditLogService auditLog,
+                                   com.crm.repository.LineAccountRepository lineAccountRepository) {
         this.service = service;
         this.auditLog = auditLog;
+        this.lineAccountRepository = lineAccountRepository;
     }
 
     @GetMapping
     public String list(Model model) {
-        model.addAttribute("unmatched", service.listUnlinked());
+        java.util.List<com.crm.entity.LineUser> unmatched = service.listUnlinked();
+        model.addAttribute("unmatched", unmatched);
+        // Which LINE account (name) each contact came in through — with 2+ registered
+        // accounts, the admin needs this to make sense of an otherwise-unlabeled contact.
+        java.util.Map<Long, String> accountNames = new java.util.HashMap<>();
+        for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(
+                unmatched.stream().map(com.crm.entity.LineUser::getLineAccountId).collect(java.util.stream.Collectors.toSet()))) {
+            accountNames.put(a.getId(), a.getName());
+        }
+        model.addAttribute("accountNames", accountNames);
         return "line/unmatched-contacts";
     }
 

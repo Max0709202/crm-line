@@ -241,6 +241,8 @@
                                   ? '例: %name% 様 いつもありがとうございます。%amount% のお支払いをお願いいたします。'
                                   : '例: %name% 様 いつもありがとうございます。&#10;%amount% のお支払いをお願いいたします。&#10;返信はこちら: %reply_url%'"></textarea>
                     <span th:if="${form.channel == 'SMS'}" id="smsCharCount" class="text-xs text-slate-400" style="margin-top:2px;">60文字以内で送信 (0文字)</span>
+                    <span th:if="${form.channel == 'LINE'}" id="lineCharCount" class="text-xs text-slate-400" style="margin-top:2px;"
+                          th:attr="data-max=${lineMaxBodyLength}" th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
                 </div>
 
                 <!-- メールドメイン / ステータス / rate / min は operator 要請により削除。
@@ -330,6 +332,20 @@ function applyTemplateFromElement(el) {
         var n = ta.value.length;
         counter.textContent = '60文字以内で送信 (' + n + '文字' + (n > 60 ? ' / 2通以上になります' : '') + ')';
         counter.style.color = n > 60 ? '#dc2626' : '';
+    }
+    ta.addEventListener('input', update);
+    update();
+})();
+
+(function () {
+    var ta = document.getElementById('body');
+    var counter = document.getElementById('lineCharCount');
+    if (!ta || !counter) return;
+    var max = parseInt(counter.getAttribute('data-max'), 10) || 1000;
+    function update() {
+        var n = ta.value.length;
+        counter.textContent = max + '文字以内 (' + n + '文字' + (n > max ? ' / 上限超過' : '') + ')';
+        counter.style.color = n > max ? '#dc2626' : '';
     }
     ta.addEventListener('input', update);
     update();

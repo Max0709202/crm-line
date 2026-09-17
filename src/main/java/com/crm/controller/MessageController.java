@@ -41,6 +41,7 @@ public class MessageController {
     private final com.crm.service.DiffScheduleService diffScheduleService;
     private final com.crm.service.AuditLogService auditLog;
     private final com.crm.repository.LineUserRepository lineUserRepository;
+    private final com.crm.service.DomainSettingService domainSettingService;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -53,7 +54,8 @@ public class MessageController {
                              com.crm.service.ReplyPageSettingService replyPageSettingService,
                              com.crm.service.DiffScheduleService diffScheduleService,
                              com.crm.service.AuditLogService auditLog,
-                             com.crm.repository.LineUserRepository lineUserRepository) {
+                             com.crm.repository.LineUserRepository lineUserRepository,
+                             com.crm.service.DomainSettingService domainSettingService) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -66,6 +68,7 @@ public class MessageController {
         this.diffScheduleService = diffScheduleService;
         this.auditLog = auditLog;
         this.lineUserRepository = lineUserRepository;
+        this.domainSettingService = domainSettingService;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -189,6 +192,7 @@ public class MessageController {
         // Gates the LINE返信 button — LINE only lets you message someone who has already
         // followed the Official Account (see LineWebhookService's javadoc).
         model.addAttribute("hasLineLink", !lineUserRepository.findByCrmUserId(userId).isEmpty());
+        model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         if (!model.containsAttribute("form")) {
             MessageComposeForm form = new MessageComposeForm();
             if (replyTo != null) {

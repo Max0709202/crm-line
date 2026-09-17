@@ -27,6 +27,8 @@
             <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <tr>
                     <th class="px-3 py-2 text-left">LINE表示名</th>
+                    <th class="px-3 py-2 text-left" style="width:160px;">送信元アカウント</th>
+                    <th class="px-3 py-2 text-left" style="width:220px;">LINEユーザーID</th>
                     <th class="px-3 py-2 text-left">最新メッセージ</th>
                     <th class="px-3 py-2 text-left" style="width:150px;">最終受信</th>
                     <th class="px-3 py-2 text-right" style="width:220px;">顧客IDと紐付け</th>
@@ -38,6 +40,8 @@
                         <img th:if="${u.linePictureUrl != null}" th:src="${u.linePictureUrl}" class="inline-block w-6 h-6 rounded-full mr-2" alt=""/>
                         <span th:text="${u.lineDisplayName != null ? u.lineDisplayName : '(表示名不明)'}"></span>
                     </td>
+                    <td class="px-3 py-2 text-slate-600 text-xs" th:text="${accountNames.get(u.lineAccountId)}"></td>
+                    <td class="px-3 py-2 text-slate-400 font-mono text-xs" th:text="${u.lineUserId}"></td>
                     <td class="px-3 py-2 text-slate-600 max-w-xs truncate" th:text="${u.lastMessagePreview}"></td>
                     <td class="px-3 py-2 text-slate-500 text-xs"
                         th:text="${u.lastMessageAt != null ? #temporals.format(u.lastMessageAt, 'yyyy-MM-dd HH:mm') : ''}"></td>

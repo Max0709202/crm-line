@@ -305,6 +305,7 @@ public class BroadcastController {
         }
         model.addAttribute("history", history);
         model.addAttribute("lineAccounts", allLineAccountsFlat());
+        model.addAttribute("lineMaxBodyLength", settingService.getLineMaxBodyLength());
         return "message/broadcast-form";
     }
 
@@ -334,6 +335,7 @@ public class BroadcastController {
         model.addAttribute("templatePageTitles", templateService.listPageTitles());
         model.addAttribute("templateActivePages", templateService.listActivePageNumbers());
             model.addAttribute("lineAccounts", allLineAccountsFlat());
+            model.addAttribute("lineMaxBodyLength", settingService.getLineMaxBodyLength());
             return "message/broadcast-form";
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);

@@ -27,6 +27,16 @@
         友達追加やメッセージが届いても本システムには反映されません。
     </p>
 
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-center gap-3">
+        <label class="text-sm font-medium text-slate-700 whitespace-nowrap">LINE本文の最大文字数</label>
+        <form method="post" th:action="@{/manager/line-settings/max-body-length}" class="flex items-center gap-2">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <input type="number" name="value" th:value="${lineMaxBodyLength}" min="1" max="5000" class="tw-input" style="width:100px;"/>
+            <button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button>
+        </form>
+        <span class="text-xs text-slate-400">個別返信・一斉配信の本文入力時にこの文字数までで案内表示します（LINEの上限は5000文字）。</span>
+    </div>
+
     <div th:if="${parents == null or parents.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 text-center text-slate-400">
         LINEアカウントはまだ登録されていません
     </div>

@@ -60,6 +60,7 @@ public class LineAccountController {
         model.addAttribute("parents", parents);
         model.addAttribute("childrenByParent", childrenByParent);
         model.addAttribute("webhookBaseUrl", domainSettingService.getReplyBaseUrl() + "/api/inbound/line/");
+        model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         return "line/account-list";
     }
 
@@ -167,6 +168,19 @@ public class LineAccountController {
         } catch (LineAccountService.NotFoundException e) {
             ra.addFlashAttribute("flashError", "LINEアカウントが見つかりません");
         }
+        return "redirect:/manager/line-settings";
+    }
+
+    @PostMapping("/max-body-length")
+    public String saveMaxBodyLength(@RequestParam int value, HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        int clamped = Math.max(1, Math.min(5000, value));
+        domainSettingService.save(com.crm.service.DomainSettingService.KEY_LINE_MAX_BODY_LENGTH, String.valueOf(clamped));
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null,
+                "line.max_body_length=" + clamped);
+        ra.addFlashAttribute("flashSuccess", "LINE本文の最大文字数を更新しました");
         return "redirect:/manager/line-settings";
     }
 
