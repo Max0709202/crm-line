@@ -1,5 +1,6 @@
 package com.crm.service;
 
+import com.crm.entity.CrmUser;
 import com.crm.entity.LineUser;
 import com.crm.repository.CrmUserRepository;
 import com.crm.repository.LineUserRepository;
@@ -9,10 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Manual linking of an unmatched {@link LineUser} (a real LINE contact with no
- * corresponding {@link com.crm.entity.CrmUser} yet) to an existing customer. LINE's webhook
- * carries no email/phone, so there's no automatic match the way inbound email/SMS has —
- * see {@link LineWebhookService}'s javadoc for why.
+ * Linking a {@link LineUser} to a {@link com.crm.entity.CrmUser}, either automatically at
+ * friend-add time ({@link #autoRegisterAndLink}, the normal path — see
+ * {@link LineWebhookService}) or manually to merge a legacy unmatched contact into an
+ * already-existing customer record ({@link #link}).
  */
 @Service
 public class LineUserLinkService {
@@ -38,6 +39,24 @@ public class LineUserLinkService {
         }
         u.setCrmUserId(crmUserId);
         return lineUserRepository.save(u);
+    }
+
+    /**
+     * Creates a bare {@link CrmUser} (display name only — LINE gives no email/phone) for a
+     * brand-new LINE contact and links it in the same step, so the contact is immediately a
+     * normal customer: searchable/filterable on the user list and eligible for 一斉送信 /
+     * 差分予約 like any other user. Replaces the old "friend-add leaves an unmatched contact
+     * that must be manually linked" default (2026-09-18 client request) — manual {@link #link}
+     * still exists for merging into an already-existing customer record when that's wanted.
+     */
+    @Transactional
+    public LineUser autoRegisterAndLink(LineUser lineUser) {
+        CrmUser u = new CrmUser();
+        String name = lineUser.getLineDisplayName();
+        u.setDisplayName((name != null && !name.trim().isEmpty()) ? name : "LINE友だち");
+        CrmUser saved = crmUserRepository.save(u);
+        lineUser.setCrmUserId(saved.getId());
+        return lineUserRepository.save(lineUser);
     }
 
     public static class NotFoundException extends RuntimeException {

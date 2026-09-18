@@ -12,10 +12,11 @@ import java.time.LocalDateTime;
 
 /**
  * Links a {@link CrmUser} to a LINE {@code userId} within one {@link LineAccount}.
- * {@code crmUserId} is nullable — null means "a real person messaged this Official Account
- * but hasn't been matched to a customer yet" (LINE's webhook carries no email/phone to
- * auto-match on, unlike inbound email/SMS). Such rows surface in an admin-facing
- * "unmatched LINE contacts" screen for manual linking — see {@code LineUserLinkService}.
+ * {@code crmUserId} is set automatically at friend-add time — see
+ * {@code LineUserLinkService#autoRegisterAndLink} — so it's non-null for every contact
+ * added going forward. It stays nullable for legacy rows created before that behavior
+ * existed; those surface in an admin-facing "unmatched LINE contacts" screen for manual
+ * linking — see {@code LineUserLinkService#link}.
  *
  * <p>{@code lastMessagePreview}/{@code lastMessageAt} exist because {@link Message#getUserId()}
  * is {@code NOT NULL} with a real FK to {@code CRM_USER} — an unlinked contact's message has

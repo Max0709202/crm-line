@@ -32,6 +32,7 @@ class LineWebhookServiceTest {
     private MessageRepository messageRepository;
     private AesEncryptionUtil aes;
     private LineApiClient lineApiClient;
+    private LineUserLinkService lineUserLinkService;
     private LineWebhookService svc;
 
     @BeforeEach
@@ -41,13 +42,21 @@ class LineWebhookServiceTest {
         messageRepository = mock(MessageRepository.class);
         aes = mock(AesEncryptionUtil.class);
         lineApiClient = mock(LineApiClient.class);
+        lineUserLinkService = mock(LineUserLinkService.class);
         when(aes.decrypt(anyString())).thenAnswer(inv -> inv.getArgument(0));
         when(lineUserRepository.save(any(LineUser.class))).thenAnswer(inv -> {
             LineUser u = inv.getArgument(0);
             if (u.getId() == null) u.setId(50L);
             return u;
         });
-        svc = new LineWebhookService(lineAccountRepository, lineUserRepository, messageRepository, aes, lineApiClient);
+        // Mirrors LineUserLinkService.autoRegisterAndLink's real effect (a brand-new contact
+        // is linked to a fresh CrmUser immediately) without pulling in CrmUserRepository here.
+        when(lineUserLinkService.autoRegisterAndLink(any(LineUser.class))).thenAnswer(inv -> {
+            LineUser u = inv.getArgument(0);
+            u.setCrmUserId(999L);
+            return lineUserRepository.save(u);
+        });
+        svc = new LineWebhookService(lineAccountRepository, lineUserRepository, messageRepository, aes, lineApiClient, lineUserLinkService);
     }
 
     private static LineAccount account() {
@@ -80,17 +89,17 @@ class LineWebhookServiceTest {
     }
 
     @Test
-    void textFromUnlinkedContact_setsPreviewButDoesNotCreateMessage() {
+    void textFromBrandNewContact_autoRegistersAndCreatesLineMessage() {
         when(lineUserRepository.findByLineAccountIdAndLineUserId(1L, "U123")).thenReturn(Optional.empty());
 
         svc.process(account(), payloadOf(textEvent("evt1", "U123", "こんにちは")));
 
-        verify(messageRepository, never()).save(any(Message.class));
-        ArgumentCaptor<LineUser> cap = ArgumentCaptor.forClass(LineUser.class);
-        verify(lineUserRepository, org.mockito.Mockito.atLeastOnce()).save(cap.capture());
-        LineUser saved = cap.getValue();
-        assertThat(saved.getLastMessagePreview()).isEqualTo("こんにちは");
-        assertThat(saved.isLinked()).isFalse();
+        verify(lineUserLinkService).autoRegisterAndLink(any(LineUser.class));
+        ArgumentCaptor<Message> cap = ArgumentCaptor.forClass(Message.class);
+        verify(messageRepository).save(cap.capture());
+        Message m = cap.getValue();
+        assertThat(m.getUserId()).isEqualTo(999L);
+        assertThat(m.getBodyText()).isEqualTo("こんにちは");
     }
 
     @Test
@@ -129,7 +138,7 @@ class LineWebhookServiceTest {
     }
 
     @Test
-    void followEvent_createsUnlinkedLineUser_noMessage() {
+    void followEvent_autoRegistersLineUser_noMessage() {
         when(lineUserRepository.findByLineAccountIdAndLineUserId(1L, "Ufollow")).thenReturn(Optional.empty());
         LineWebhookPayload.LineEvent follow = new LineWebhookPayload.LineEvent();
         follow.setType("follow");
@@ -139,7 +148,7 @@ class LineWebhookServiceTest {
 
         svc.process(account(), payloadOf(follow));
 
-        verify(lineUserRepository).save(any(LineUser.class));
+        verify(lineUserLinkService).autoRegisterAndLink(any(LineUser.class));
         verify(messageRepository, never()).save(any(Message.class));
     }
 

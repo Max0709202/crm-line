@@ -29,11 +29,13 @@ import java.util.Optional;
  * anything else is skipped explicitly (not an error) so new LINE event/message types don't
  * need a code change to avoid breaking processing of the ones already supported.
  *
- * <p>A message from a LINE user not yet linked to a {@link com.crm.entity.CrmUser} cannot
- * become a {@link Message} row — {@code MESSAGE.USER_ID} is {@code NOT NULL} with a real FK.
- * Such contacts get an unlinked {@link LineUser} row instead (surfaced for manual linking by
- * {@link LineUserLinkService}), with the message text kept on
- * {@link LineUser#getLastMessagePreview()} so the admin can see what they said.
+ * <p>The first time a given LINE user is seen for an account (on {@code follow} or on their
+ * first message, whichever fires first), {@link #findOrCreateLineUser} auto-registers a bare
+ * {@link com.crm.entity.CrmUser} and links it via {@link LineUserLinkService#autoRegisterAndLink}
+ * — a LINE friend becomes a normal customer immediately, since {@code MESSAGE.USER_ID} is
+ * {@code NOT NULL} with a real FK and there'd otherwise be nothing to attach a reply to.
+ * {@link LineUserLinkService#link} remains for the separate, manual case of merging a contact
+ * into an already-existing customer record instead of a fresh one.
  */
 @Service
 public class LineWebhookService {
@@ -45,17 +47,20 @@ public class LineWebhookService {
     private final MessageRepository messageRepository;
     private final AesEncryptionUtil aes;
     private final LineApiClient lineApiClient;
+    private final LineUserLinkService lineUserLinkService;
 
     public LineWebhookService(LineAccountRepository lineAccountRepository,
                                LineUserRepository lineUserRepository,
                                MessageRepository messageRepository,
                                AesEncryptionUtil aes,
-                               LineApiClient lineApiClient) {
+                               LineApiClient lineApiClient,
+                               LineUserLinkService lineUserLinkService) {
         this.lineAccountRepository = lineAccountRepository;
         this.lineUserRepository = lineUserRepository;
         this.messageRepository = messageRepository;
         this.aes = aes;
         this.lineApiClient = lineApiClient;
+        this.lineUserLinkService = lineUserLinkService;
     }
 
     public static class ProcessResult {
@@ -155,6 +160,6 @@ public class LineWebhookService {
             u.setLineDisplayName(profile.getDisplayName());
             u.setLinePictureUrl(profile.getPictureUrl());
         }
-        return lineUserRepository.save(u);
+        return lineUserLinkService.autoRegisterAndLink(u);
     }
 }
