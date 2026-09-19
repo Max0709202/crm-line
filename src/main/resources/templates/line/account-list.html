@@ -52,6 +52,26 @@
         <span class="text-xs text-slate-400">個別返信・一斉配信の本文入力時にこの文字数までで案内表示します（LINEの上限は5000文字）。</span>
     </div>
 
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-center gap-3">
+        <label class="text-sm font-medium text-slate-700 whitespace-nowrap">LINE送信間隔 (件/分)</label>
+        <form method="post" th:action="@{/manager/line-settings/rate-per-minute}" class="flex items-center gap-2">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <input type="number" name="value" th:value="${lineRatePerMinute}" min="1" max="600" class="tw-input" style="width:100px;"/>
+            <button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button>
+        </form>
+        <span class="text-xs text-slate-400">LINE一斉送信専用の送信間隔です（メール一斉送信の間隔とは独立しています）。</span>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-center gap-3">
+        <label class="text-sm font-medium text-slate-700 whitespace-nowrap">友だち追加時の自動割当フォルダ</label>
+        <form method="post" th:action="@{/manager/line-settings/auto-register-folder}" class="flex items-center gap-2">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <input type="text" name="folder" th:value="${lineAutoRegisterFolder}" placeholder="例: LINE" class="tw-input" style="width:160px;"/>
+            <button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button>
+        </form>
+        <span class="text-xs text-slate-400">LINE友だち追加で自動作成される顧客に、このフォルダを自動で割り当てます（空欄=未割当）。</span>
+    </div>
+
     <div th:if="${parents == null or parents.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 text-center text-slate-400">
         LINEアカウントはまだ登録されていません
     </div>

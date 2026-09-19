@@ -16,6 +16,10 @@ public interface CrmUserRepository extends JpaRepository<CrmUser, Long>, JpaSpec
     boolean existsByLoginId(String loginId);
     long countByStatus(String status);
 
+    /** Case-insensitive exact match — used by LineUserLinkService#suggestMatches to propose
+     *  candidates for a legacy unmatched LINE contact by display-name equality. */
+    List<CrmUser> findByDisplayNameIgnoreCase(String displayName);
+
     /** Distinct sorted list of the "@domain" part of all user emails — for the search dropdown. */
     @Query(value = "SELECT DISTINCT SUBSTRING_INDEX(EMAIL, '@', -1) AS d " +
                    "FROM CRM_USER WHERE EMAIL LIKE '%@%' ORDER BY d", nativeQuery = true)

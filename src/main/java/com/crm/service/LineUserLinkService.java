@@ -20,14 +20,58 @@ public class LineUserLinkService {
 
     private final LineUserRepository lineUserRepository;
     private final CrmUserRepository crmUserRepository;
+    private final DomainSettingService domainSettingService;
 
-    public LineUserLinkService(LineUserRepository lineUserRepository, CrmUserRepository crmUserRepository) {
+    public LineUserLinkService(LineUserRepository lineUserRepository, CrmUserRepository crmUserRepository,
+                                DomainSettingService domainSettingService) {
         this.lineUserRepository = lineUserRepository;
         this.crmUserRepository = crmUserRepository;
+        this.domainSettingService = domainSettingService;
     }
 
     public List<LineUser> listUnlinked() {
         return lineUserRepository.findByCrmUserIdIsNullOrderByLastMessageAtDesc();
+    }
+
+    /**
+     * For every legacy unmatched contact, proposes exactly one candidate {@link CrmUser} when
+     * its display name matches (case-insensitive) — never guesses when there's zero or more
+     * than one match, leaving those for the existing manual {@link #link} form instead.
+     */
+    public java.util.List<MatchCandidate> suggestMatches() {
+        java.util.List<MatchCandidate> out = new java.util.ArrayList<>();
+        for (LineUser u : listUnlinked()) {
+            String name = u.getLineDisplayName();
+            if (name == null || name.trim().isEmpty()) continue;
+            List<CrmUser> candidates = crmUserRepository.findByDisplayNameIgnoreCase(name.trim());
+            if (candidates.size() == 1) {
+                out.add(new MatchCandidate(u, candidates.get(0)));
+            }
+        }
+        return out;
+    }
+
+    /** Bulk-approve a set of suggested pairs. One bad pair doesn't abort the rest, same
+     *  tolerant-batch shape used by LineAccountService#deleteByIds. */
+    @Transactional
+    public int linkAll(java.util.Map<Long, Long> lineUserIdToCrmUserId) {
+        if (lineUserIdToCrmUserId == null || lineUserIdToCrmUserId.isEmpty()) return 0;
+        int n = 0;
+        for (java.util.Map.Entry<Long, Long> e : lineUserIdToCrmUserId.entrySet()) {
+            try {
+                link(e.getKey(), e.getValue());
+                n++;
+            } catch (Exception ignored) {}
+        }
+        return n;
+    }
+
+    public static class MatchCandidate {
+        private final LineUser lineUser;
+        private final CrmUser crmUser;
+        public MatchCandidate(LineUser lineUser, CrmUser crmUser) { this.lineUser = lineUser; this.crmUser = crmUser; }
+        public LineUser getLineUser() { return lineUser; }
+        public CrmUser getCrmUser() { return crmUser; }
     }
 
     @Transactional
@@ -54,6 +98,7 @@ public class LineUserLinkService {
         CrmUser u = new CrmUser();
         String name = lineUser.getLineDisplayName();
         u.setDisplayName((name != null && !name.trim().isEmpty()) ? name : "LINE友だち");
+        u.setFolder(domainSettingService.getLineAutoRegisterFolder());
         CrmUser saved = crmUserRepository.save(u);
         lineUser.setCrmUserId(saved.getId());
         return lineUserRepository.save(lineUser);

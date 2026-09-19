@@ -21,13 +21,15 @@ class LineUserLinkServiceTest {
 
     private LineUserRepository lineUserRepository;
     private CrmUserRepository crmUserRepository;
+    private DomainSettingService domainSettingService;
     private LineUserLinkService svc;
 
     @BeforeEach
     void setUp() {
         lineUserRepository = mock(LineUserRepository.class);
         crmUserRepository = mock(CrmUserRepository.class);
-        svc = new LineUserLinkService(lineUserRepository, crmUserRepository);
+        domainSettingService = mock(DomainSettingService.class);
+        svc = new LineUserLinkService(lineUserRepository, crmUserRepository, domainSettingService);
         when(crmUserRepository.save(any(CrmUser.class))).thenAnswer(inv -> {
             CrmUser u = inv.getArgument(0);
             u.setId(500L);
@@ -50,6 +52,20 @@ class LineUserLinkServiceTest {
         assertThat(cap.getValue().getDisplayName()).isEqualTo("山田太郎");
         assertThat(linked.getCrmUserId()).isEqualTo(500L);
         assertThat(linked.isLinked()).isTrue();
+    }
+
+    @Test
+    void autoRegisterAndLink_appliesConfiguredAutoRegisterFolder() {
+        when(domainSettingService.getLineAutoRegisterFolder()).thenReturn("LINE");
+        LineUser contact = new LineUser();
+        contact.setLineAccountId(1L);
+        contact.setLineUserId("Ufolder");
+
+        svc.autoRegisterAndLink(contact);
+
+        ArgumentCaptor<CrmUser> cap = ArgumentCaptor.forClass(CrmUser.class);
+        verify(crmUserRepository).save(cap.capture());
+        assertThat(cap.getValue().getFolder()).isEqualTo("LINE");
     }
 
     @Test
@@ -86,5 +102,63 @@ class LineUserLinkServiceTest {
 
         assertThatThrownBy(() -> svc.link(10L, 999L))
                 .isInstanceOf(LineUserLinkService.CrmUserNotFoundException.class);
+    }
+
+    @Test
+    void suggestMatches_proposesExactlyOneCandidateOnUniqueNameMatch() {
+        LineUser unlinked = new LineUser();
+        unlinked.setId(20L);
+        unlinked.setLineDisplayName("鈴木一郎");
+        when(lineUserRepository.findByCrmUserIdIsNullOrderByLastMessageAtDesc())
+                .thenReturn(java.util.Collections.singletonList(unlinked));
+        CrmUser match = new CrmUser();
+        match.setId(77L);
+        match.setDisplayName("鈴木一郎");
+        when(crmUserRepository.findByDisplayNameIgnoreCase("鈴木一郎"))
+                .thenReturn(java.util.Collections.singletonList(match));
+
+        java.util.List<LineUserLinkService.MatchCandidate> result = svc.suggestMatches();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getLineUser().getId()).isEqualTo(20L);
+        assertThat(result.get(0).getCrmUser().getId()).isEqualTo(77L);
+    }
+
+    @Test
+    void suggestMatches_skipsWhenMultipleOrNoCandidates() {
+        LineUser ambiguous = new LineUser();
+        ambiguous.setId(21L);
+        ambiguous.setLineDisplayName("田中");
+        LineUser noMatch = new LineUser();
+        noMatch.setId(22L);
+        noMatch.setLineDisplayName("誰でもない");
+        when(lineUserRepository.findByCrmUserIdIsNullOrderByLastMessageAtDesc())
+                .thenReturn(java.util.Arrays.asList(ambiguous, noMatch));
+        CrmUser a = new CrmUser(); a.setId(1L); a.setDisplayName("田中");
+        CrmUser b = new CrmUser(); b.setId(2L); b.setDisplayName("田中");
+        when(crmUserRepository.findByDisplayNameIgnoreCase("田中")).thenReturn(java.util.Arrays.asList(a, b));
+        when(crmUserRepository.findByDisplayNameIgnoreCase("誰でもない")).thenReturn(java.util.Collections.emptyList());
+
+        assertThat(svc.suggestMatches()).isEmpty();
+    }
+
+    @Test
+    void linkAll_linksEachPairAndToleratesOneBadEntry() {
+        LineUser u1 = new LineUser(); u1.setId(30L);
+        LineUser u2 = new LineUser(); u2.setId(31L);
+        when(lineUserRepository.findById(30L)).thenReturn(Optional.of(u1));
+        when(lineUserRepository.findById(31L)).thenReturn(Optional.of(u2));
+        when(crmUserRepository.existsById(100L)).thenReturn(true);
+        when(crmUserRepository.existsById(999L)).thenReturn(false);
+
+        java.util.Map<Long, Long> pairs = new java.util.LinkedHashMap<>();
+        pairs.put(30L, 100L);
+        pairs.put(31L, 999L);
+
+        int n = svc.linkAll(pairs);
+
+        assertThat(n).isEqualTo(1);
+        assertThat(u1.getCrmUserId()).isEqualTo(100L);
+        assertThat(u2.getCrmUserId()).isNull();
     }
 }

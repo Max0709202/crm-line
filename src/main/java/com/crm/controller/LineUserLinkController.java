@@ -43,7 +43,33 @@ public class LineUserLinkController {
             accountNames.put(a.getId(), a.getName());
         }
         model.addAttribute("accountNames", accountNames);
+        model.addAttribute("suggestions", service.suggestMatches());
         return "line/unmatched-contacts";
+    }
+
+    /** Bulk-approve display-name-matched candidates (checkboxes on the unmatched-contacts
+     *  page). Each checkbox's value is "{lineUserId}:{crmUserId}" — a single combined value
+     *  per checkbox, not two parallel arrays, so an admin unchecking some suggestions can't
+     *  desync a lineUserId from the wrong crmUserId. */
+    @PostMapping("/bulk-link")
+    public String bulkLink(@RequestParam(name = "pair", required = false) java.util.List<String> pairs,
+                            RedirectAttributes ra) {
+        java.util.Map<Long, Long> parsed = new java.util.LinkedHashMap<>();
+        if (pairs != null) {
+            for (String p : pairs) {
+                String[] parts = p.split(":", 2);
+                if (parts.length != 2) continue;
+                try {
+                    parsed.put(Long.parseLong(parts[0]), Long.parseLong(parts[1]));
+                } catch (NumberFormatException ignore) {}
+            }
+        }
+        int n = service.linkAll(parsed);
+        for (Long lineUserId : parsed.keySet()) {
+            auditLog.record(AuditLogService.ACTION_LINE_USER_LINK, "LineUser", lineUserId, "bulk crmUserId=" + parsed.get(lineUserId));
+        }
+        ra.addFlashAttribute("flashSuccess", n + " 件を紐付けました");
+        return "redirect:/manager/line-settings/unmatched";
     }
 
     @PostMapping("/{id}/link")

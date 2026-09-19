@@ -36,6 +36,8 @@ public class DomainSettingService {
     public static final String KEY_FROM_RANDOM_LENGTH        = "from.random_local_length";
     public static final String KEY_FROM_FIXED_LOCAL          = "from.fixed_local";
     public static final String KEY_LINE_MAX_BODY_LENGTH      = "line.max_body_length";
+    public static final String KEY_LINE_RATE_PER_MINUTE      = "line.rate_per_minute";
+    public static final String KEY_LINE_AUTO_REGISTER_FOLDER = "line.auto_register_folder";
 
     /** Auto-expire policy for CARRIER_USER_BINDING (deletes rows older than N days). */
     public static final String KEY_BINDING_EXPIRE_ENABLED    = "binding.auto_expire_enabled";
@@ -364,6 +366,33 @@ public class DomainSettingService {
         } catch (NumberFormatException e) {
             return 1000;
         }
+    }
+
+    /** LINE-only send rate (msgs/min) — mirrors {@link #getBroadcastRatePerMinute()}, kept
+     *  separate since LINE previously silently shared the EMAIL broadcast rate. */
+    public int getLineRatePerMinute() {
+        String v = get(KEY_LINE_RATE_PER_MINUTE);
+        if (v == null || v.trim().isEmpty()) return 60;
+        try {
+            int n = Integer.parseInt(v.trim());
+            if (n < 1) return 1;
+            if (n > 600) return 600;
+            return n;
+        } catch (NumberFormatException e) { return 60; }
+    }
+
+    public void setLineRatePerMinute(int n) {
+        if (n < 1) n = 1;
+        if (n > 600) n = 600;
+        save(KEY_LINE_RATE_PER_MINUTE, String.valueOf(n));
+    }
+
+    /** Folder auto-assigned to a customer created via LINE friend-add auto-registration
+     *  (see LineUserLinkService#autoRegisterAndLink). Blank/unset = no folder, today's
+     *  default behavior. */
+    public String getLineAutoRegisterFolder() {
+        String v = get(KEY_LINE_AUTO_REGISTER_FOLDER);
+        return (v == null || v.trim().isEmpty()) ? null : v.trim();
     }
 
     @Transactional

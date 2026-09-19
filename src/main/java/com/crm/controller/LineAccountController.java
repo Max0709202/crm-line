@@ -74,6 +74,8 @@ public class LineAccountController {
         model.addAttribute("friendCounts", friendCounts);
         model.addAttribute("webhookBaseUrl", domainSettingService.getReplyBaseUrl() + "/api/inbound/line/");
         model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
+        model.addAttribute("lineRatePerMinute", domainSettingService.getLineRatePerMinute());
+        model.addAttribute("lineAutoRegisterFolder", domainSettingService.getLineAutoRegisterFolder());
         return "line/account-list";
     }
 
@@ -284,6 +286,32 @@ public class LineAccountController {
         auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null,
                 "line.max_body_length=" + clamped);
         ra.addFlashAttribute("flashSuccess", "LINE本文の最大文字数を更新しました");
+        return "redirect:/manager/line-settings";
+    }
+
+    @PostMapping("/rate-per-minute")
+    public String saveRatePerMinute(@RequestParam int value, HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        domainSettingService.setLineRatePerMinute(value);
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null,
+                "line.rate_per_minute=" + domainSettingService.getLineRatePerMinute());
+        ra.addFlashAttribute("flashSuccess", "LINE送信間隔を更新しました");
+        return "redirect:/manager/line-settings";
+    }
+
+    @PostMapping("/auto-register-folder")
+    public String saveAutoRegisterFolder(@RequestParam(required = false) String folder,
+                                          HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        String trimmed = (folder == null) ? "" : folder.trim();
+        domainSettingService.save(com.crm.service.DomainSettingService.KEY_LINE_AUTO_REGISTER_FOLDER, trimmed);
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null,
+                "line.auto_register_folder=" + trimmed);
+        ra.addFlashAttribute("flashSuccess", "LINE自動登録フォルダを更新しました");
         return "redirect:/manager/line-settings";
     }
 

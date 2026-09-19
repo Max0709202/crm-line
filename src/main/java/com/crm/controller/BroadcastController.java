@@ -272,14 +272,18 @@ public class BroadcastController {
             if ("SMS".equals(channel) || "LINE".equals(channel)) f.setChannel(channel);
             // Rate-per-minute is configured globally on the settings page; the broadcast form
             // no longer exposes it (operator request) but the field is still wired through.
-            // SMS and EMAIL have SEPARATE rate settings (SMS配信設定 vs リレーサーバー設定) —
-            // this used to always read the email/relay-server rate regardless of channel, so
-            // an SMS broadcast silently ran at the relay-server's rate (e.g. 600/min) instead
-            // of the configured SMS interval. Fixed 2026-08-08. LINE has no dedicated rate
-            // setting yet, so it shares the broadcast (email) rate for now.
-            f.setRatePerMinute("SMS".equals(channel)
-                    ? smsSettingService.getRatePerMinute()
-                    : settingService.getBroadcastRatePerMinute());
+            // SMS/EMAIL/LINE each have SEPARATE rate settings — this used to always read the
+            // email/relay-server rate regardless of channel, so an SMS broadcast silently ran
+            // at the relay-server's rate (e.g. 600/min) instead of the configured SMS interval.
+            // Fixed 2026-08-08 for SMS; LINE previously shared the EMAIL rate the same way
+            // until its own line.rate_per_minute setting was added (2026-09-19).
+            if ("SMS".equals(channel)) {
+                f.setRatePerMinute(smsSettingService.getRatePerMinute());
+            } else if ("LINE".equals(channel)) {
+                f.setRatePerMinute(settingService.getLineRatePerMinute());
+            } else {
+                f.setRatePerMinute(settingService.getBroadcastRatePerMinute());
+            }
             model.addAttribute("form", f);
         }
         // Pre-resolve selected users for the UI badge
