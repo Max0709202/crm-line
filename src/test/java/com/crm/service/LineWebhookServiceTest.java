@@ -33,6 +33,8 @@ class LineWebhookServiceTest {
     private AesEncryptionUtil aes;
     private LineApiClient lineApiClient;
     private LineUserLinkService lineUserLinkService;
+    private LineAutoReplyService lineAutoReplyService;
+    private MessageService messageService;
     private LineWebhookService svc;
 
     @BeforeEach
@@ -43,6 +45,8 @@ class LineWebhookServiceTest {
         aes = mock(AesEncryptionUtil.class);
         lineApiClient = mock(LineApiClient.class);
         lineUserLinkService = mock(LineUserLinkService.class);
+        lineAutoReplyService = mock(LineAutoReplyService.class);
+        messageService = mock(MessageService.class);
         when(aes.decrypt(anyString())).thenAnswer(inv -> inv.getArgument(0));
         when(lineUserRepository.save(any(LineUser.class))).thenAnswer(inv -> {
             LineUser u = inv.getArgument(0);
@@ -56,7 +60,8 @@ class LineWebhookServiceTest {
             u.setCrmUserId(999L);
             return lineUserRepository.save(u);
         });
-        svc = new LineWebhookService(lineAccountRepository, lineUserRepository, messageRepository, aes, lineApiClient, lineUserLinkService);
+        svc = new LineWebhookService(lineAccountRepository, lineUserRepository, messageRepository, aes, lineApiClient,
+                lineUserLinkService, lineAutoReplyService, messageService);
     }
 
     private static LineAccount account() {
@@ -180,5 +185,59 @@ class LineWebhookServiceTest {
         svc.process(account(), payloadOf(e));
 
         verify(messageRepository, never()).save(any(Message.class));
+    }
+
+    @Test
+    void newFollow_withMatchingFollowRule_sendsAutoReply() {
+        when(lineUserRepository.findByLineAccountIdAndLineUserId(1L, "Uwelcome")).thenReturn(Optional.empty());
+        com.crm.entity.LineAutoReplyRule rule = new com.crm.entity.LineAutoReplyRule();
+        rule.setId(5L);
+        rule.setReplyBody("友だち追加ありがとうございます！");
+        when(lineAutoReplyService.findFollowMatch(1L)).thenReturn(Optional.of(rule));
+        LineWebhookPayload.LineEvent follow = new LineWebhookPayload.LineEvent();
+        follow.setType("follow");
+        LineWebhookPayload.LineSource src = new LineWebhookPayload.LineSource();
+        src.setUserId("Uwelcome");
+        follow.setSource(src);
+
+        svc.process(account(), payloadOf(follow));
+
+        ArgumentCaptor<com.crm.dto.LineComposeForm> cap = ArgumentCaptor.forClass(com.crm.dto.LineComposeForm.class);
+        verify(messageService).composeLine(org.mockito.ArgumentMatchers.eq(999L), org.mockito.ArgumentMatchers.isNull(), cap.capture());
+        assertThat(cap.getValue().getBody()).isEqualTo("友だち追加ありがとうございます！");
+    }
+
+    @Test
+    void inboundKeywordMatch_sendsAutoReply() {
+        LineUser linked = new LineUser();
+        linked.setId(50L);
+        linked.setLineAccountId(1L);
+        linked.setLineUserId("Ukeyword");
+        linked.setCrmUserId(777L);
+        when(lineUserRepository.findByLineAccountIdAndLineUserId(1L, "Ukeyword")).thenReturn(Optional.of(linked));
+        com.crm.entity.LineAutoReplyRule rule = new com.crm.entity.LineAutoReplyRule();
+        rule.setId(6L);
+        rule.setReplyBody("営業時間は9時〜18時です");
+        when(lineAutoReplyService.findKeywordMatch(1L, "営業時間を教えて")).thenReturn(Optional.of(rule));
+
+        svc.process(account(), payloadOf(textEvent("evtkw", "Ukeyword", "営業時間を教えて")));
+
+        ArgumentCaptor<com.crm.dto.LineComposeForm> cap = ArgumentCaptor.forClass(com.crm.dto.LineComposeForm.class);
+        verify(messageService).composeLine(org.mockito.ArgumentMatchers.eq(777L), org.mockito.ArgumentMatchers.isNull(), cap.capture());
+        assertThat(cap.getValue().getBody()).isEqualTo("営業時間は9時〜18時です");
+    }
+
+    @Test
+    void inboundNoKeywordMatch_doesNotSendAutoReply() {
+        LineUser linked = new LineUser();
+        linked.setId(50L);
+        linked.setLineAccountId(1L);
+        linked.setLineUserId("Uno");
+        linked.setCrmUserId(778L);
+        when(lineUserRepository.findByLineAccountIdAndLineUserId(1L, "Uno")).thenReturn(Optional.of(linked));
+
+        svc.process(account(), payloadOf(textEvent("evtnokw", "Uno", "こんにちは")));
+
+        verify(messageService, never()).composeLine(any(), any(), any());
     }
 }

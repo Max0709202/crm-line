@@ -48,19 +48,25 @@ public class LineWebhookService {
     private final AesEncryptionUtil aes;
     private final LineApiClient lineApiClient;
     private final LineUserLinkService lineUserLinkService;
+    private final LineAutoReplyService lineAutoReplyService;
+    private final MessageService messageService;
 
     public LineWebhookService(LineAccountRepository lineAccountRepository,
                                LineUserRepository lineUserRepository,
                                MessageRepository messageRepository,
                                AesEncryptionUtil aes,
                                LineApiClient lineApiClient,
-                               LineUserLinkService lineUserLinkService) {
+                               LineUserLinkService lineUserLinkService,
+                               LineAutoReplyService lineAutoReplyService,
+                               MessageService messageService) {
         this.lineAccountRepository = lineAccountRepository;
         this.lineUserRepository = lineUserRepository;
         this.messageRepository = messageRepository;
         this.aes = aes;
         this.lineApiClient = lineApiClient;
         this.lineUserLinkService = lineUserLinkService;
+        this.lineAutoReplyService = lineAutoReplyService;
+        this.messageService = messageService;
     }
 
     public static class ProcessResult {
@@ -98,8 +104,12 @@ public class LineWebhookService {
         String type = event.getType();
 
         if ("follow".equals(type)) {
-            findOrCreateLineUser(account, lineUserId);
+            boolean isNewContact = !lineUserRepository.findByLineAccountIdAndLineUserId(account.getId(), lineUserId).isPresent();
+            LineUser lineUser = findOrCreateLineUser(account, lineUserId);
             log.info("[LINE] follow: account={} lineUserId={}", account.getId(), LogSafe.of(lineUserId));
+            if (isNewContact) {
+                sendAutoReplyIfMatched(account, lineUser, com.crm.entity.LineAutoReplyRule.TRIGGER_FOLLOW, null);
+            }
             return ProcessResult.ok();
         }
         if ("unfollow".equals(type)) {
@@ -145,7 +155,29 @@ public class LineWebhookService {
 
         log.info("[LINE] inbound matched: account={} lineUserId={} crmUserId={}",
                 account.getId(), LogSafe.of(lineUserId), lineUser.getCrmUserId());
+        sendAutoReplyIfMatched(account, lineUser, com.crm.entity.LineAutoReplyRule.TRIGGER_KEYWORD, body);
         return ProcessResult.ok();
+    }
+
+    /** Best-effort — an auto-reply failure (e.g. a since-revoked access token) must not fail
+     *  webhook processing of the real inbound event itself. */
+    private void sendAutoReplyIfMatched(LineAccount account, LineUser lineUser, String triggerType, String messageBody) {
+        if (lineUser.getCrmUserId() == null) return;
+        Optional<com.crm.entity.LineAutoReplyRule> match =
+                com.crm.entity.LineAutoReplyRule.TRIGGER_FOLLOW.equals(triggerType)
+                        ? lineAutoReplyService.findFollowMatch(account.getId())
+                        : lineAutoReplyService.findKeywordMatch(account.getId(), messageBody);
+        if (!match.isPresent()) return;
+        try {
+            com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
+            form.setBody(match.get().getReplyBody());
+            messageService.composeLine(lineUser.getCrmUserId(), null, form);
+            log.info("[LINE] auto-reply sent: account={} ruleId={} trigger={}",
+                    account.getId(), match.get().getId(), triggerType);
+        } catch (Exception e) {
+            log.warn("[LINE] auto-reply failed: account={} ruleId={} error={}",
+                    account.getId(), match.get().getId(), LogSafe.of(e.toString()));
+        }
     }
 
     private LineUser findOrCreateLineUser(LineAccount account, String lineUserId) {

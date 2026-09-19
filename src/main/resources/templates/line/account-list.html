@@ -139,6 +139,8 @@
                         </form>
                         <a th:href="@{'/manager/line-settings/' + ${p.id} + '/edit'}"
                            class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>
+                        <a th:href="@{'/manager/line-settings/' + ${p.id} + '/auto-reply'}"
+                           class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">自動返信</a>
                         <form th:id="'delForm' + ${p.id}" method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/delete'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
                             <button type="button" class="px-2 py-1 text-xs bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded"
@@ -188,6 +190,8 @@
                         </form>
                         <a th:href="@{'/manager/line-settings/' + ${c.id} + '/edit'}"
                            class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>
+                        <a th:href="@{'/manager/line-settings/' + ${c.id} + '/auto-reply'}"
+                           class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">自動返信</a>
                         <form th:id="'delForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/delete'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
                             <button type="button" class="px-2 py-1 text-xs bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded"
