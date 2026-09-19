@@ -96,7 +96,10 @@
                     <span th:if="${m.direction == 'OUT' and m.channel == 'SMS'}"
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
                           title="SMS送信">SMS送信</span>
-                    <span th:if="${m.direction == 'OUT' and m.channel != 'SMS'}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">送信</span>
+                    <span th:if="${m.direction == 'OUT' and m.channel == 'LINE'}"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                          style="background:#d9f7e6; color:#046c3a;" title="LINE送信">LINE送信</span>
+                    <span th:if="${m.direction == 'OUT' and m.channel != 'SMS' and m.channel != 'LINE'}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">送信</span>
                     <span th:if="${m.direction == 'IN' and m.channel == 'EMAIL'}"
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700"
                           title="ユーザーからの直接メール返信">メール返信</span>
@@ -106,6 +109,9 @@
                     <span th:if="${m.direction == 'IN' and m.channel == 'SMS'}"
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
                           title="ユーザーからのSMS返信">SMS返信</span>
+                    <span th:if="${m.direction == 'IN' and m.channel == 'LINE'}"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                          style="background:#d9f7e6; color:#046c3a;" title="ユーザーからのLINE返信">LINE返信</span>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userPhones != null and userPhones.get(m.userId) != null} ? ${userPhones.get(m.userId)} : '-'"></td>

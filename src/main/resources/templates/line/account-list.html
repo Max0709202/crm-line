@@ -4,6 +4,21 @@
       layout:decorate="~{layout/default}">
 <head>
     <title>LINE設定</title>
+    <style>
+        .list-page-footer {
+            flex-shrink:0; background:#fff; border-top:1px solid #e2e8f0;
+            padding:9px 20px; display:flex; align-items:center; justify-content:flex-end; gap:12px;
+            box-shadow:0 -1px 4px rgba(0,0,0,.05); margin-top:12px;
+        }
+        .list-page-footer .selected-count { font-size:.78rem; color:#64748b; }
+        .list-page-footer .btn-bulk-delete {
+            font-family:inherit; font-size:.82rem; font-weight:700;
+            padding:7px 16px; border-radius:6px; border:none; color:#fff; cursor:pointer; white-space:nowrap;
+            background:#dc2626; box-shadow:0 1px 3px rgba(220,38,38,.25);
+        }
+        .list-page-footer .btn-bulk-delete:hover:not(:disabled) { background:#b91c1c; }
+        .list-page-footer .btn-bulk-delete:disabled { background:#94a3b8; cursor:not-allowed; box-shadow:none; }
+    </style>
 </head>
 <body>
 <section layout:fragment="content">
@@ -41,20 +56,28 @@
         LINEアカウントはまだ登録されていません
     </div>
 
+    <form id="lineBulkForm" method="post">
     <div th:each="p : ${parents}" class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto mb-4">
+        <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-end">
+            <a class="inline-flex items-center px-3 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded"
+               th:href="@{'/manager/line-settings/bulk-new'(parentAccountId=${p.id})}">⇨ログイン (子アカウント一括登録)</a>
+        </div>
         <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <tr>
+                    <th class="px-3 py-2 text-left" style="width:32px;"><input type="checkbox" class="line-check-all" title="全選択"/></th>
                     <th class="px-3 py-2 text-left">アカウント名</th>
                     <th class="px-3 py-2 text-left">Channel ID</th>
                     <th class="px-3 py-2 text-left" style="width:110px;">ステータス</th>
                     <th class="px-3 py-2 text-left" style="width:160px;">最終接続確認</th>
                     <th class="px-3 py-2 text-left" style="width:110px;">グループモード</th>
+                    <th class="px-3 py-2 text-left" style="width:90px;">友だち数</th>
                     <th class="px-3 py-2 text-right" style="width:260px;">操作</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 <tr>
+                    <td class="px-3 py-2"><input type="checkbox" class="line-row-item" name="ids" th:value="${p.id}"/></td>
                     <td class="px-3 py-2 font-semibold text-slate-800">
                         <span th:text="${p.name}"></span>
                         <span class="ml-1 text-xs text-slate-400">(親)</span>
@@ -84,6 +107,11 @@
                                     th:text="${p.isGroupChatMode} ? '有効' : '無効'"></button>
                         </form>
                     </td>
+                    <td class="px-3 py-2">
+                        <a class="text-blue-600 hover:underline whitespace-nowrap"
+                           th:href="@{/manager/messages(lineAccountId=${p.id})}"
+                           th:text="${friendCounts.get(p.id) ?: 0} + '人'"></a>
+                    </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <form th:id="'checkForm' + ${p.id}" method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/check-connection'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -99,6 +127,7 @@
                     </td>
                 </tr>
                 <tr th:each="c : ${childrenByParent.get(p.id)}">
+                    <td class="px-3 py-2"><input type="checkbox" class="line-row-item" name="ids" th:value="${c.id}"/></td>
                     <td class="px-3 py-2 text-slate-700">
                         <span class="text-slate-400">└</span> <span th:text="${c.name}"></span>
                     </td>
@@ -127,6 +156,11 @@
                                     th:text="${c.isGroupChatMode} ? '有効' : '無効'"></button>
                         </form>
                     </td>
+                    <td class="px-3 py-2">
+                        <a class="text-blue-600 hover:underline whitespace-nowrap"
+                           th:href="@{/manager/messages(lineAccountId=${c.id})}"
+                           th:text="${friendCounts.get(c.id) ?: 0} + '人'"></a>
+                    </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <form th:id="'checkForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/check-connection'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -142,7 +176,7 @@
                     </td>
                 </tr>
                 <tr th:if="${childrenByParent.get(p.id) == null or childrenByParent.get(p.id).empty}">
-                    <td colspan="6" class="px-3 py-3 text-center text-slate-400 text-xs">子アカウントはまだ登録されていません</td>
+                    <td colspan="8" class="px-3 py-3 text-center text-slate-400 text-xs">子アカウントはまだ登録されていません</td>
                 </tr>
             </tbody>
         </table>
@@ -153,6 +187,14 @@
                th:href="@{/manager/line-settings/new(parentAccountId=${p.id})}">＋ この親に子アカウントを追加</a>
         </div>
     </div>
+
+    <div class="list-page-footer" th:if="${parents != null and !parents.empty}">
+        <span class="selected-count" id="lineSelectedCount"></span>
+        <button type="submit" class="btn-bulk-delete" id="btnLineDelete" disabled
+                formaction="/manager/line-settings/bulk-delete"
+                onclick="return confirmBulkDeleteLine();">選択削除</button>
+    </div>
+    </form>
 
     <script>
         function deleteAccount(id) {
@@ -170,6 +212,45 @@
                 setTimeout(function () { btn.textContent = orig; }, 1500);
             }).catch(function () {});
         }
+        (function () {
+            var btnDelete = document.getElementById('btnLineDelete');
+            var countLabel = document.getElementById('lineSelectedCount');
+            if (!btnDelete) return;
+            function allRows() { return document.querySelectorAll('.line-row-item'); }
+            function refresh() {
+                var checked = [].filter.call(allRows(), function (c) { return c.checked; });
+                var has = checked.length > 0;
+                countLabel.textContent = has ? (checked.length + ' 件選択中') : '';
+                btnDelete.disabled = !has;
+                [].forEach.call(document.querySelectorAll('.line-check-all'), function (checkAll) {
+                    var rows = checkAll.closest('table').querySelectorAll('.line-row-item');
+                    var checkedInTable = [].filter.call(rows, function (c) { return c.checked; });
+                    checkAll.indeterminate = checkedInTable.length > 0 && checkedInTable.length < rows.length;
+                    checkAll.checked = rows.length > 0 && checkedInTable.length === rows.length;
+                });
+            }
+            document.addEventListener('change', function (e) {
+                if (e.target.classList && e.target.classList.contains('line-check-all')) {
+                    var rows = e.target.closest('table').querySelectorAll('.line-row-item');
+                    [].forEach.call(rows, function (c) { c.checked = e.target.checked; });
+                    refresh();
+                } else if (e.target.classList && e.target.classList.contains('line-row-item')) {
+                    refresh();
+                }
+            });
+            window.confirmBulkDeleteLine = function () {
+                var n = [].filter.call(allRows(), function (c) { return c.checked; }).length;
+                if (n === 0) return false;
+                if (!confirm('選択した ' + n + ' 件のLINEアカウントを削除します。子アカウントが残っている親アカウントはスキップされます。よろしいですか?')) return false;
+                var pw = prompt('管理者パスワードを入力してください');
+                if (!pw) return false;
+                var f = document.getElementById('lineBulkForm');
+                var h = f.querySelector('input[name="confirmPassword"]');
+                if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = 'confirmPassword'; f.appendChild(h); }
+                h.value = pw;
+                return true;
+            };
+        })();
     </script>
 </section>
 </body>

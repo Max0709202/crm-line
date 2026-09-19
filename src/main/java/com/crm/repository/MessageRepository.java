@@ -308,7 +308,7 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
     @org.springframework.data.jpa.repository.Query(
             "SELECT m FROM Message m WHERE m.userId = :userId " +
             "AND m.direction = 'OUT' AND m.status = 'SENT' " +
-            "AND m.channel IN ('EMAIL','SMS','BROADCAST') " +
+            "AND m.channel IN ('EMAIL','SMS','BROADCAST','LINE') " +
             "AND m.boxDismissedAt IS NULL " +
             "ORDER BY m.sentAt DESC")
     Page<Message> findMessageBoxPage(@org.springframework.data.repository.query.Param("userId") Long userId,
@@ -352,7 +352,7 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
     @org.springframework.data.jpa.repository.Query(
             "UPDATE Message m SET m.boxDismissedAt = :now " +
             "WHERE m.userId = :userId AND m.direction = 'OUT' AND m.status = 'SENT' " +
-            "AND m.channel IN ('EMAIL','SMS','BROADCAST') " +
+            "AND m.channel IN ('EMAIL','SMS','BROADCAST','LINE') " +
             "AND m.boxDismissedAt IS NULL")
     int dismissAllBoxByUserId(@org.springframework.data.repository.query.Param("userId") Long userId,
                                @org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now);

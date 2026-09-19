@@ -32,12 +32,18 @@ public class LineAccountController {
     private final LineAccountService service;
     private final AuditLogService auditLog;
     private final com.crm.service.DomainSettingService domainSettingService;
+    private final com.crm.repository.LineUserRepository lineUserRepository;
+    private final com.crm.service.AdminAuthService adminAuthService;
 
     public LineAccountController(LineAccountService service, AuditLogService auditLog,
-                                  com.crm.service.DomainSettingService domainSettingService) {
+                                  com.crm.service.DomainSettingService domainSettingService,
+                                  com.crm.repository.LineUserRepository lineUserRepository,
+                                  com.crm.service.AdminAuthService adminAuthService) {
         this.service = service;
         this.auditLog = auditLog;
         this.domainSettingService = domainSettingService;
+        this.lineUserRepository = lineUserRepository;
+        this.adminAuthService = adminAuthService;
     }
 
     /** Returns a redirect string if the session isn't ADMIN, or null if it's fine to proceed. */
@@ -54,14 +60,41 @@ public class LineAccountController {
 
         List<LineAccount> parents = service.listParents();
         Map<Long, List<LineAccount>> childrenByParent = new LinkedHashMap<>();
+        Map<Long, Long> friendCounts = new LinkedHashMap<>();
         for (LineAccount p : parents) {
-            childrenByParent.put(p.getId(), service.listChildren(p.getId()));
+            List<LineAccount> children = service.listChildren(p.getId());
+            childrenByParent.put(p.getId(), children);
+            friendCounts.put(p.getId(), lineUserRepository.countByLineAccountId(p.getId()));
+            for (LineAccount c : children) {
+                friendCounts.put(c.getId(), lineUserRepository.countByLineAccountId(c.getId()));
+            }
         }
         model.addAttribute("parents", parents);
         model.addAttribute("childrenByParent", childrenByParent);
+        model.addAttribute("friendCounts", friendCounts);
         model.addAttribute("webhookBaseUrl", domainSettingService.getReplyBaseUrl() + "/api/inbound/line/");
         model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         return "line/account-list";
+    }
+
+    /** Bulk 選択削除 — admin-gated same as every other mutating endpoint here, plus the
+     *  admin-password confirmation used by the other bulk-delete screens (carrier pool, users). */
+    @PostMapping("/bulk-delete")
+    public String bulkDelete(@RequestParam(name = "ids", required = false) List<Long> ids,
+                              @RequestParam(name = "confirmPassword", required = false) String confirmPassword,
+                              HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
+        if (!adminAuthService.verifyPassword(adminId, confirmPassword)) {
+            ra.addFlashAttribute("flashError", "一括削除には管理者パスワードの確認が必要です");
+            return "redirect:/manager/line-settings";
+        }
+        int n = service.deleteByIds(ids);
+        auditLog.record(AuditLogService.ACTION_LINE_ACCOUNT_DELETE, "LineAccount", null, "bulk n=" + n);
+        ra.addFlashAttribute("flashSuccess", n + " 件のLINEアカウントを削除しました（子アカウントが残っているものはスキップされました）");
+        return "redirect:/manager/line-settings";
     }
 
     @GetMapping("/new")
@@ -104,6 +137,76 @@ public class LineAccountController {
         model.addAttribute("editing", false);
         model.addAttribute("parents", service.listParents());
         return "line/account-form";
+    }
+
+    /**
+     * Bulk registration of several already-manually-created child accounts' credentials at
+     * once ("⇨ログイン"). LINE's Messaging API has no endpoint to programmatically create an
+     * Official Account — this is the agreed substitute for that infeasible ask: paste in
+     * Name/Channel ID/Secret/Token for several accounts (one per line) instead of repeating
+     * the single-account form N times.
+     */
+    @GetMapping("/bulk-new")
+    public String bulkCreateForm(@RequestParam Long parentAccountId, HttpSession session,
+                                  Model model, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        Optional<LineAccount> parent = service.findById(parentAccountId);
+        if (!parent.isPresent()) {
+            ra.addFlashAttribute("flashError", "親アカウントが見つかりません");
+            return "redirect:/manager/line-settings";
+        }
+        model.addAttribute("parent", parent.get());
+        return "line/account-bulk-form";
+    }
+
+    @PostMapping("/bulk-new")
+    public String bulkCreate(@RequestParam Long parentAccountId,
+                              @RequestParam String lines,
+                              HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        int ok = 0;
+        List<String> errors = new java.util.ArrayList<>();
+        int lineNo = 0;
+        for (String raw : lines.split("\\r?\\n")) {
+            lineNo++;
+            String row = raw.trim();
+            if (row.isEmpty()) continue;
+            String[] cols = row.split(",", -1);
+            if (cols.length < 4) {
+                errors.add(lineNo + "行目: 列数が不足しています (name,channelId,channelSecret,accessToken)");
+                continue;
+            }
+            LineAccountForm form = new LineAccountForm();
+            form.setParentAccountId(parentAccountId);
+            form.setName(cols[0].trim());
+            form.setChannelId(cols[1].trim());
+            form.setChannelSecret(cols[2].trim());
+            form.setAccessToken(cols[3].trim());
+            try {
+                LineAccount saved = service.create(form);
+                auditLog.record(AuditLogService.ACTION_LINE_ACCOUNT_CREATE, "LineAccount", saved.getId(), saved.getName());
+                ok++;
+            } catch (LineAccountService.DuplicateChannelIdException e) {
+                errors.add(lineNo + "行目 (" + cols[0].trim() + "): このChannel IDは既に登録されています");
+            } catch (LineAccountService.MissingCredentialException e) {
+                errors.add(lineNo + "行目 (" + cols[0].trim() + "): Channel SecretとAccess Tokenは必須です");
+            } catch (LineAccountService.InvalidParentException e) {
+                errors.add(lineNo + "行目 (" + cols[0].trim() + "): " + e.getMessage());
+            } catch (Exception e) {
+                errors.add(lineNo + "行目 (" + cols[0].trim() + "): 登録に失敗しました");
+            }
+        }
+        if (ok > 0) {
+            ra.addFlashAttribute("flashSuccess", ok + " 件の子アカウントを登録しました");
+        }
+        if (!errors.isEmpty()) {
+            ra.addFlashAttribute("flashError", "以下の行はスキップされました: " + String.join(" / ", errors));
+        }
+        return "redirect:/manager/line-settings";
     }
 
     @GetMapping("/{id}/edit")

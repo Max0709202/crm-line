@@ -127,6 +127,22 @@ public class LineAccountService {
         repository.delete(a);
     }
 
+    /** Bulk 選択削除 — one bad id (not found, or a parent with children) doesn't abort the
+     *  rest of the batch, mirroring {@link CarrierPoolService#deleteByIds}. */
+    @Transactional
+    public int deleteByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        int n = 0;
+        for (Long id : ids) {
+            if (id == null) continue;
+            try {
+                delete(id);
+                n++;
+            } catch (Exception ignored) {}
+        }
+        return n;
+    }
+
     /**
      * Calls LINE's {@code GET /v2/bot/info} with the decrypted access token and flips
      * status to ACTIVE/ERROR based on the result. Never throws on a failed connection —

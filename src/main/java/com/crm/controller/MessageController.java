@@ -75,10 +75,12 @@ public class MessageController {
     @GetMapping("/manager/messages")
     public String list(@RequestParam(name = "page", defaultValue = "0") int page,
                        @RequestParam(name = "tab", required = false) String tab,
+                       @RequestParam(name = "lineAccountId", required = false) Long lineAccountId,
                        Model model) {
-        Page<Message> messages = messageService.recentMessages(page, 100, tab);
+        Page<Message> messages = messageService.recentMessages(page, 100, tab, lineAccountId);
         model.addAttribute("messages", messages);
         model.addAttribute("tab", tab == null ? "all" : tab);
+        model.addAttribute("lineAccountId", lineAccountId);
         // Resolve userId -> email for the ユーザー column so admin sees the address, not a number.
         java.util.Set<Long> uids = new java.util.HashSet<>();
         for (Message m : messages.getContent()) if (m.getUserId() != null) uids.add(m.getUserId());

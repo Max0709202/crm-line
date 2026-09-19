@@ -18,4 +18,7 @@ public interface LineUserRepository extends JpaRepository<LineUser, Long> {
      *  which of a broadcast's target users are linked to the specific LineAccount being
      *  sent from (see BroadcastService.createAndQueueLine). */
     List<LineUser> findByLineAccountIdAndCrmUserIdIn(Long lineAccountId, java.util.Collection<Long> crmUserIds);
+
+    /** Friend count shown per account on the LINE settings list. */
+    long countByLineAccountId(Long lineAccountId);
 }

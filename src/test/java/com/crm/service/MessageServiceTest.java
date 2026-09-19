@@ -766,6 +766,38 @@ class MessageServiceTest {
     }
 
     @Test
+    void composeLine_withReplyUrl_usesShortTokenLikeSms() {
+        CrmUser user = new CrmUser();
+        user.setId(63L);
+        when(userRepo.findById(63L)).thenReturn(Optional.of(user));
+        LineUser lineUser = new LineUser();
+        lineUser.setLineAccountId(5L);
+        lineUser.setLineUserId("Ushort");
+        when(lineUserRepo.findByCrmUserId(63L)).thenReturn(java.util.Collections.singletonList(lineUser));
+        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(replyPageService.createShortReplyPageFor(any(Message.class)))
+                .thenReturn("https://nbbv7g.jp/r/ab12");
+        when(domainSettings.isActiveLinkDomainExternalLanding()).thenReturn(false);
+
+        LineAccount account = new LineAccount();
+        account.setId(5L);
+        account.setAccessToken("enc-token");
+        when(lineAccountRepo.findById(5L)).thenReturn(Optional.of(account));
+        when(aes.decrypt("enc-token")).thenReturn("plain-token");
+        when(outboundLine.send(any())).thenReturn(OutboundLineService.SendResult.ok());
+
+        com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
+        form.setBody("ご案内 %reply_url%");
+
+        Message saved = svc.composeLine(63L, 1L, form);
+
+        assertThat(saved.getBodyText()).contains("https://nbbv7g.jp/r/ab12");
+        verify(replyPageService, never()).createReplyPageFor(any());
+    }
+
+    @Test
     void composeLine_scheduledInFuture_doesNotSendImmediately() {
         CrmUser user = new CrmUser();
         user.setId(62L);

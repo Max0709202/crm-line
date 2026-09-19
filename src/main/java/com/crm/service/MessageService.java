@@ -419,7 +419,25 @@ public class MessageService {
      *   null/other       — everything
      */
     public Page<Message> recentMessages(int page, int size, String tab) {
+        return recentMessages(page, size, tab, null);
+    }
+
+    /**
+     * @param lineAccountId when non-null, scopes to that account's LINE traffic only — this is
+     *                      an account-wide "やり取り履歴" (used by the LINE settings screen's
+     *                      per-account 履歴 link), so unlike the default view it deliberately
+     *                      does NOT exclude broadcast-related rows: a broadcast sent from this
+     *                      account is still part of "the exchange history through this account".
+     *                      {@code tab} is ignored when this is set.
+     */
+    public Page<Message> recentMessages(int page, int size, String tab, Long lineAccountId) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        if (lineAccountId != null) {
+            org.springframework.data.jpa.domain.Specification<Message> byAccount = (root, q, cb) ->
+                    cb.and(cb.equal(root.get("channel"), Message.CHANNEL_LINE),
+                           cb.equal(root.get("lineAccountId"), lineAccountId));
+            return messageRepository.findAll(byAccount, pageable);
+        }
         org.springframework.data.jpa.domain.Specification<Message> spec = (root, q, cb) -> {
             java.util.List<javax.persistence.criteria.Predicate> preds = new java.util.ArrayList<>();
             preds.add(notBroadcastRelated(root, q, cb));
@@ -603,7 +621,12 @@ public class MessageService {
         if (needsAnyUrl) {
             msg.setStatus(Message.STATUS_DRAFT);
             msg = messageRepository.save(msg);
-            applyUrlPlaceholders(msg, renderedBody, replyPageService.createReplyPageFor(msg), domainSettingService,
+            // Short token (matches composeSms()'s createShortReplyPageFor()) — LINE bans/flags
+            // accounts for long messages, and the CRM's own domain reply URL was previously
+            // using the 64-char email-style token, making it needlessly long. Both token
+            // lengths serve the exact same /reply/{token} page on this CRM's own domain; there
+            // is no separate relay/short-link server involved for any channel.
+            applyUrlPlaceholders(msg, renderedBody, replyPageService.createShortReplyPageFor(msg), domainSettingService,
                     replyPageSettingService.getOrCreate().getUrlLeadText(),
                     LINE_REPLY_URL_CLIP_LENGTH);
             msg.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
