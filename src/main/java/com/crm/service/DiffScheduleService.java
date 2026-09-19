@@ -47,6 +47,8 @@ public class DiffScheduleService {
     private final BroadcastService broadcastService;
     private final BroadcastRepository broadcastRepository;
     private final AuditLogService auditLog;
+    private final DomainSettingService domainSettingService;
+    private final HtmlImageService htmlImageService;
 
     public DiffScheduleService(DiffScheduleRepository scheduleRepository,
                                 DiffScheduleStepRepository scheduleStepRepository,
@@ -56,7 +58,9 @@ public class DiffScheduleService {
                                 CrmUserRepository userRepository,
                                 BroadcastService broadcastService,
                                 BroadcastRepository broadcastRepository,
-                                AuditLogService auditLog) {
+                                AuditLogService auditLog,
+                                DomainSettingService domainSettingService,
+                                HtmlImageService htmlImageService) {
         this.scheduleRepository = scheduleRepository;
         this.scheduleStepRepository = scheduleStepRepository;
         this.definitionRepository = definitionRepository;
@@ -66,6 +70,8 @@ public class DiffScheduleService {
         this.broadcastService = broadcastService;
         this.broadcastRepository = broadcastRepository;
         this.auditLog = auditLog;
+        this.domainSettingService = domainSettingService;
+        this.htmlImageService = htmlImageService;
     }
 
     /** Register a new schedule: resolves + freezes the target list, then materialises one
@@ -110,6 +116,8 @@ public class DiffScheduleService {
             ss.setSubjectSnapshot(step.getSubject());
             ss.setBodySnapshot(step.getBody());
             ss.setMemoSlotSnapshot(step.getMemoSlot());
+            ss.setLineAccountId(step.getLineAccountId());
+            ss.setImageIdSnapshot(step.getImageId());
             ss.setStatus(DiffScheduleStep.STATUS_PENDING);
             scheduleStepRepository.save(ss);
         }
@@ -316,8 +324,28 @@ public class DiffScheduleService {
         if (DiffStep.STEP_HTML_SWITCH.equals(step.getStepType())) {
             executeHtmlSwitch(step, ids);
         } else {
+            // MESSAGE and MESSAGE_IMAGE share the same send path — the only difference is
+            // executeMessage() splicing an <img> into the body first when imageIdSnapshot is set.
             executeMessage(step, schedule, ids);
         }
+    }
+
+    /** Prepends {@code <img src=".../img/{id}">} to the body for a MESSAGE_IMAGE step. If the
+     *  referenced image was deleted after this step was created, the send still goes out with
+     *  the plain body rather than failing the whole step — a missing decorative image isn't
+     *  worth blocking the message over. */
+    private String bodyWithImageSpliced(DiffScheduleStep step) {
+        String body = step.getBodySnapshot();
+        if (!DiffStep.STEP_MESSAGE_IMAGE.equals(step.getStepType()) || step.getImageIdSnapshot() == null) {
+            return body;
+        }
+        if (!htmlImageService.findById(step.getImageIdSnapshot()).isPresent()) {
+            log.warn("Diff-schedule-step image missing at execute time: stepId={} imageId={}",
+                    step.getId(), step.getImageIdSnapshot());
+            return body;
+        }
+        String imgTag = "<img src=\"" + domainSettingService.getReplyBaseUrl() + "/img/" + step.getImageIdSnapshot() + "\"/><br/>";
+        return imgTag + (body == null ? "" : body);
     }
 
     private void executeHtmlSwitch(DiffScheduleStep step, List<Long> ids) {
@@ -348,8 +376,10 @@ public class DiffScheduleService {
         form.setChannel(step.getChannel());
         form.setTitle(schedule.getDiffNameSnapshot());
         form.setSubject(DiffStep.CHANNEL_EMAIL.equals(step.getChannel()) ? step.getSubjectSnapshot() : null);
-        form.setBody(step.getBodySnapshot());
-        form.setRatePerMinute(60);
+        form.setBody(bodyWithImageSpliced(step));
+        form.setLineAccountId(step.getLineAccountId());
+        form.setRatePerMinute(DiffStep.CHANNEL_LINE.equals(step.getChannel())
+                ? domainSettingService.getLineRatePerMinute() : 60);
         try {
             com.crm.entity.Broadcast b = DiffStep.CHANNEL_SMS.equals(step.getChannel())
                     ? broadcastService.createAndQueueSms(form, schedule.getSetByAdminId())

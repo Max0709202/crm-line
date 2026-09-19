@@ -85,8 +85,16 @@ public class BroadcastService {
      *
      * Throws {@link NoTargetsException} if there are no deliverable users — rather than
      * silently saving an empty broadcast that looks stuck in SENDING forever.
+     *
+     * {@code noRollbackFor}: a caller that itself runs inside a transaction (e.g.
+     * DiffScheduleService#execute, which shares this method's transaction — propagation
+     * REQUIRED by default) and catches this exception to record a FAILED status still fails
+     * at commit with UnexpectedRollbackException otherwise — Spring's transactional advice
+     * marks the whole physical transaction rollback-only the instant this method throws,
+     * regardless of whether the exception is later caught further up the call stack. Safe
+     * here because the check runs before any row is written in this method.
      */
-    @Transactional
+    @Transactional(noRollbackFor = NoTargetsException.class)
     public Broadcast createAndQueue(BroadcastForm form, Long adminUserId) {
         if ("SMS".equals(form.getChannel())) {
             return createAndQueueSms(form, adminUserId);
@@ -237,7 +245,7 @@ public class BroadcastService {
      * Deliverability here is simply "has a phone number"; the sender identity comes from
      * {@link SmsSettingService} rather than a per-user carrier pool.
      */
-    @Transactional
+    @Transactional(noRollbackFor = NoTargetsException.class)
     public Broadcast createAndQueueSms(BroadcastForm form, Long adminUserId) {
         List<CrmUser> targets = findTargetUsers(form);
 
@@ -333,7 +341,7 @@ public class BroadcastService {
      * {@link LineUser} row) are deliverable — LINE only allows messaging contacts who have
      * already followed the Official Account being sent from, per-account.
      */
-    @Transactional
+    @Transactional(noRollbackFor = NoTargetsException.class)
     public Broadcast createAndQueueLine(BroadcastForm form, Long adminUserId) {
         Long lineAccountId = form.getLineAccountId();
         if (lineAccountId == null) {

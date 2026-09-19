@@ -21,9 +21,11 @@ public class DiffStep {
 
     public static final String STEP_MESSAGE = "MESSAGE";
     public static final String STEP_HTML_SWITCH = "HTML_SWITCH";
+    public static final String STEP_MESSAGE_IMAGE = "MESSAGE_IMAGE";
 
     public static final String CHANNEL_EMAIL = "EMAIL";
     public static final String CHANNEL_SMS = "SMS";
+    public static final String CHANNEL_LINE = "LINE";
 
     /** 当日 (分後). */
     public static final String OFFSET_MINUTES = "MINUTES";
@@ -69,6 +71,16 @@ public class DiffStep {
     @Column(name = "MEMO_SLOT")
     private Integer memoSlot;
 
+    /** Required when channel=LINE (a MESSAGE step needs to know which registered LINE
+     *  account to send from — see BroadcastForm.lineAccountId / BroadcastService#createAndQueueLine). */
+    @Column(name = "LINE_ACCOUNT_ID")
+    private Long lineAccountId;
+
+    /** Required when stepType=MESSAGE_IMAGE — an existing {@link HtmlImage} inserted into the
+     *  body before sending. EMAIL-only (SMS/LINE can't render an inline image in a text body). */
+    @Column(name = "IMAGE_ID")
+    private Long imageId;
+
     @Column(name = "CREATED_AT", nullable = false)
     private LocalDateTime createdAt;
     @Column(name = "UPDATED_AT", nullable = false)
@@ -110,6 +122,10 @@ public class DiffStep {
     public void setBody(String body) { this.body = body; }
     public Integer getMemoSlot() { return memoSlot; }
     public void setMemoSlot(Integer memoSlot) { this.memoSlot = memoSlot; }
+    public Long getLineAccountId() { return lineAccountId; }
+    public void setLineAccountId(Long lineAccountId) { this.lineAccountId = lineAccountId; }
+    public Long getImageId() { return imageId; }
+    public void setImageId(Long imageId) { this.imageId = imageId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

@@ -4,6 +4,7 @@ import com.crm.entity.DiffDefinition;
 import com.crm.entity.DiffStep;
 import com.crm.repository.DiffDefinitionRepository;
 import com.crm.repository.DiffStepRepository;
+import com.crm.repository.HtmlImageRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +21,14 @@ public class DiffDefinitionService {
 
     private final DiffDefinitionRepository definitionRepository;
     private final DiffStepRepository stepRepository;
+    private final HtmlImageRepository htmlImageRepository;
 
     public DiffDefinitionService(DiffDefinitionRepository definitionRepository,
-                                  DiffStepRepository stepRepository) {
+                                  DiffStepRepository stepRepository,
+                                  HtmlImageRepository htmlImageRepository) {
         this.definitionRepository = definitionRepository;
         this.stepRepository = stepRepository;
+        this.htmlImageRepository = htmlImageRepository;
     }
 
     // ---- Definitions ----
@@ -81,7 +85,8 @@ public class DiffDefinitionService {
     @Transactional
     public DiffStep addStep(Long diffDefinitionId, String offsetMode, Integer offsetMinutes,
                              Integer offsetDays, String offsetClockTime, String stepType,
-                             String channel, String subject, String body, Integer memoSlot) {
+                             String channel, String subject, String body, Integer memoSlot,
+                             Long lineAccountId, Long imageId) {
         if (!definitionRepository.existsById(diffDefinitionId)) {
             throw new NotFoundException("diff definition not found: " + diffDefinitionId);
         }
@@ -89,8 +94,10 @@ public class DiffDefinitionService {
         if (existing >= MAX_STEPS_PER_DEFINITION) {
             throw new TooManyStepsException();
         }
-        validateStep(offsetMode, offsetMinutes, offsetDays, offsetClockTime, stepType, channel, body, memoSlot);
+        validateStep(offsetMode, offsetMinutes, offsetDays, offsetClockTime, stepType, channel, body, memoSlot,
+                lineAccountId, imageId);
 
+        boolean isMessageLike = DiffStep.STEP_MESSAGE.equals(stepType) || DiffStep.STEP_MESSAGE_IMAGE.equals(stepType);
         DiffStep s = new DiffStep();
         s.setDiffDefinitionId(diffDefinitionId);
         s.setStepOrder((int) existing);
@@ -99,10 +106,12 @@ public class DiffDefinitionService {
         s.setOffsetDays(offsetDays);
         s.setOffsetClockTime(offsetClockTime);
         s.setStepType(stepType);
-        s.setChannel(DiffStep.STEP_MESSAGE.equals(stepType) ? channel : null);
-        s.setSubject(DiffStep.STEP_MESSAGE.equals(stepType) && DiffStep.CHANNEL_EMAIL.equals(channel) ? subject : null);
-        s.setBody(DiffStep.STEP_MESSAGE.equals(stepType) ? body : null);
+        s.setChannel(isMessageLike ? channel : null);
+        s.setSubject(isMessageLike && DiffStep.CHANNEL_EMAIL.equals(channel) ? subject : null);
+        s.setBody(isMessageLike ? body : null);
         s.setMemoSlot(DiffStep.STEP_HTML_SWITCH.equals(stepType) ? clampSlot(memoSlot) : null);
+        s.setLineAccountId(isMessageLike && DiffStep.CHANNEL_LINE.equals(channel) ? lineAccountId : null);
+        s.setImageId(DiffStep.STEP_MESSAGE_IMAGE.equals(stepType) ? imageId : null);
         DiffStep saved = stepRepository.save(s);
         resortByTime(diffDefinitionId);
         return saved;
@@ -111,21 +120,26 @@ public class DiffDefinitionService {
     @Transactional
     public Optional<DiffStep> updateStep(Long stepId, String offsetMode, Integer offsetMinutes,
                                           Integer offsetDays, String offsetClockTime, String stepType,
-                                          String channel, String subject, String body, Integer memoSlot) {
+                                          String channel, String subject, String body, Integer memoSlot,
+                                          Long lineAccountId, Long imageId) {
         Optional<DiffStep> opt = stepRepository.findById(stepId);
         if (!opt.isPresent()) return Optional.empty();
-        validateStep(offsetMode, offsetMinutes, offsetDays, offsetClockTime, stepType, channel, body, memoSlot);
+        validateStep(offsetMode, offsetMinutes, offsetDays, offsetClockTime, stepType, channel, body, memoSlot,
+                lineAccountId, imageId);
 
+        boolean isMessageLike = DiffStep.STEP_MESSAGE.equals(stepType) || DiffStep.STEP_MESSAGE_IMAGE.equals(stepType);
         DiffStep s = opt.get();
         s.setOffsetMode(offsetMode);
         s.setOffsetMinutes(offsetMinutes);
         s.setOffsetDays(offsetDays);
         s.setOffsetClockTime(offsetClockTime);
         s.setStepType(stepType);
-        s.setChannel(DiffStep.STEP_MESSAGE.equals(stepType) ? channel : null);
-        s.setSubject(DiffStep.STEP_MESSAGE.equals(stepType) && DiffStep.CHANNEL_EMAIL.equals(channel) ? subject : null);
-        s.setBody(DiffStep.STEP_MESSAGE.equals(stepType) ? body : null);
+        s.setChannel(isMessageLike ? channel : null);
+        s.setSubject(isMessageLike && DiffStep.CHANNEL_EMAIL.equals(channel) ? subject : null);
+        s.setBody(isMessageLike ? body : null);
         s.setMemoSlot(DiffStep.STEP_HTML_SWITCH.equals(stepType) ? clampSlot(memoSlot) : null);
+        s.setLineAccountId(isMessageLike && DiffStep.CHANNEL_LINE.equals(channel) ? lineAccountId : null);
+        s.setImageId(DiffStep.STEP_MESSAGE_IMAGE.equals(stepType) ? imageId : null);
         DiffStep saved = stepRepository.save(s);
         resortByTime(s.getDiffDefinitionId());
         return Optional.of(saved);
@@ -174,9 +188,9 @@ public class DiffDefinitionService {
         return at.compareTo(bt);
     }
 
-    private static void validateStep(String offsetMode, Integer offsetMinutes, Integer offsetDays,
-                                      String offsetClockTime, String stepType, String channel,
-                                      String body, Integer memoSlot) {
+    private void validateStep(String offsetMode, Integer offsetMinutes, Integer offsetDays,
+                               String offsetClockTime, String stepType, String channel,
+                               String body, Integer memoSlot, Long lineAccountId, Long imageId) {
         if (DiffStep.OFFSET_MINUTES.equals(offsetMode)) {
             if (offsetMinutes == null || offsetMinutes < 1) throw new IllegalArgumentException("分後の値は1以上で指定してください");
         } else if (DiffStep.OFFSET_DAYS.equals(offsetMode)) {
@@ -186,12 +200,23 @@ public class DiffDefinitionService {
             throw new IllegalArgumentException("unknown offset mode: " + offsetMode);
         }
         if (DiffStep.STEP_MESSAGE.equals(stepType)) {
-            if (channel == null || (!DiffStep.CHANNEL_EMAIL.equals(channel) && !DiffStep.CHANNEL_SMS.equals(channel))) {
-                throw new IllegalArgumentException("チャネル(メール/SMS)を指定してください");
+            if (channel == null || (!DiffStep.CHANNEL_EMAIL.equals(channel) && !DiffStep.CHANNEL_SMS.equals(channel)
+                    && !DiffStep.CHANNEL_LINE.equals(channel))) {
+                throw new IllegalArgumentException("チャネル(メール/SMS/LINE)を指定してください");
+            }
+            if (DiffStep.CHANNEL_LINE.equals(channel) && lineAccountId == null) {
+                throw new IllegalArgumentException("送信元のLINEアカウントを指定してください");
             }
             if (body == null || body.trim().isEmpty()) throw new IllegalArgumentException("本文を入力してください");
         } else if (DiffStep.STEP_HTML_SWITCH.equals(stepType)) {
             if (memoSlot == null || memoSlot < 1 || memoSlot > 10) throw new IllegalArgumentException("切替先スロット(1〜10)を指定してください");
+        } else if (DiffStep.STEP_MESSAGE_IMAGE.equals(stepType)) {
+            if (!DiffStep.CHANNEL_EMAIL.equals(channel)) {
+                throw new IllegalArgumentException("画像挿入ステップはメールのみ対応しています");
+            }
+            if (imageId == null) throw new IllegalArgumentException("挿入する画像を選択してください");
+            if (!htmlImageRepository.existsById(imageId)) throw new IllegalArgumentException("指定された画像が見つかりません");
+            if (body == null || body.trim().isEmpty()) throw new IllegalArgumentException("本文を入力してください");
         } else {
             throw new IllegalArgumentException("unknown step type: " + stepType);
         }

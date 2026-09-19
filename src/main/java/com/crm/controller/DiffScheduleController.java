@@ -33,15 +33,32 @@ public class DiffScheduleController {
     private final DiffDefinitionService definitionService;
     private final FolderSettingService folderSettingService;
     private final com.crm.service.CrmUserService crmUserService;
+    private final com.crm.service.LineAccountService lineAccountService;
+    private final com.crm.service.HtmlImageService htmlImageService;
 
     public DiffScheduleController(DiffScheduleService scheduleService,
                                    DiffDefinitionService definitionService,
                                    FolderSettingService folderSettingService,
-                                   com.crm.service.CrmUserService crmUserService) {
+                                   com.crm.service.CrmUserService crmUserService,
+                                   com.crm.service.LineAccountService lineAccountService,
+                                   com.crm.service.HtmlImageService htmlImageService) {
         this.scheduleService = scheduleService;
         this.definitionService = definitionService;
         this.folderSettingService = folderSettingService;
         this.crmUserService = crmUserService;
+        this.lineAccountService = lineAccountService;
+        this.htmlImageService = htmlImageService;
+    }
+
+    /** Parents + their children, flattened, for the LINE-account picker — mirrors
+     *  BroadcastController#allLineAccountsFlat. */
+    private List<com.crm.entity.LineAccount> allLineAccountsFlat() {
+        List<com.crm.entity.LineAccount> out = new java.util.ArrayList<>();
+        for (com.crm.entity.LineAccount parent : lineAccountService.listParents()) {
+            out.add(parent);
+            out.addAll(lineAccountService.listChildren(parent.getId()));
+        }
+        return out;
     }
 
     /** 表示名 column support for the shared diff-step table fragment: resolves the single
@@ -219,6 +236,8 @@ public class DiffScheduleController {
         model.addAttribute("steps", definitionService.listSteps(id));
         model.addAttribute("maxSteps", DiffDefinitionService.MAX_STEPS_PER_DEFINITION);
         model.addAttribute("builtinTags", PlaceholderService.BUILTIN_TAGS);
+        model.addAttribute("lineAccounts", allLineAccountsFlat());
+        model.addAttribute("htmlImages", htmlImageService.listAll());
         return "setting/diff-schedule-steps";
     }
 
@@ -233,10 +252,12 @@ public class DiffScheduleController {
                            @RequestParam(required = false) String subject,
                            @RequestParam(required = false) String body,
                            @RequestParam(required = false) Integer memoSlot,
+                           @RequestParam(required = false) Long lineAccountId,
+                           @RequestParam(required = false) Long imageId,
                            RedirectAttributes ra) {
         try {
             definitionService.addStep(id, offsetMode, offsetMinutes, offsetDays, offsetClockTime,
-                    stepType, channel, subject, body, memoSlot);
+                    stepType, channel, subject, body, memoSlot, lineAccountId, imageId);
             ra.addFlashAttribute("flashSuccess", "ステップを追加しました");
         } catch (IllegalArgumentException | DiffDefinitionService.TooManyStepsException
                  | DiffDefinitionService.NotFoundException e) {
@@ -257,10 +278,12 @@ public class DiffScheduleController {
                               @RequestParam(required = false) String subject,
                               @RequestParam(required = false) String body,
                               @RequestParam(required = false) Integer memoSlot,
+                              @RequestParam(required = false) Long lineAccountId,
+                              @RequestParam(required = false) Long imageId,
                               RedirectAttributes ra) {
         try {
             boolean ok = definitionService.updateStep(stepId, offsetMode, offsetMinutes, offsetDays,
-                    offsetClockTime, stepType, channel, subject, body, memoSlot).isPresent();
+                    offsetClockTime, stepType, channel, subject, body, memoSlot, lineAccountId, imageId).isPresent();
             ra.addFlashAttribute(ok ? "flashSuccess" : "flashError", ok ? "ステップを更新しました" : "ステップが見つかりません");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("flashError", e.getMessage());

@@ -4,6 +4,7 @@ import com.crm.entity.DiffDefinition;
 import com.crm.entity.DiffStep;
 import com.crm.repository.DiffDefinitionRepository;
 import com.crm.repository.DiffStepRepository;
+import com.crm.repository.HtmlImageRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,13 +23,15 @@ class DiffDefinitionServiceTest {
 
     private DiffDefinitionRepository defRepo;
     private DiffStepRepository stepRepo;
+    private HtmlImageRepository htmlImageRepo;
     private DiffDefinitionService svc;
 
     @BeforeEach
     void setUp() {
         defRepo = mock(DiffDefinitionRepository.class);
         stepRepo = mock(DiffStepRepository.class);
-        svc = new DiffDefinitionService(defRepo, stepRepo);
+        htmlImageRepo = mock(HtmlImageRepository.class);
+        svc = new DiffDefinitionService(defRepo, stepRepo, htmlImageRepo);
         when(defRepo.save(any(DiffDefinition.class))).thenAnswer(inv -> {
             DiffDefinition d = inv.getArgument(0);
             if (d.getId() == null) d.setId(1L);
@@ -63,7 +66,7 @@ class DiffDefinitionServiceTest {
         when(defRepo.existsById(42L)).thenReturn(false);
 
         assertThatThrownBy(() -> svc.addStep(42L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null))
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null, null, null))
                 .isInstanceOf(DiffDefinitionService.NotFoundException.class);
     }
 
@@ -73,7 +76,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.countByDiffDefinitionId(1L)).thenReturn((long) DiffDefinitionService.MAX_STEPS_PER_DEFINITION);
 
         assertThatThrownBy(() -> svc.addStep(1L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null))
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null, null, null))
                 .isInstanceOf(DiffDefinitionService.TooManyStepsException.class);
     }
 
@@ -83,7 +86,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.countByDiffDefinitionId(1L)).thenReturn(0L);
 
         assertThatThrownBy(() -> svc.addStep(1L, DiffStep.OFFSET_MINUTES, 0, null, null,
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null))
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -93,7 +96,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.countByDiffDefinitionId(1L)).thenReturn(0L);
 
         assertThatThrownBy(() -> svc.addStep(1L, DiffStep.OFFSET_DAYS, null, 1, null,
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null))
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -103,11 +106,11 @@ class DiffDefinitionServiceTest {
         when(stepRepo.countByDiffDefinitionId(1L)).thenReturn(0L);
 
         assertThatThrownBy(() -> svc.addStep(1L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_MESSAGE, null, null, "body", null))
+                DiffStep.STEP_MESSAGE, null, null, "body", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThatThrownBy(() -> svc.addStep(1L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "  ", null))
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "  ", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -117,7 +120,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.countByDiffDefinitionId(1L)).thenReturn(0L);
 
         assertThatThrownBy(() -> svc.addStep(1L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_HTML_SWITCH, null, null, null, 99))
+                DiffStep.STEP_HTML_SWITCH, null, null, null, 99, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -127,7 +130,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.countByDiffDefinitionId(1L)).thenReturn(0L);
 
         DiffStep s = svc.addStep(1L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_HTML_SWITCH, null, null, null, 4);
+                DiffStep.STEP_HTML_SWITCH, null, null, null, 4, null, null);
 
         assertThat(s.getMemoSlot()).isEqualTo(4);
         assertThat(s.getStepOrder()).isEqualTo(0);
@@ -139,7 +142,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.countByDiffDefinitionId(1L)).thenReturn(3L);
 
         DiffStep s = svc.addStep(1L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_EMAIL, "subj", "body", null);
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_EMAIL, "subj", "body", null, null, null);
 
         assertThat(s.getStepOrder()).isEqualTo(3);
         assertThat(s.getSubject()).isEqualTo("subj");
@@ -150,7 +153,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.findById(42L)).thenReturn(Optional.empty());
 
         Optional<DiffStep> result = svc.updateStep(42L, DiffStep.OFFSET_MINUTES, 5, null, null,
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null);
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_SMS, null, "body", null, null, null);
 
         assertThat(result).isEmpty();
     }
@@ -169,7 +172,7 @@ class DiffDefinitionServiceTest {
         when(stepRepo.findById(3L)).thenReturn(Optional.of(existing));
 
         Optional<DiffStep> result = svc.updateStep(3L, DiffStep.OFFSET_DAYS, null, 2, "10:00",
-                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_EMAIL, "new subj", "new body", null);
+                DiffStep.STEP_MESSAGE, DiffStep.CHANNEL_EMAIL, "new subj", "new body", null, null, null);
 
         assertThat(result).isPresent();
         assertThat(existing.getOffsetMode()).isEqualTo(DiffStep.OFFSET_DAYS);

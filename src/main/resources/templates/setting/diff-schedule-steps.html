@@ -50,9 +50,10 @@
                                 &nbsp;·&nbsp;
                                 <span th:if="${s.stepType == 'MESSAGE'}" th:text="'送信 (' + ${s.channel} + ')'" class="font-semibold"
                                       th:classappend="${s.channel == 'SMS'} ? 'text-yellow-800' : 'text-blue-700'"></span>
+                                <span th:if="${s.stepType == 'MESSAGE_IMAGE'}" th:text="'送信 (メール・画像付き)'" class="font-semibold text-blue-700"></span>
                                 <span th:if="${s.stepType == 'HTML_SWITCH'}" th:text="'ユーザーHTML切替 → スロット' + ${s.memoSlot}" class="font-semibold text-amber-700"></span>
                             </div>
-                            <div th:if="${s.stepType == 'MESSAGE'}" class="text-sm text-slate-700">
+                            <div th:if="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'}" class="text-sm text-slate-700">
                                 <div th:if="${s.channel == 'EMAIL' and s.subject != null and !s.subject.isEmpty()}" class="font-semibold" th:text="${s.subject}"></div>
                                 <div class="whitespace-pre-wrap text-xs text-slate-600" th:text="${s.body}"></div>
                             </div>
@@ -95,7 +96,7 @@
 
                             <div class="flex gap-4 mb-2 text-xs">
                                 <label><input type="radio" th:name="'stepTypeRadio' + ${s.id}" value="MESSAGE"
-                                              th:checked="${s.stepType == 'MESSAGE'}"
+                                              th:checked="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'}"
                                               th:attr="onchange=|switchTypePanel(${s.id}, 'MESSAGE')|"/> 送信</label>
                                 <label><input type="radio" th:name="'stepTypeRadio' + ${s.id}" value="HTML_SWITCH"
                                               th:checked="${s.stepType == 'HTML_SWITCH'}"
@@ -103,15 +104,38 @@
                             </div>
                             <input type="hidden" name="stepType" th:id="'stepType' + ${s.id}" th:value="${s.stepType}"/>
 
-                            <div th:id="'typePanelMESSAGE' + ${s.id}" th:class="${s.stepType == 'MESSAGE'} ? 'type-panel active' : 'type-panel'" class="mb-2">
+                            <div th:id="'typePanelMESSAGE' + ${s.id}"
+                                 th:class="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'} ? 'type-panel active' : 'type-panel'" class="mb-2">
                                 <div class="flex gap-4 mb-2 text-xs">
                                     <label><input type="radio" name="channel" value="EMAIL" th:checked="${s.channel == 'EMAIL'}"
                                                   th:attr="onchange=|switchChannelPanel(${s.id}, 'EMAIL')|"/> メール</label>
                                     <label><input type="radio" name="channel" value="SMS" th:checked="${s.channel == 'SMS'}"
                                                   th:attr="onchange=|switchChannelPanel(${s.id}, 'SMS')|"/> SMS</label>
+                                    <label><input type="radio" name="channel" value="LINE" th:checked="${s.channel == 'LINE'}"
+                                                  th:attr="onchange=|switchChannelPanel(${s.id}, 'LINE')|"/> LINE</label>
                                 </div>
                                 <div th:id="'subjectBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL'} ? '' : 'display:none;'">
                                     <input type="text" name="subject" placeholder="件名" maxlength="500" class="tw-input" th:value="${s.subject}"/>
+                                </div>
+                                <div th:id="'lineAccountBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'LINE'} ? '' : 'display:none;'">
+                                    <select name="lineAccountId" class="tw-input">
+                                        <option value="">送信元LINEアカウントを選択</option>
+                                        <option th:each="a : ${lineAccounts}" th:value="${a.id}" th:text="${a.name}"
+                                                th:selected="${a.id == s.lineAccountId}"></option>
+                                    </select>
+                                </div>
+                                <div th:id="'imageToggleBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL'} ? '' : 'display:none;'">
+                                    <label class="text-xs text-slate-600">
+                                        <input type="checkbox" th:id="'imageToggle' + ${s.id}" th:checked="${s.stepType == 'MESSAGE_IMAGE'}"
+                                               th:attr="onchange=|toggleImageStep(${s.id})|"/> 画像を挿入する
+                                    </label>
+                                    <div th:id="'imageSelectBox' + ${s.id}" th:style="${s.stepType == 'MESSAGE_IMAGE'} ? '' : 'display:none;'" class="mt-1">
+                                        <select name="imageId" class="tw-input">
+                                            <option value="">画像を選択</option>
+                                            <option th:each="img : ${htmlImages}" th:value="${img.id}" th:text="${img.label} ?: ${img.fileName}"
+                                                    th:selected="${img.id == s.imageId}"></option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <textarea name="body" rows="4" placeholder="本文" class="tw-input" th:id="'body' + ${s.id}" th:text="${s.body}"></textarea>
                                 <div class="tag-panel mt-1">
@@ -186,9 +210,27 @@
                     <div class="flex gap-4 mb-2 text-xs">
                         <label><input type="radio" name="channel" value="EMAIL" checked onchange="switchChannelPanel('new', 'EMAIL')"/> メール</label>
                         <label><input type="radio" name="channel" value="SMS" onchange="switchChannelPanel('new', 'SMS')"/> SMS</label>
+                        <label><input type="radio" name="channel" value="LINE" onchange="switchChannelPanel('new', 'LINE')"/> LINE</label>
                     </div>
                     <div id="subjectBoxnew" class="mb-2">
                         <input type="text" name="subject" placeholder="件名" maxlength="500" class="tw-input"/>
+                    </div>
+                    <div id="lineAccountBoxnew" class="mb-2" style="display:none;">
+                        <select name="lineAccountId" class="tw-input">
+                            <option value="">送信元LINEアカウントを選択</option>
+                            <option th:each="a : ${lineAccounts}" th:value="${a.id}" th:text="${a.name}"></option>
+                        </select>
+                    </div>
+                    <div id="imageToggleBoxnew" class="mb-2">
+                        <label class="text-xs text-slate-600">
+                            <input type="checkbox" id="imageTogglenew" onchange="toggleImageStep('new')"/> 画像を挿入する
+                        </label>
+                        <div id="imageSelectBoxnew" style="display:none;" class="mt-1">
+                            <select name="imageId" class="tw-input">
+                                <option value="">画像を選択</option>
+                                <option th:each="img : ${htmlImages}" th:value="${img.id}" th:text="${img.label} ?: ${img.fileName}"></option>
+                            </select>
+                        </div>
                     </div>
                     <textarea name="body" rows="4" placeholder="本文" class="tw-input" id="bodynew"></textarea>
                     <div class="tag-panel mt-1">
@@ -253,6 +295,22 @@
         function switchChannelPanel(id, channel) {
             var box = document.getElementById('subjectBox' + id);
             if (box) box.style.display = (channel === 'EMAIL') ? 'block' : 'none';
+            var lineBox = document.getElementById('lineAccountBox' + id);
+            if (lineBox) lineBox.style.display = (channel === 'LINE') ? 'block' : 'none';
+            var imgToggleBox = document.getElementById('imageToggleBox' + id);
+            if (imgToggleBox) imgToggleBox.style.display = (channel === 'EMAIL') ? 'block' : 'none';
+            if (channel !== 'EMAIL') {
+                var cb = document.getElementById('imageToggle' + id);
+                if (cb && cb.checked) { cb.checked = false; toggleImageStep(id); }
+            }
+        }
+        function toggleImageStep(id) {
+            var cb = document.getElementById('imageToggle' + id);
+            var stepTypeField = document.getElementById('stepType' + id);
+            var box = document.getElementById('imageSelectBox' + id);
+            var checked = cb && cb.checked;
+            if (stepTypeField) stepTypeField.value = checked ? 'MESSAGE_IMAGE' : 'MESSAGE';
+            if (box) box.style.display = checked ? 'block' : 'none';
         }
         function insertTag(id, token) {
             var ta = document.getElementById('body' + id);

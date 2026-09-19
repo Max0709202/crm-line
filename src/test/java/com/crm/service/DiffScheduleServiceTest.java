@@ -44,6 +44,8 @@ class DiffScheduleServiceTest {
     private BroadcastService broadcastService;
     private BroadcastRepository broadcastRepository;
     private AuditLogService auditLog;
+    private DomainSettingService domainSettingService;
+    private HtmlImageService htmlImageService;
     private DiffScheduleService svc;
 
     @BeforeEach
@@ -57,8 +59,11 @@ class DiffScheduleServiceTest {
         broadcastService = mock(BroadcastService.class);
         broadcastRepository = mock(BroadcastRepository.class);
         auditLog = mock(AuditLogService.class);
+        domainSettingService = mock(DomainSettingService.class);
+        htmlImageService = mock(HtmlImageService.class);
         svc = new DiffScheduleService(scheduleRepo, scheduleStepRepo, definitionRepo, stepRepo,
-                crmUserService, userRepository, broadcastService, broadcastRepository, auditLog);
+                crmUserService, userRepository, broadcastService, broadcastRepository, auditLog,
+                domainSettingService, htmlImageService);
         when(broadcastRepository.save(any(Broadcast.class))).thenAnswer(inv -> inv.getArgument(0));
         when(scheduleRepo.save(any(DiffSchedule.class))).thenAnswer(inv -> {
             DiffSchedule s = inv.getArgument(0);
@@ -157,6 +162,33 @@ class DiffScheduleServiceTest {
         assertThat(saved.getTargetUserIds()).isEqualTo("1,2,3");
         assertThat(saved.getDiffNameSnapshot()).isEqualTo("diffA");
         verify(scheduleStepRepo, times(2)).save(any(DiffScheduleStep.class));
+    }
+
+    @Test
+    void register_snapshotsLineAccountIdAndImageId() {
+        DiffStep lineStep = messageStep(2L, 0, DiffStep.OFFSET_MINUTES, 5, null, null, DiffStep.CHANNEL_LINE, "LINE本文");
+        lineStep.setLineAccountId(42L);
+        DiffStep imageStep = new DiffStep();
+        imageStep.setDiffDefinitionId(2L);
+        imageStep.setStepOrder(1);
+        imageStep.setOffsetMode(DiffStep.OFFSET_MINUTES);
+        imageStep.setOffsetMinutes(10);
+        imageStep.setStepType(DiffStep.STEP_MESSAGE_IMAGE);
+        imageStep.setChannel(DiffStep.CHANNEL_EMAIL);
+        imageStep.setBody("画像つき本文");
+        imageStep.setImageId(555L);
+
+        when(definitionRepo.findById(2L)).thenReturn(Optional.of(definition(2L, "diffB")));
+        when(stepRepo.findByDiffDefinitionIdOrderByStepOrderAsc(2L)).thenReturn(Arrays.asList(lineStep, imageStep));
+        when(crmUserService.findIdsBySearch(any(UserSearchForm.class), any())).thenReturn(Collections.singletonList(1L));
+
+        org.mockito.ArgumentCaptor<DiffScheduleStep> cap = org.mockito.ArgumentCaptor.forClass(DiffScheduleStep.class);
+        svc.register(2L, DiffSchedule.TARGET_FOLDER, "フォルダB", 9L, "admin");
+
+        verify(scheduleStepRepo, times(2)).save(cap.capture());
+        List<DiffScheduleStep> saved = cap.getAllValues();
+        assertThat(saved.get(0).getLineAccountId()).isEqualTo(42L);
+        assertThat(saved.get(1).getImageIdSnapshot()).isEqualTo(555L);
     }
 
     @Test
@@ -386,6 +418,100 @@ class DiffScheduleServiceTest {
 
         assertThat(step.getStatus()).isEqualTo(DiffScheduleStep.STATUS_EXECUTED);
         verify(broadcastService).createAndQueue(any(BroadcastForm.class), org.mockito.ArgumentMatchers.eq(9L));
+    }
+
+    @Test
+    void execute_message_line_setsLineAccountIdAndOwnRate() {
+        DiffSchedule schedule = new DiffSchedule();
+        schedule.setId(6L);
+        schedule.setTargetUserIds("1");
+        schedule.setDiffNameSnapshot("LINE案内");
+        schedule.setSetByAdminId(9L);
+        when(scheduleRepo.findById(6L)).thenReturn(Optional.of(schedule));
+
+        DiffScheduleStep step = new DiffScheduleStep();
+        step.setId(23L);
+        step.setDiffScheduleId(6L);
+        step.setStepType(DiffStep.STEP_MESSAGE);
+        step.setChannel(DiffStep.CHANNEL_LINE);
+        step.setLineAccountId(42L);
+        step.setBodySnapshot("LINEでのご案内です");
+
+        when(domainSettingService.getLineRatePerMinute()).thenReturn(30);
+        Broadcast b = new Broadcast();
+        b.setId(99L);
+        b.setTotalCount(1);
+        org.mockito.ArgumentCaptor<BroadcastForm> cap = org.mockito.ArgumentCaptor.forClass(BroadcastForm.class);
+        when(broadcastService.createAndQueue(cap.capture(), org.mockito.ArgumentMatchers.eq(9L)))
+                .thenReturn(b);
+
+        svc.execute(step);
+
+        assertThat(step.getStatus()).isEqualTo(DiffScheduleStep.STATUS_EXECUTED);
+        assertThat(cap.getValue().getLineAccountId()).isEqualTo(42L);
+        assertThat(cap.getValue().getRatePerMinute()).isEqualTo(30);
+    }
+
+    @Test
+    void execute_messageImage_splicesImageTagIntoBody() {
+        DiffSchedule schedule = new DiffSchedule();
+        schedule.setId(7L);
+        schedule.setTargetUserIds("1");
+        schedule.setDiffNameSnapshot("画像広告つき案内");
+        schedule.setSetByAdminId(9L);
+        when(scheduleRepo.findById(7L)).thenReturn(Optional.of(schedule));
+
+        DiffScheduleStep step = new DiffScheduleStep();
+        step.setId(24L);
+        step.setDiffScheduleId(7L);
+        step.setStepType(DiffStep.STEP_MESSAGE_IMAGE);
+        step.setChannel(DiffStep.CHANNEL_EMAIL);
+        step.setImageIdSnapshot(555L);
+        step.setBodySnapshot("本文です");
+
+        when(htmlImageService.findById(555L)).thenReturn(Optional.of(new com.crm.entity.HtmlImage()));
+        when(domainSettingService.getReplyBaseUrl()).thenReturn("https://example.jp");
+        Broadcast b = new Broadcast();
+        b.setId(111L);
+        b.setTotalCount(1);
+        org.mockito.ArgumentCaptor<BroadcastForm> cap = org.mockito.ArgumentCaptor.forClass(BroadcastForm.class);
+        when(broadcastService.createAndQueue(cap.capture(), org.mockito.ArgumentMatchers.eq(9L)))
+                .thenReturn(b);
+
+        svc.execute(step);
+
+        assertThat(cap.getValue().getBody()).startsWith("<img src=\"https://example.jp/img/555\"/><br/>本文です");
+    }
+
+    @Test
+    void execute_messageImage_missingImage_sendsPlainBodyWithoutFailing() {
+        DiffSchedule schedule = new DiffSchedule();
+        schedule.setId(8L);
+        schedule.setTargetUserIds("1");
+        schedule.setDiffNameSnapshot("画像広告つき案内2");
+        schedule.setSetByAdminId(9L);
+        when(scheduleRepo.findById(8L)).thenReturn(Optional.of(schedule));
+
+        DiffScheduleStep step = new DiffScheduleStep();
+        step.setId(25L);
+        step.setDiffScheduleId(8L);
+        step.setStepType(DiffStep.STEP_MESSAGE_IMAGE);
+        step.setChannel(DiffStep.CHANNEL_EMAIL);
+        step.setImageIdSnapshot(999L);
+        step.setBodySnapshot("本文のみ");
+
+        when(htmlImageService.findById(999L)).thenReturn(Optional.empty());
+        Broadcast b = new Broadcast();
+        b.setId(112L);
+        b.setTotalCount(1);
+        org.mockito.ArgumentCaptor<BroadcastForm> cap = org.mockito.ArgumentCaptor.forClass(BroadcastForm.class);
+        when(broadcastService.createAndQueue(cap.capture(), org.mockito.ArgumentMatchers.eq(9L)))
+                .thenReturn(b);
+
+        svc.execute(step);
+
+        assertThat(step.getStatus()).isEqualTo(DiffScheduleStep.STATUS_EXECUTED);
+        assertThat(cap.getValue().getBody()).isEqualTo("本文のみ");
     }
 
     @Test

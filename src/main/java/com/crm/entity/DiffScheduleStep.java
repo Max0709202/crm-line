@@ -60,6 +60,10 @@ public class DiffScheduleStep {
     private String bodySnapshot;
     @Column(name = "MEMO_SLOT_SNAPSHOT")
     private Integer memoSlotSnapshot;
+    @Column(name = "LINE_ACCOUNT_ID")
+    private Long lineAccountId;
+    @Column(name = "IMAGE_ID_SNAPSHOT")
+    private Long imageIdSnapshot;
 
     @Column(name = "STATUS", nullable = false, length = 16)
     private String status;
@@ -116,6 +120,10 @@ public class DiffScheduleStep {
     public void setBodySnapshot(String bodySnapshot) { this.bodySnapshot = bodySnapshot; }
     public Integer getMemoSlotSnapshot() { return memoSlotSnapshot; }
     public void setMemoSlotSnapshot(Integer memoSlotSnapshot) { this.memoSlotSnapshot = memoSlotSnapshot; }
+    public Long getLineAccountId() { return lineAccountId; }
+    public void setLineAccountId(Long lineAccountId) { this.lineAccountId = lineAccountId; }
+    public Long getImageIdSnapshot() { return imageIdSnapshot; }
+    public void setImageIdSnapshot(Long imageIdSnapshot) { this.imageIdSnapshot = imageIdSnapshot; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getExecutedAt() { return executedAt; }
