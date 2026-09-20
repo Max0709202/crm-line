@@ -7,7 +7,10 @@ public class UserSearchForm {
     private String displayName;
     /** Same semantics as email. */
     private String phoneNumber;
-    private String status;
+    /** Defaults to ACTIVE on first load (no query params) — operator request 2026-09-20,
+     *  since ステータス=すべて showed retired/suspended users by default. An explicit
+     *  ?status= (including blank, from choosing 「すべて」) still overrides this via binding. */
+    private String status = com.crm.entity.CrmUser.STATUS_ACTIVE;
     /** Legacy URL param tolerated for backwards-compat with old bookmarks; ignored. */
     private String carrierCode;
     /** Comma-separated CRM_USER.ID list — narrows the result set to exactly these users

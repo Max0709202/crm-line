@@ -224,17 +224,13 @@ public class MessageController {
                               RedirectAttributes ra,
                               Model model) {
         if (br.hasErrors()) {
-            Optional<CrmUser> user = userService.findById(userId);
-            if (!user.isPresent()) {
-                ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
-                return "redirect:/manager/users";
-            }
-            model.addAttribute("user", user.get());
-            model.addAttribute("thread", messageService.threadFor(userId));
-            model.addAttribute("bindings", placeholderService.buildBindings(user.get()));
-            model.addAttribute("builtinTags", PlaceholderService.BUILTIN_TAGS);
-            model.addAttribute("templates", templateService.listAll());
-            return "message/thread";
+            // Flash-then-redirect (matches sendSms()/sendLine()) rather than re-rendering
+            // message/thread directly — that render path needs ~15 model attributes the GET
+            // handler populates (inboxRows, diffReservations, hasLineLink, etc.), and this
+            // branch only ever set 5 of them, so Thymeleaf raised a raw 500 on the missing
+            // ones instead of showing the validation message.
+            ra.addFlashAttribute("flashError", "メール本文を入力してください");
+            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
         try {
