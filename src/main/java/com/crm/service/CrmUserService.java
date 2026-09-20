@@ -153,8 +153,14 @@ public class CrmUserService {
     }
 
     private static String deriveCarrierDomainIfBlank(String carrierDomain, String email) {
-        if (carrierDomain != null && !carrierDomain.trim().isEmpty()) {
-            return carrierDomain.trim();
+        String trimmed = carrierDomain == null ? null : carrierDomain.trim();
+        // "LINE" is a reserved value in the user list's キャリア column/filter (shows the
+        // green LINE badge for customers with an actual linked LineUser row — see
+        // applyEmailDomainPredicate). This field is free text on the manual create/edit form,
+        // so typing "LINE" there literally would otherwise render a misleading "@LINE" badge
+        // for a customer who isn't actually LINE-linked. Treat it the same as blank.
+        if (trimmed != null && !trimmed.isEmpty() && !"LINE".equalsIgnoreCase(trimmed)) {
+            return trimmed;
         }
         if (email == null) return null;
         int at = email.indexOf('@');
