@@ -21,4 +21,10 @@ public interface LineUserRepository extends JpaRepository<LineUser, Long> {
 
     /** Friend count shown per account on the LINE settings list. */
     long countByLineAccountId(Long lineAccountId);
+
+    /** Which of these CrmUser ids have at least one linked LineUser row — drives the user
+     *  list's キャリア=LINE badge/filter (client request 2026-09-20). */
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT DISTINCT lu.crmUserId FROM LineUser lu WHERE lu.crmUserId IN :crmUserIds")
+    List<Long> findLinkedCrmUserIds(@org.springframework.data.repository.query.Param("crmUserIds") java.util.Collection<Long> crmUserIds);
 }

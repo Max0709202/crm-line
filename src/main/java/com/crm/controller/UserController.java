@@ -59,6 +59,7 @@ public class UserController {
     private final com.crm.service.ReplyAttachmentService attachmentService;
     private final com.crm.service.MessageBoxService messageBoxService;
     private final com.crm.service.DiffScheduleService diffScheduleService;
+    private final com.crm.repository.LineUserRepository lineUserRepository;
 
     public UserController(CrmUserService service,
                           CarrierBindingService bindingService,
@@ -75,7 +76,8 @@ public class UserController {
                           com.crm.service.ReplyHtmlSlotService replyHtmlSlotService,
                           com.crm.service.ReplyAttachmentService attachmentService,
                           com.crm.service.MessageBoxService messageBoxService,
-                          com.crm.service.DiffScheduleService diffScheduleService) {
+                          com.crm.service.DiffScheduleService diffScheduleService,
+                          com.crm.repository.LineUserRepository lineUserRepository) {
         this.service = service;
         this.bindingService = bindingService;
         this.placeholderService = placeholderService;
@@ -92,6 +94,7 @@ public class UserController {
         this.attachmentService = attachmentService;
         this.messageBoxService = messageBoxService;
         this.diffScheduleService = diffScheduleService;
+        this.lineUserRepository = lineUserRepository;
     }
 
     /** Active ad-code choices for autocomplete on the user-detail form. */
@@ -122,8 +125,22 @@ public class UserController {
         for (int i = 0; i < orderedIds.size(); i++) rankById.put(orderedIds.get(i), i + 1);
         model.addAttribute("rankById", rankById);
 
-        // Email-domain filter choices (distinct "@domain" values currently in the DB).
-        model.addAttribute("emailDomainChoices", userRepository.findDistinctEmailDomains());
+        // Email-domain filter choices (distinct "@domain" values currently in the DB), plus a
+        // synthetic "LINE" choice (client request 2026-09-20) — LINE-registered users have no
+        // email, so they can't be found by any real domain here; selecting it filters to users
+        // with a linked LineUser row instead (see CrmUserService#buildSpecification).
+        java.util.List<String> domainChoices = new java.util.ArrayList<>();
+        domainChoices.add("LINE");
+        domainChoices.addAll(userRepository.findDistinctEmailDomains());
+        model.addAttribute("emailDomainChoices", domainChoices);
+        // Which of this page's users are LINE-registered — drives the キャリア column showing
+        // a "LINE" badge instead of "@domain"/"-" for them.
+        java.util.Set<Long> pageUserIds = new java.util.HashSet<>();
+        for (CrmUser u : users.getContent()) pageUserIds.add(u.getId());
+        java.util.Set<Long> lineLinkedUserIds = pageUserIds.isEmpty()
+                ? java.util.Collections.emptySet()
+                : new java.util.HashSet<>(lineUserRepository.findLinkedCrmUserIds(pageUserIds));
+        model.addAttribute("lineLinkedUserIds", lineLinkedUserIds);
         // Configurable folder choices for the filter + bulk-move control.
         model.addAttribute("folders", folderSettingService.listFolders());
         // Active carrier-pool addresses for the bulk-bind dropdown.

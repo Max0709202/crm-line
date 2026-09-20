@@ -193,7 +193,7 @@
                                         <label th:each="d : ${emailDomainChoices}" class="ms-dd-opt">
                                             <input type="checkbox" name="emailDomains" th:value="${d}"
                                                    th:checked="${#lists.contains(searchForm.emailDomains, d)}"/>
-                                            <span th:text="'@' + ${d}"></span>
+                                            <span th:text="${d == 'LINE'} ? 'LINE' : ('@' + ${d})"></span>
                                         </label>
                                     </div>
                                 </details>
@@ -425,7 +425,11 @@
                         <td class="text-xs text-slate-600" th:text="${u.phoneNumber} ?: '-'"></td>
                         <td th:text="${u.email}"></td>
                         <td th:text="${u.displayName}"></td>
-                        <td class="text-xs text-slate-500" th:text="${u.carrierDomain} ? ('@' + ${u.carrierDomain}) : '-'"></td>
+                        <td class="text-xs text-slate-500">
+                            <span th:if="${lineLinkedUserIds.contains(u.id)}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  style="background:#d9f7e6;color:#046c3a;">LINE</span>
+                            <span th:unless="${lineLinkedUserIds.contains(u.id)}" th:text="${u.carrierDomain} ? ('@' + ${u.carrierDomain}) : '-'"></span>
+                        </td>
                         <td>
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
                                   th:classappend="${u.status == 'ACTIVE'} ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700 border border-red-300'"
