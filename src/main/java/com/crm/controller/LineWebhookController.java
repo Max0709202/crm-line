@@ -77,6 +77,15 @@ public class LineWebhookController {
         }
 
         try {
+            // Temporary diagnostic logging (2026-09-21) — a client account has repeatedly
+            // gotten clean 200/Verify responses but never a single logged follow/message
+            // event, across several re-created accounts. Logging the exact bytes LINE sent
+            // settles whether real events are arriving with an unexpected shape (silently
+            // hitting a skip branch) versus never arriving at all, instead of guessing.
+            if (rawBody != null && rawBody.length > 0) {
+                log.info("[LINE] raw webhook body: account={} body={}", account.getId(),
+                        LogSafe.of(new String(rawBody, java.nio.charset.StandardCharsets.UTF_8)));
+            }
             LineWebhookPayload payload = (rawBody == null || rawBody.length == 0)
                     ? null : objectMapper.readValue(rawBody, LineWebhookPayload.class);
             List<LineWebhookService.ProcessResult> results = lineWebhookService.process(account, payload);

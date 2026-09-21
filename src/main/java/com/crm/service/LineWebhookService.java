@@ -86,10 +86,15 @@ public class LineWebhookService {
         List<ProcessResult> results = new ArrayList<>();
         if (payload == null || payload.getEvents() == null || payload.getEvents().isEmpty()) {
             // LINE's console "Verify" button sends an empty events array on a healthy 200 —
-            // this is a normal, successful case, not an error.
+            // this is a normal, successful case, not an error. Logged (not just silently
+            // returned) so "did a real event ever arrive, or was every hit just Verify?" is
+            // answerable from the logs instead of guesswork — both cases return an
+            // indistinguishable 200/"processed":0 at the HTTP level otherwise.
+            log.info("[LINE] webhook call with empty events array (LINE console Verify check): account={}", account.getId());
             results.add(ProcessResult.skip("empty_events"));
             return results;
         }
+        log.info("[LINE] webhook call with {} event(s): account={}", payload.getEvents().size(), account.getId());
         for (LineWebhookPayload.LineEvent event : payload.getEvents()) {
             results.add(processOne(account, event));
         }
@@ -98,6 +103,11 @@ public class LineWebhookService {
 
     private ProcessResult processOne(LineAccount account, LineWebhookPayload.LineEvent event) {
         if (event == null || event.getSource() == null || event.getSource().getUserId() == null) {
+            log.warn("[LINE] event skipped, missing source/userId: account={} type={} sourceNull={} sourceType={}",
+                    account.getId(),
+                    event == null ? "null" : event.getType(),
+                    event == null || event.getSource() == null,
+                    event != null && event.getSource() != null ? event.getSource().getType() : "n/a");
             return ProcessResult.skip("missing_source_user_id");
         }
         String lineUserId = event.getSource().getUserId();
@@ -117,9 +127,13 @@ public class LineWebhookService {
             return ProcessResult.ok();
         }
         if (!"message".equals(type) || event.getMessage() == null) {
+            log.info("[LINE] event skipped, unsupported event type: account={} type={} lineUserId={}",
+                    account.getId(), type, LogSafe.of(lineUserId));
             return ProcessResult.skip("unsupported_event_type:" + type);
         }
         if (!"text".equals(event.getMessage().getType())) {
+            log.info("[LINE] event skipped, unsupported message type: account={} messageType={} lineUserId={}",
+                    account.getId(), event.getMessage().getType(), LogSafe.of(lineUserId));
             return ProcessResult.skip("unsupported_message_type:" + event.getMessage().getType());
         }
 
