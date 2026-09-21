@@ -137,6 +137,11 @@
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
                             <button type="submit" class="px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 hover:bg-blue-100 rounded">接続確認</button>
                         </form>
+                        <form method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/check-secret-format'}" style="display:inline;">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="submit" class="px-2 py-1 text-xs bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 rounded"
+                                    title="Channel Secretの文字数・空白などの形式だけを確認します（値は表示されません）">Secret形式確認</button>
+                        </form>
                         <a th:href="@{'/manager/line-settings/' + ${p.id} + '/edit'}"
                            class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>
                         <a th:href="@{'/manager/line-settings/' + ${p.id} + '/auto-reply'}"
@@ -187,6 +192,11 @@
                         <form th:id="'checkForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/check-connection'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
                             <button type="submit" class="px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 hover:bg-blue-100 rounded">接続確認</button>
+                        </form>
+                        <form method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/check-secret-format'}" style="display:inline;">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <button type="submit" class="px-2 py-1 text-xs bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 rounded"
+                                    title="Channel Secretの文字数・空白などの形式だけを確認します（値は表示されません）">Secret形式確認</button>
                         </form>
                         <a th:href="@{'/manager/line-settings/' + ${c.id} + '/edit'}"
                            class="px-2 py-1 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">編集</a>

@@ -4,6 +4,21 @@
       layout:decorate="~{layout/default}">
 <head>
     <title>未紐付けのLINE連絡先</title>
+    <style>
+        .list-page-footer {
+            background:#fff; border-top:1px solid #e2e8f0;
+            padding:9px 20px; display:flex; align-items:center; justify-content:flex-end; gap:12px;
+            box-shadow:0 -1px 4px rgba(0,0,0,.05); margin-top:12px;
+        }
+        .list-page-footer .selected-count { font-size:.78rem; color:#64748b; }
+        .list-page-footer .btn-bulk-delete {
+            font-family:inherit; font-size:.82rem; font-weight:700;
+            padding:7px 16px; border-radius:6px; border:none; color:#fff; cursor:pointer; white-space:nowrap;
+            background:#dc2626; box-shadow:0 1px 3px rgba(220,38,38,.25);
+        }
+        .list-page-footer .btn-bulk-delete:hover:not(:disabled) { background:#b91c1c; }
+        .list-page-footer .btn-bulk-delete:disabled { background:#94a3b8; cursor:not-allowed; box-shadow:none; }
+    </style>
 </head>
 <body>
 <section layout:fragment="content">
@@ -41,6 +56,7 @@
         <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <tr>
+                    <th class="px-3 py-2 text-left" style="width:32px;"><input type="checkbox" id="unmCheckAll" title="全選択"/></th>
                     <th class="px-3 py-2 text-left">LINE表示名</th>
                     <th class="px-3 py-2 text-left" style="width:160px;">送信元アカウント</th>
                     <th class="px-3 py-2 text-left" style="width:220px;">LINEユーザーID</th>
@@ -51,6 +67,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 <tr th:each="u : ${unmatched}">
+                    <td class="px-3 py-2"><input type="checkbox" class="unm-row-item" name="ids" th:value="${u.id}" form="unmBulkForm"/></td>
                     <td class="px-3 py-2">
                         <img th:if="${u.linePictureUrl != null}" th:src="${u.linePictureUrl}" class="inline-block w-6 h-6 rounded-full mr-2" alt=""/>
                         <span th:text="${u.lineDisplayName != null ? u.lineDisplayName : '(表示名不明)'}"></span>
@@ -71,6 +88,51 @@
             </tbody>
         </table>
     </div>
+
+    <form id="unmBulkForm" method="post" th:action="@{/manager/line-settings/unmatched/bulk-delete}"
+          th:if="${unmatched != null and !unmatched.empty}">
+        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+        <div class="list-page-footer">
+            <span class="selected-count" id="unmSelectedCount"></span>
+            <button type="submit" class="btn-bulk-delete" id="btnUnmDelete" disabled
+                    onclick="return confirmUnmDelete();">選択削除</button>
+        </div>
+    </form>
+
+    <script th:if="${unmatched != null and !unmatched.empty}">
+    (function () {
+        var checkAll = document.getElementById('unmCheckAll');
+        var btn = document.getElementById('btnUnmDelete');
+        var label = document.getElementById('unmSelectedCount');
+        function rows() { return document.querySelectorAll('.unm-row-item'); }
+        function refresh() {
+            var n = [].filter.call(rows(), function (c) { return c.checked; }).length;
+            label.textContent = n > 0 ? (n + ' 件選択中') : '';
+            btn.disabled = n === 0;
+            checkAll.indeterminate = n > 0 && n < rows().length;
+            checkAll.checked = rows().length > 0 && n === rows().length;
+        }
+        checkAll.addEventListener('change', function () {
+            [].forEach.call(rows(), function (c) { c.checked = checkAll.checked; });
+            refresh();
+        });
+        document.addEventListener('change', function (e) {
+            if (e.target.classList && e.target.classList.contains('unm-row-item')) refresh();
+        });
+        window.confirmUnmDelete = function () {
+            var n = [].filter.call(rows(), function (c) { return c.checked; }).length;
+            if (n === 0) return false;
+            if (!confirm('選択した ' + n + ' 件の未紐付け連絡先を削除します。削除後、その方がもう一度友だち追加すると、新しい顧客として自動登録されます。よろしいですか?')) return false;
+            var pw = prompt('管理者パスワードを入力してください');
+            if (!pw) return false;
+            var f = document.getElementById('unmBulkForm');
+            var h = f.querySelector('input[name="confirmPassword"]');
+            if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = 'confirmPassword'; f.appendChild(h); }
+            h.value = pw;
+            return true;
+        };
+    })();
+    </script>
 </section>
 </body>
 </html>

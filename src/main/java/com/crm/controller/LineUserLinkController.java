@@ -23,12 +23,15 @@ public class LineUserLinkController {
     private final LineUserLinkService service;
     private final AuditLogService auditLog;
     private final com.crm.repository.LineAccountRepository lineAccountRepository;
+    private final com.crm.service.AdminAuthService adminAuthService;
 
     public LineUserLinkController(LineUserLinkService service, AuditLogService auditLog,
-                                   com.crm.repository.LineAccountRepository lineAccountRepository) {
+                                   com.crm.repository.LineAccountRepository lineAccountRepository,
+                                   com.crm.service.AdminAuthService adminAuthService) {
         this.service = service;
         this.auditLog = auditLog;
         this.lineAccountRepository = lineAccountRepository;
+        this.adminAuthService = adminAuthService;
     }
 
     @GetMapping
@@ -69,6 +72,24 @@ public class LineUserLinkController {
             auditLog.record(AuditLogService.ACTION_LINE_USER_LINK, "LineUser", lineUserId, "bulk crmUserId=" + parsed.get(lineUserId));
         }
         ra.addFlashAttribute("flashSuccess", n + " 件を紐付けました");
+        return "redirect:/manager/line-settings/unmatched";
+    }
+
+    /** 選択削除 — removes unlinked contacts so they can re-register via a fresh friend-add.
+     *  Same admin-password confirmation as the other bulk-delete screens. */
+    @PostMapping("/bulk-delete")
+    public String bulkDelete(@RequestParam(name = "ids", required = false) java.util.List<Long> ids,
+                              @RequestParam(name = "confirmPassword", required = false) String confirmPassword,
+                              javax.servlet.http.HttpSession session,
+                              RedirectAttributes ra) {
+        Long adminId = (Long) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_ID);
+        if (!adminAuthService.verifyPassword(adminId, confirmPassword)) {
+            ra.addFlashAttribute("flashError", "削除には管理者パスワードの確認が必要です");
+            return "redirect:/manager/line-settings/unmatched";
+        }
+        int n = service.deleteUnlinkedByIds(ids);
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "LineUser", null, "bulk delete unlinked n=" + n);
+        ra.addFlashAttribute("flashSuccess", n + " 件の未紐付け連絡先を削除しました");
         return "redirect:/manager/line-settings/unmatched";
     }
 

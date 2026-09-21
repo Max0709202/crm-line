@@ -66,6 +66,25 @@ public class LineUserLinkService {
         return n;
     }
 
+    /**
+     * Bulk-delete unmatched (unlinked) contacts so they can be re-registered by a fresh
+     * friend-add. Only rows with no linked CrmUser are ever deleted here — a contact that's
+     * already a customer is never removed by this screen, even if its id is submitted.
+     */
+    @Transactional
+    public int deleteUnlinkedByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        int n = 0;
+        for (Long id : ids) {
+            if (id == null) continue;
+            LineUser u = lineUserRepository.findById(id).orElse(null);
+            if (u == null || u.isLinked()) continue;
+            lineUserRepository.delete(u);
+            n++;
+        }
+        return n;
+    }
+
     public static class MatchCandidate {
         private final LineUser lineUser;
         private final CrmUser crmUser;

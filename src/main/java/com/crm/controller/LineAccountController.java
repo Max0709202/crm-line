@@ -334,6 +334,36 @@ public class LineAccountController {
         return "redirect:/manager/line-settings";
     }
 
+    /**
+     * Diagnostic-only: reports the stored Channel Secret's shape (length, whitespace,
+     * hex-format) without ever exposing or logging the value itself. Added 2026-09-21 to
+     * debug a client's repeated signature-verification failures — a copy-paste error
+     * (extra whitespace/newline, or the wrong credential entirely) is invisible from the
+     * edit form alone, since that field is deliberately never round-tripped to the UI.
+     */
+    @PostMapping("/{id}/check-secret-format")
+    public String checkSecretFormat(@PathVariable Long id, HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        Optional<LineAccount> opt = service.findById(id);
+        if (!opt.isPresent()) {
+            ra.addFlashAttribute("flashError", "LINEアカウントが見つかりません");
+            return "redirect:/manager/line-settings";
+        }
+        String secret = service.decryptChannelSecret(opt.get());
+        int len = secret == null ? 0 : secret.length();
+        boolean leadingWs = secret != null && !secret.isEmpty() && Character.isWhitespace(secret.charAt(0));
+        boolean trailingWs = secret != null && !secret.isEmpty() && Character.isWhitespace(secret.charAt(secret.length() - 1));
+        boolean looksLikeHex = secret != null && secret.matches("^[0-9a-fA-F]+$");
+        String msg = "Channel Secret形式チェック: 文字数=" + len
+                + " / 先頭に空白=" + (leadingWs ? "あり" : "なし")
+                + " / 末尾に空白=" + (trailingWs ? "あり" : "なし")
+                + " / 16進数のみで構成=" + (looksLikeHex ? "はい" : "いいえ");
+        ra.addFlashAttribute("flashSuccess", msg);
+        return "redirect:/manager/line-settings";
+    }
+
     @PostMapping("/{id}/check-connection")
     public String checkConnection(@PathVariable Long id, HttpSession session, RedirectAttributes ra) {
         String denied = denyUnlessAdmin(session, ra);

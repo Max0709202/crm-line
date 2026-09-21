@@ -161,4 +161,19 @@ class LineUserLinkServiceTest {
         assertThat(u1.getCrmUserId()).isEqualTo(100L);
         assertThat(u2.getCrmUserId()).isNull();
     }
+
+    @Test
+    void deleteUnlinkedByIds_deletesOnlyUnlinkedRows() {
+        LineUser unlinked = new LineUser(); unlinked.setId(40L);
+        LineUser linked = new LineUser(); linked.setId(41L); linked.setCrmUserId(9L);
+        when(lineUserRepository.findById(40L)).thenReturn(Optional.of(unlinked));
+        when(lineUserRepository.findById(41L)).thenReturn(Optional.of(linked));
+        when(lineUserRepository.findById(42L)).thenReturn(Optional.empty());
+
+        int n = svc.deleteUnlinkedByIds(java.util.Arrays.asList(40L, 41L, 42L, null));
+
+        assertThat(n).isEqualTo(1);
+        verify(lineUserRepository).delete(unlinked);
+        org.mockito.Mockito.verify(lineUserRepository, org.mockito.Mockito.never()).delete(linked);
+    }
 }
