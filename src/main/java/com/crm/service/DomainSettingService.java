@@ -39,6 +39,15 @@ public class DomainSettingService {
     public static final String KEY_LINE_RATE_PER_MINUTE      = "line.rate_per_minute";
     public static final String KEY_LINE_AUTO_REGISTER_FOLDER = "line.auto_register_folder";
 
+    /** OGP (Open Graph) link-preview card for /reply/{token} pages — shown by LINE/Twitter/
+     *  Facebook/etc. when the URL is pasted into a chat, before anyone clicks it. Off by
+     *  default; image URL is expected to be a public image (e.g. one uploaded via
+     *  設定 › HTML用画像 and referenced by its /img/{id} URL). */
+    public static final String KEY_REPLY_OGP_ENABLED         = "reply.ogp_enabled";
+    public static final String KEY_REPLY_OGP_TITLE           = "reply.ogp_title";
+    public static final String KEY_REPLY_OGP_DESCRIPTION     = "reply.ogp_description";
+    public static final String KEY_REPLY_OGP_IMAGE_URL       = "reply.ogp_image_url";
+
     /** Auto-expire policy for CARRIER_USER_BINDING (deletes rows older than N days). */
     public static final String KEY_BINDING_EXPIRE_ENABLED    = "binding.auto_expire_enabled";
     public static final String KEY_BINDING_EXPIRE_DAYS       = "binding.auto_expire_days";
@@ -138,6 +147,11 @@ public class DomainSettingService {
     public boolean isReplyRandomSubdomainEnabled() { return getBool(KEY_REPLY_RANDOM_SUBDOMAIN, true); }
     public int getReplyRandomLength()              { return getLen(KEY_REPLY_RANDOM_LENGTH, DEFAULT_LEN); }
     public String getReplyFixedSubdomain()         { return get(KEY_REPLY_FIXED_SUBDOMAIN); }
+
+    public boolean isReplyOgpEnabled()   { return getBool(KEY_REPLY_OGP_ENABLED, false); }
+    public String getReplyOgpTitle()       { return get(KEY_REPLY_OGP_TITLE); }
+    public String getReplyOgpDescription() { return get(KEY_REPLY_OGP_DESCRIPTION); }
+    public String getReplyOgpImageUrl()    { return get(KEY_REPLY_OGP_IMAGE_URL); }
 
     public String getFromBaseDomain()              { return get(KEY_FROM_BASE_DOMAIN); }
     public boolean isFromRandomEnabled()           { return getBool(KEY_FROM_RANDOM_LOCAL, true); }

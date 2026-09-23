@@ -96,6 +96,7 @@
                     <th class="px-3 py-2 text-left" style="width:160px;">最終接続確認</th>
                     <th class="px-3 py-2 text-left" style="width:110px;">グループモード</th>
                     <th class="px-3 py-2 text-left" style="width:90px;">友だち数</th>
+                    <th class="px-3 py-2 text-left" style="width:200px;">友達追加URL</th>
                     <th class="px-3 py-2 text-right" style="width:260px;">操作</th>
                 </tr>
             </thead>
@@ -135,6 +136,16 @@
                         <a class="text-blue-600 hover:underline whitespace-nowrap"
                            th:href="@{/manager/messages(lineAccountId=${p.id})}"
                            th:text="${friendCounts.get(p.id) ?: 0} + '人'"></a>
+                    </td>
+                    <td class="px-3 py-2">
+                        <div th:if="${friendAddUrls.get(p.id) != null}" class="flex items-center gap-1">
+                            <input type="text" readonly th:id="'friendAddUrl' + ${p.id}" th:value="${friendAddUrls.get(p.id)}"
+                                   class="text-xs text-slate-400" style="width:150px; border:none; background:transparent; padding:0;"/>
+                            <button type="button" class="px-1.5 py-0.5 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded"
+                                    th:attr="onclick=|copyFriendAddUrl(${p.id}, this)|">コピー</button>
+                        </div>
+                        <span th:if="${friendAddUrls.get(p.id) == null}" class="text-xs text-slate-400"
+                              title="編集画面の「LINE公式アカウントID」を入力すると生成されます">未設定</span>
                     </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <form th:id="'checkForm' + ${p.id}" method="post" th:action="@{'/manager/line-settings/' + ${p.id} + '/check-connection'}" style="display:inline;">
@@ -192,6 +203,16 @@
                            th:href="@{/manager/messages(lineAccountId=${c.id})}"
                            th:text="${friendCounts.get(c.id) ?: 0} + '人'"></a>
                     </td>
+                    <td class="px-3 py-2">
+                        <div th:if="${friendAddUrls.get(c.id) != null}" class="flex items-center gap-1">
+                            <input type="text" readonly th:id="'friendAddUrl' + ${c.id}" th:value="${friendAddUrls.get(c.id)}"
+                                   class="text-xs text-slate-400" style="width:150px; border:none; background:transparent; padding:0;"/>
+                            <button type="button" class="px-1.5 py-0.5 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded"
+                                    th:attr="onclick=|copyFriendAddUrl(${c.id}, this)|">コピー</button>
+                        </div>
+                        <span th:if="${friendAddUrls.get(c.id) == null}" class="text-xs text-slate-400"
+                              title="編集画面の「LINE公式アカウントID」を入力すると生成されます">未設定</span>
+                    </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <form th:id="'checkForm' + ${c.id}" method="post" th:action="@{'/manager/line-settings/' + ${c.id} + '/check-connection'}" style="display:inline;">
                             <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -214,7 +235,7 @@
                     </td>
                 </tr>
                 <tr th:if="${childrenByParent.get(p.id) == null or childrenByParent.get(p.id).empty}">
-                    <td colspan="8" class="px-3 py-3 text-center text-slate-400 text-xs">子アカウントはまだ登録されていません</td>
+                    <td colspan="9" class="px-3 py-3 text-center text-slate-400 text-xs">子アカウントはまだ登録されていません</td>
                 </tr>
             </tbody>
         </table>
@@ -242,6 +263,16 @@
         }
         function copyWebhookUrl(id, btn) {
             var input = document.getElementById('webhookUrl' + id);
+            if (!input) return;
+            input.select();
+            navigator.clipboard.writeText(input.value).then(function () {
+                var orig = btn.textContent;
+                btn.textContent = 'コピー済';
+                setTimeout(function () { btn.textContent = orig; }, 1500);
+            }).catch(function () {});
+        }
+        function copyFriendAddUrl(id, btn) {
+            var input = document.getElementById('friendAddUrl' + id);
             if (!input) return;
             input.select();
             navigator.clipboard.writeText(input.value).then(function () {

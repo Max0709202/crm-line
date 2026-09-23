@@ -48,6 +48,7 @@ class ReplyPageControllerTest {
     private ReplyAttachmentService attachmentService;
     private ExternalLinkDomainService externalLinkDomainService;
     private MessageBoxService messageBoxService;
+    private com.crm.service.DomainSettingService domainSettingService;
     private ReplyPageController controller;
 
     @BeforeEach
@@ -62,10 +63,11 @@ class ReplyPageControllerTest {
         attachmentService = mock(ReplyAttachmentService.class);
         externalLinkDomainService = mock(ExternalLinkDomainService.class);
         messageBoxService = mock(MessageBoxService.class);
+        domainSettingService = mock(com.crm.service.DomainSettingService.class);
 
         controller = new ReplyPageController(replyPageService, userRepository, messageRepository,
                 settingService, userActivityService, rateLimitService, placeholderService,
-                attachmentService, externalLinkDomainService, messageBoxService);
+                attachmentService, externalLinkDomainService, messageBoxService, domainSettingService);
 
         when(settingService.getOrCreate()).thenReturn(new ReplyPageSetting());
         when(attachmentService.listForActiveSlot(any(), any())).thenReturn(Collections.emptyList());

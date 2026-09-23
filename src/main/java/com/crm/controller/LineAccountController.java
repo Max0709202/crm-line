@@ -46,6 +46,20 @@ public class LineAccountController {
         this.adminAuthService = adminAuthService;
     }
 
+    /**
+     * LINE's own "add friend by ID" URL, built from the account's Basic ID (officialAccountId,
+     * e.g. "@abc123"). Returns null when unset. There is no public API for the shorter lin.ee
+     * vanity link — that can only be created manually, per account, inside LINE's own Official
+     * Account Manager console (client confirmed this is fine; this long-form URL still works
+     * as a friend-add link, just without the custom short slug).
+     */
+    private static String buildFriendAddUrl(String officialAccountId) {
+        if (officialAccountId == null || officialAccountId.trim().isEmpty()) return null;
+        String id = officialAccountId.trim();
+        if (id.startsWith("@")) id = id.substring(1);
+        return "https://line.me/R/ti/p/%40" + id;
+    }
+
     /** Returns a redirect string if the session isn't ADMIN, or null if it's fine to proceed. */
     private String denyUnlessAdmin(HttpSession session, RedirectAttributes ra) {
         if (AuthInterceptor.isAdmin(session)) return null;
@@ -61,17 +75,21 @@ public class LineAccountController {
         List<LineAccount> parents = service.listParents();
         Map<Long, List<LineAccount>> childrenByParent = new LinkedHashMap<>();
         Map<Long, Long> friendCounts = new LinkedHashMap<>();
+        Map<Long, String> friendAddUrls = new LinkedHashMap<>();
         for (LineAccount p : parents) {
             List<LineAccount> children = service.listChildren(p.getId());
             childrenByParent.put(p.getId(), children);
             friendCounts.put(p.getId(), lineUserRepository.countByLineAccountId(p.getId()));
+            friendAddUrls.put(p.getId(), buildFriendAddUrl(p.getOfficialAccountId()));
             for (LineAccount c : children) {
                 friendCounts.put(c.getId(), lineUserRepository.countByLineAccountId(c.getId()));
+                friendAddUrls.put(c.getId(), buildFriendAddUrl(c.getOfficialAccountId()));
             }
         }
         model.addAttribute("parents", parents);
         model.addAttribute("childrenByParent", childrenByParent);
         model.addAttribute("friendCounts", friendCounts);
+        model.addAttribute("friendAddUrls", friendAddUrls);
         model.addAttribute("webhookBaseUrl", domainSettingService.getReplyBaseUrl() + "/api/inbound/line/");
         model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         model.addAttribute("lineRatePerMinute", domainSettingService.getLineRatePerMinute());

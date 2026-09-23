@@ -14,6 +14,11 @@ public class DomainSettingForm {
     private Boolean bindingExpireEnabled;
     private Integer bindingExpireDays;
 
+    private Boolean replyOgpEnabled;
+    private String replyOgpTitle;
+    private String replyOgpDescription;
+    private String replyOgpImageUrl;
+
     public String getReplyBaseUrl() { return replyBaseUrl; }
     public void setReplyBaseUrl(String replyBaseUrl) { this.replyBaseUrl = replyBaseUrl; }
     public Boolean getReplyRandomSubdomainEnabled() { return replyRandomSubdomainEnabled; }
@@ -34,4 +39,12 @@ public class DomainSettingForm {
     public void setBindingExpireEnabled(Boolean bindingExpireEnabled) { this.bindingExpireEnabled = bindingExpireEnabled; }
     public Integer getBindingExpireDays() { return bindingExpireDays; }
     public void setBindingExpireDays(Integer bindingExpireDays) { this.bindingExpireDays = bindingExpireDays; }
+    public Boolean getReplyOgpEnabled() { return replyOgpEnabled; }
+    public void setReplyOgpEnabled(Boolean replyOgpEnabled) { this.replyOgpEnabled = replyOgpEnabled; }
+    public String getReplyOgpTitle() { return replyOgpTitle; }
+    public void setReplyOgpTitle(String replyOgpTitle) { this.replyOgpTitle = replyOgpTitle; }
+    public String getReplyOgpDescription() { return replyOgpDescription; }
+    public void setReplyOgpDescription(String replyOgpDescription) { this.replyOgpDescription = replyOgpDescription; }
+    public String getReplyOgpImageUrl() { return replyOgpImageUrl; }
+    public void setReplyOgpImageUrl(String replyOgpImageUrl) { this.replyOgpImageUrl = replyOgpImageUrl; }
 }

@@ -4,6 +4,12 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>&#8203;</title>
+    <th:block th:if="${ogpEnabled}">
+        <meta property="og:type" content="website"/>
+        <meta th:if="${ogpTitle != null and !ogpTitle.isEmpty()}" property="og:title" th:content="${ogpTitle}"/>
+        <meta th:if="${ogpDescription != null and !ogpDescription.isEmpty()}" property="og:description" th:content="${ogpDescription}"/>
+        <meta th:if="${ogpImageUrl != null and !ogpImageUrl.isEmpty()}" property="og:image" th:content="${ogpImageUrl}"/>
+    </th:block>
     <style>
         html, body { margin: 0; padding: 0; height: 100%; }
         .landing-frame { display: block; width: 100%; height: 100vh; border: 0; }

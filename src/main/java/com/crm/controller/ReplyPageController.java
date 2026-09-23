@@ -61,6 +61,7 @@ public class ReplyPageController {
     private final com.crm.service.ReplyAttachmentService attachmentService;
     private final com.crm.service.ExternalLinkDomainService externalLinkDomainService;
     private final com.crm.service.MessageBoxService messageBoxService;
+    private final com.crm.service.DomainSettingService domainSettingService;
 
     public ReplyPageController(ReplyPageService replyPageService,
                                CrmUserRepository userRepository,
@@ -71,7 +72,8 @@ public class ReplyPageController {
                                com.crm.service.PlaceholderService placeholderService,
                                com.crm.service.ReplyAttachmentService attachmentService,
                                com.crm.service.ExternalLinkDomainService externalLinkDomainService,
-                               com.crm.service.MessageBoxService messageBoxService) {
+                               com.crm.service.MessageBoxService messageBoxService,
+                               com.crm.service.DomainSettingService domainSettingService) {
         this.replyPageService = replyPageService;
         this.userRepository = userRepository;
         this.messageRepository = messageRepository;
@@ -82,6 +84,7 @@ public class ReplyPageController {
         this.attachmentService = attachmentService;
         this.externalLinkDomainService = externalLinkDomainService;
         this.messageBoxService = messageBoxService;
+        this.domainSettingService = domainSettingService;
     }
 
     /**
@@ -154,6 +157,7 @@ public class ReplyPageController {
             if (com.crm.entity.ExternalLinkDomain.MODE_CUSTOM_HTML.equals(d.getLandingMode())
                     && d.getLandingHtml() != null && !d.getLandingHtml().trim().isEmpty()) {
                 model.addAttribute("landingHtml", d.getLandingHtml());
+                addOgpAttributes(model);
                 return "reply/landing";
             }
         }
@@ -202,7 +206,20 @@ public class ReplyPageController {
             model.addAttribute("messageBox", messageBoxService.listFor(user.get().getId(), boxPage));
             model.addAttribute("inboundBox", messageBoxService.listInboundFor(user.get().getId(), inboundPage));
         }
+        addOgpAttributes(model);
         return "reply/page";
+    }
+
+    /** OGP (Open Graph) link-preview card, shown by LINE/Twitter/etc. when this URL is pasted
+     *  into a chat before anyone clicks it. Off by default (client request 2026-09-23). */
+    private void addOgpAttributes(Model model) {
+        boolean enabled = domainSettingService.isReplyOgpEnabled();
+        model.addAttribute("ogpEnabled", enabled);
+        if (enabled) {
+            model.addAttribute("ogpTitle", domainSettingService.getReplyOgpTitle());
+            model.addAttribute("ogpDescription", domainSettingService.getReplyOgpDescription());
+            model.addAttribute("ogpImageUrl", domainSettingService.getReplyOgpImageUrl());
+        }
     }
 
     /** Public attachment upload — the user clicks the "画像添付" button on /reply/{token}.
