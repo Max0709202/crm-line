@@ -13,6 +13,7 @@ import com.crm.repository.DiffDefinitionRepository;
 import com.crm.repository.DiffScheduleRepository;
 import com.crm.repository.DiffScheduleStepRepository;
 import com.crm.repository.DiffStepRepository;
+import com.crm.repository.LineUserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -49,6 +50,8 @@ public class DiffScheduleService {
     private final AuditLogService auditLog;
     private final DomainSettingService domainSettingService;
     private final HtmlImageService htmlImageService;
+    private final MessageService messageService;
+    private final LineUserRepository lineUserRepository;
 
     public DiffScheduleService(DiffScheduleRepository scheduleRepository,
                                 DiffScheduleStepRepository scheduleStepRepository,
@@ -60,7 +63,9 @@ public class DiffScheduleService {
                                 BroadcastRepository broadcastRepository,
                                 AuditLogService auditLog,
                                 DomainSettingService domainSettingService,
-                                HtmlImageService htmlImageService) {
+                                HtmlImageService htmlImageService,
+                                MessageService messageService,
+                                LineUserRepository lineUserRepository) {
         this.scheduleRepository = scheduleRepository;
         this.scheduleStepRepository = scheduleStepRepository;
         this.definitionRepository = definitionRepository;
@@ -72,6 +77,8 @@ public class DiffScheduleService {
         this.auditLog = auditLog;
         this.domainSettingService = domainSettingService;
         this.htmlImageService = htmlImageService;
+        this.messageService = messageService;
+        this.lineUserRepository = lineUserRepository;
     }
 
     /** Register a new schedule: resolves + freezes the target list, then materialises one
@@ -371,6 +378,11 @@ public class DiffScheduleService {
     }
 
     private void executeMessage(DiffScheduleStep step, DiffSchedule schedule, List<Long> ids) {
+        if (DiffStep.CHANNEL_LINE.equals(step.getChannel())
+                && DiffStep.LINE_ACCOUNT_LINKED_DYNAMIC.equals(step.getLineAccountId())) {
+            executeMessageLineDynamic(step, schedule, ids);
+            return;
+        }
         BroadcastForm form = new BroadcastForm();
         form.setTargetUserIds(ids);
         form.setChannel(step.getChannel());
@@ -386,6 +398,10 @@ public class DiffScheduleService {
                     : broadcastService.createAndQueue(form, schedule.getSetByAdminId());
             b.setDiffOrigin(true);
             broadcastRepository.save(b);
+            // 送信時点で既読 — this broadcast IS the response to whatever these users had
+            // previously sent in, so their prior inbound is now considered handled rather
+            // than waiting for an admin to separately open each thread (2026-09-23 request).
+            messageService.markThreadsAsRead(ids);
             step.setStatus(DiffScheduleStep.STATUS_EXECUTED);
             step.setExecutedAt(LocalDateTime.now());
             step.setResultDetail("メッセージ送信 channel=" + step.getChannel()
@@ -394,6 +410,68 @@ public class DiffScheduleService {
             step.setStatus(DiffScheduleStep.STATUS_FAILED);
             step.setResultDetail("送信先なし: " + e.getMessage());
         }
+        scheduleStepRepository.save(step);
+        log.info("Diff-schedule-step executed (message): id={} {}", step.getId(), step.getResultDetail());
+        auditLog.record(AuditLogService.ACTION_DIFF_SCHEDULE_EXECUTE, "DiffScheduleStep", step.getId(), step.getResultDetail());
+    }
+
+    /**
+     * 紐づきアカ — this step's lineAccountId is the dynamic sentinel, so each recipient is
+     * routed to whichever LINE account they're actually linked to right now, resolved here at
+     * fire time rather than whatever was chosen when the step was configured. A recipient
+     * linked to more than one child account resolves to their most-recently-active link. One
+     * Broadcast row is created per distinct resolved account so BroadcastService's existing
+     * single-account targeting/filtering logic is reused unchanged (2026-09-23 client request).
+     */
+    private void executeMessageLineDynamic(DiffScheduleStep step, DiffSchedule schedule, List<Long> ids) {
+        java.util.Map<Long, Long> lineAccountIdByCrmUserId = new java.util.HashMap<>();
+        for (com.crm.entity.LineUser lu : lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(ids)) {
+            lineAccountIdByCrmUserId.putIfAbsent(lu.getCrmUserId(), lu.getLineAccountId());
+        }
+        java.util.Map<Long, List<Long>> idsByAccount = new java.util.LinkedHashMap<>();
+        int unlinked = 0;
+        for (Long id : ids) {
+            Long accountId = lineAccountIdByCrmUserId.get(id);
+            if (accountId == null) { unlinked++; continue; }
+            idsByAccount.computeIfAbsent(accountId, k -> new java.util.ArrayList<>()).add(id);
+        }
+        if (idsByAccount.isEmpty()) {
+            step.setStatus(DiffScheduleStep.STATUS_FAILED);
+            step.setResultDetail("送信先なし: 紐づいているLINEアカウントを持つ対象がいません");
+            scheduleStepRepository.save(step);
+            log.info("Diff-schedule-step executed (message): id={} {}", step.getId(), step.getResultDetail());
+            auditLog.record(AuditLogService.ACTION_DIFF_SCHEDULE_EXECUTE, "DiffScheduleStep", step.getId(), step.getResultDetail());
+            return;
+        }
+        String body = bodyWithImageSpliced(step);
+        java.util.List<String> broadcastSummaries = new java.util.ArrayList<>();
+        java.util.List<Long> readTargets = new java.util.ArrayList<>();
+        int totalQueued = 0;
+        for (java.util.Map.Entry<Long, List<Long>> e : idsByAccount.entrySet()) {
+            BroadcastForm form = new BroadcastForm();
+            form.setTargetUserIds(e.getValue());
+            form.setChannel(DiffStep.CHANNEL_LINE);
+            form.setTitle(schedule.getDiffNameSnapshot());
+            form.setBody(body);
+            form.setLineAccountId(e.getKey());
+            form.setRatePerMinute(domainSettingService.getLineRatePerMinute());
+            try {
+                com.crm.entity.Broadcast b = broadcastService.createAndQueue(form, schedule.getSetByAdminId());
+                b.setDiffOrigin(true);
+                broadcastRepository.save(b);
+                broadcastSummaries.add("account=" + e.getKey() + " broadcastId=" + b.getId() + " queued=" + b.getTotalCount());
+                totalQueued += b.getTotalCount() == null ? 0 : b.getTotalCount();
+                readTargets.addAll(e.getValue());
+            } catch (BroadcastService.NoTargetsException ex) {
+                broadcastSummaries.add("account=" + e.getKey() + " 送信先なし");
+            }
+        }
+        messageService.markThreadsAsRead(readTargets);
+        step.setStatus(DiffScheduleStep.STATUS_EXECUTED);
+        step.setExecutedAt(LocalDateTime.now());
+        step.setResultDetail("メッセージ送信 channel=LINE(紐づきアカ) queued=" + totalQueued
+                + (unlinked > 0 ? " unlinked=" + unlinked : "")
+                + " [" + String.join(", ", broadcastSummaries) + "]");
         scheduleStepRepository.save(step);
         log.info("Diff-schedule-step executed (message): id={} {}", step.getId(), step.getResultDetail());
         auditLog.record(AuditLogService.ACTION_DIFF_SCHEDULE_EXECUTE, "DiffScheduleStep", step.getId(), step.getResultDetail());

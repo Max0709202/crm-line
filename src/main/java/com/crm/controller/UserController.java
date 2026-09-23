@@ -533,7 +533,7 @@ public class UserController {
             return "user/form";
         }
         if (isBlank(form.getEmail()) && isBlank(form.getPhoneNumber())) {
-            br.rejectValue("email", "missingContact", "保存（または編集）に失敗しました");
+            br.rejectValue("email", "missingContact", "メールアドレスまたは電話番号のいずれかを入力してください");
             model.addAttribute("editing", false);
             return "user/form";
         }
@@ -544,6 +544,10 @@ public class UserController {
             return "redirect:/manager/users/" + result.getUser().getId();
         } catch (CrmUserService.DuplicateEmailException e) {
             br.rejectValue("email", "duplicate", "このメールアドレスは既に登録されています");
+            model.addAttribute("editing", false);
+            return "user/form";
+        } catch (CrmUserService.DuplicatePhoneException e) {
+            br.rejectValue("phoneNumber", "duplicate", "この電話番号は既に登録されています");
             model.addAttribute("editing", false);
             return "user/form";
         }
@@ -875,7 +879,7 @@ public class UserController {
             return "redirect:/manager/users/" + id;
         }
         if (isBlank(form.getEmail()) && isBlank(form.getPhoneNumber())) {
-            ra.addFlashAttribute("flashError", "保存（または編集）に失敗しました");
+            ra.addFlashAttribute("flashError", "メールアドレスまたは電話番号のいずれかを入力してください");
             ra.addFlashAttribute("form", form);
             return "redirect:/manager/users/" + id;
         }
@@ -905,6 +909,10 @@ public class UserController {
             return "redirect:/manager/users/" + id;
         } catch (CrmUserService.DuplicateEmailException e) {
             ra.addFlashAttribute("flashError", "このメールアドレスは既に登録されています");
+            ra.addFlashAttribute("form", form);
+            return "redirect:/manager/users/" + id;
+        } catch (CrmUserService.DuplicatePhoneException e) {
+            ra.addFlashAttribute("flashError", "この電話番号は既に登録されています");
             ra.addFlashAttribute("form", form);
             return "redirect:/manager/users/" + id;
         } catch (CrmUserService.UserNotFoundException e) {

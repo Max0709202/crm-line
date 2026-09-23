@@ -109,6 +109,10 @@ public class CrmUserService {
         if (email != null && repository.existsByEmail(email)) {
             throw new DuplicateEmailException(email);
         }
+        String phone = form.getPhoneNumber() == null ? null : form.getPhoneNumber().trim();
+        if (phone != null && !phone.isEmpty() && repository.existsByPhoneNumber(phone)) {
+            throw new DuplicatePhoneException(phone);
+        }
         CrmUser u = new CrmUser();
         form.applyTo(u);
         u.setCarrierDomain(deriveCarrierDomainIfBlank(u.getCarrierDomain(), u.getEmail()));
@@ -129,6 +133,12 @@ public class CrmUserService {
         if (newEmail != null && !newEmail.equalsIgnoreCase(u.getEmail())
                 && repository.existsByEmail(newEmail)) {
             throw new DuplicateEmailException(newEmail);
+        }
+        String newPhone = form.getPhoneNumber() == null ? null : form.getPhoneNumber().trim();
+        boolean phoneChanging = newPhone != null && !newPhone.isEmpty()
+                && !newPhone.equals(u.getPhoneNumber());
+        if (phoneChanging && repository.existsByPhoneNumber(newPhone)) {
+            throw new DuplicatePhoneException(newPhone);
         }
         form.applyTo(u);
         u.setCarrierDomain(deriveCarrierDomainIfBlank(u.getCarrierDomain(), u.getEmail()));
@@ -749,6 +759,10 @@ public class CrmUserService {
 
     public static class DuplicateEmailException extends RuntimeException {
         public DuplicateEmailException(String email) { super("duplicate email: " + email); }
+    }
+
+    public static class DuplicatePhoneException extends RuntimeException {
+        public DuplicatePhoneException(String phone) { super("duplicate phone: " + phone); }
     }
 
     public static class UserNotFoundException extends RuntimeException {

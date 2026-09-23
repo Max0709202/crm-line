@@ -14,6 +14,7 @@ import com.crm.repository.DiffDefinitionRepository;
 import com.crm.repository.DiffScheduleRepository;
 import com.crm.repository.DiffScheduleStepRepository;
 import com.crm.repository.DiffStepRepository;
+import com.crm.repository.LineUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +47,8 @@ class DiffScheduleServiceTest {
     private AuditLogService auditLog;
     private DomainSettingService domainSettingService;
     private HtmlImageService htmlImageService;
+    private MessageService messageService;
+    private LineUserRepository lineUserRepository;
     private DiffScheduleService svc;
 
     @BeforeEach
@@ -61,9 +64,11 @@ class DiffScheduleServiceTest {
         auditLog = mock(AuditLogService.class);
         domainSettingService = mock(DomainSettingService.class);
         htmlImageService = mock(HtmlImageService.class);
+        messageService = mock(MessageService.class);
+        lineUserRepository = mock(LineUserRepository.class);
         svc = new DiffScheduleService(scheduleRepo, scheduleStepRepo, definitionRepo, stepRepo,
                 crmUserService, userRepository, broadcastService, broadcastRepository, auditLog,
-                domainSettingService, htmlImageService);
+                domainSettingService, htmlImageService, messageService, lineUserRepository);
         when(broadcastRepository.save(any(Broadcast.class))).thenAnswer(inv -> inv.getArgument(0));
         when(scheduleRepo.save(any(DiffSchedule.class))).thenAnswer(inv -> {
             DiffSchedule s = inv.getArgument(0);
@@ -450,6 +455,53 @@ class DiffScheduleServiceTest {
         assertThat(step.getStatus()).isEqualTo(DiffScheduleStep.STATUS_EXECUTED);
         assertThat(cap.getValue().getLineAccountId()).isEqualTo(42L);
         assertThat(cap.getValue().getRatePerMinute()).isEqualTo(30);
+        // 送信時点で既読 — this broadcast IS the response, so the target's prior inbound is
+        // marked handled right away instead of waiting for an admin to open the thread later.
+        verify(messageService).markThreadsAsRead(Arrays.asList(1L));
+    }
+
+    @Test
+    void execute_message_line_dynamicLinkedAccount_groupsRecipientsByCurrentLink() {
+        DiffSchedule schedule = new DiffSchedule();
+        schedule.setId(60L);
+        schedule.setTargetUserIds("1,2,3");
+        schedule.setDiffNameSnapshot("紐づきアカ案内");
+        schedule.setSetByAdminId(9L);
+        when(scheduleRepo.findById(60L)).thenReturn(Optional.of(schedule));
+
+        DiffScheduleStep step = new DiffScheduleStep();
+        step.setId(61L);
+        step.setDiffScheduleId(60L);
+        step.setStepType(DiffStep.STEP_MESSAGE);
+        step.setChannel(DiffStep.CHANNEL_LINE);
+        step.setLineAccountId(DiffStep.LINE_ACCOUNT_LINKED_DYNAMIC);
+        step.setBodySnapshot("紐づいているアカウントから送信されます");
+
+        com.crm.entity.LineUser lu1 = new com.crm.entity.LineUser();
+        lu1.setCrmUserId(1L); lu1.setLineAccountId(100L);
+        com.crm.entity.LineUser lu2 = new com.crm.entity.LineUser();
+        lu2.setCrmUserId(2L); lu2.setLineAccountId(200L);
+        // user 3 has no LineUser row at all — unlinked, dropped from every group.
+        when(lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(Arrays.asList(1L, 2L, 3L)))
+                .thenReturn(Arrays.asList(lu1, lu2));
+
+        when(domainSettingService.getLineRatePerMinute()).thenReturn(30);
+        Broadcast b100 = new Broadcast(); b100.setId(201L); b100.setTotalCount(1);
+        Broadcast b200 = new Broadcast(); b200.setId(202L); b200.setTotalCount(1);
+        org.mockito.ArgumentCaptor<BroadcastForm> cap = org.mockito.ArgumentCaptor.forClass(BroadcastForm.class);
+        when(broadcastService.createAndQueue(cap.capture(), org.mockito.ArgumentMatchers.eq(9L)))
+                .thenReturn(b100, b200);
+
+        svc.execute(step);
+
+        assertThat(step.getStatus()).isEqualTo(DiffScheduleStep.STATUS_EXECUTED);
+        List<BroadcastForm> forms = cap.getAllValues();
+        assertThat(forms).hasSize(2);
+        assertThat(forms.get(0).getLineAccountId()).isEqualTo(100L);
+        assertThat(forms.get(0).getTargetUserIds()).containsExactly(1L);
+        assertThat(forms.get(1).getLineAccountId()).isEqualTo(200L);
+        assertThat(forms.get(1).getTargetUserIds()).containsExactly(2L);
+        verify(messageService).markThreadsAsRead(Arrays.asList(1L, 2L));
     }
 
     @Test

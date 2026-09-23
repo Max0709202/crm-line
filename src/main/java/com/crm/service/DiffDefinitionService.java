@@ -211,8 +211,11 @@ public class DiffDefinitionService {
         } else if (DiffStep.STEP_HTML_SWITCH.equals(stepType)) {
             if (memoSlot == null || memoSlot < 1 || memoSlot > 10) throw new IllegalArgumentException("切替先スロット(1〜10)を指定してください");
         } else if (DiffStep.STEP_MESSAGE_IMAGE.equals(stepType)) {
-            if (!DiffStep.CHANNEL_EMAIL.equals(channel)) {
-                throw new IllegalArgumentException("画像挿入ステップはメールのみ対応しています");
+            if (!DiffStep.CHANNEL_EMAIL.equals(channel) && !DiffStep.CHANNEL_LINE.equals(channel)) {
+                throw new IllegalArgumentException("画像挿入ステップはメール・LINEのみ対応しています");
+            }
+            if (DiffStep.CHANNEL_LINE.equals(channel) && lineAccountId == null) {
+                throw new IllegalArgumentException("送信元のLINEアカウントを指定してください");
             }
             if (imageId == null) throw new IllegalArgumentException("挿入する画像を選択してください");
             if (!htmlImageRepository.existsById(imageId)) throw new IllegalArgumentException("指定された画像が見つかりません");

@@ -14,6 +14,11 @@ public interface LineUserRepository extends JpaRepository<LineUser, Long> {
 
     List<LineUser> findByCrmUserId(Long crmUserId);
 
+    /** Batch version of {@link #findByCrmUserId} for resolving each recipient's currently-
+     *  linked LINE account at diff-step fire time ("紐づきアカ" — a recipient friended via
+     *  more than one child account resolves to whichever they messaged most recently). */
+    List<LineUser> findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collection<Long> crmUserIds);
+
     /** Batch lookup for broadcast targeting — avoids one query per recipient when checking
      *  which of a broadcast's target users are linked to the specific LineAccount being
      *  sent from (see BroadcastService.createAndQueueLine). */

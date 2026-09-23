@@ -50,7 +50,7 @@
                                 &nbsp;·&nbsp;
                                 <span th:if="${s.stepType == 'MESSAGE'}" th:text="'送信 (' + ${s.channel} + ')'" class="font-semibold"
                                       th:classappend="${s.channel == 'SMS'} ? 'text-yellow-800' : 'text-blue-700'"></span>
-                                <span th:if="${s.stepType == 'MESSAGE_IMAGE'}" th:text="'送信 (メール・画像付き)'" class="font-semibold text-blue-700"></span>
+                                <span th:if="${s.stepType == 'MESSAGE_IMAGE'}" th:text="'送信 (' + ${s.channel} + '・画像付き)'" class="font-semibold text-blue-700"></span>
                                 <span th:if="${s.stepType == 'HTML_SWITCH'}" th:text="'ユーザーHTML切替 → スロット' + ${s.memoSlot}" class="font-semibold text-amber-700"></span>
                             </div>
                             <div th:if="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'}" class="text-sm text-slate-700">
@@ -120,11 +120,12 @@
                                 <div th:id="'lineAccountBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'LINE'} ? '' : 'display:none;'">
                                     <select name="lineAccountId" class="tw-input">
                                         <option value="">送信元LINEアカウントを選択</option>
+                                        <option value="-1" th:selected="${s.lineAccountId != null and s.lineAccountId == -1}">紐づきアカ（発動時点で紐づいているアカウント）</option>
                                         <option th:each="a : ${lineAccounts}" th:value="${a.id}" th:text="${a.name}"
                                                 th:selected="${a.id == s.lineAccountId}"></option>
                                     </select>
                                 </div>
-                                <div th:id="'imageToggleBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL'} ? '' : 'display:none;'">
+                                <div th:id="'imageToggleBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL' or s.channel == 'LINE'} ? '' : 'display:none;'">
                                     <label class="text-xs text-slate-600">
                                         <input type="checkbox" th:id="'imageToggle' + ${s.id}" th:checked="${s.stepType == 'MESSAGE_IMAGE'}"
                                                th:attr="onchange=|toggleImageStep(${s.id})|"/> 画像を挿入する
@@ -218,6 +219,7 @@
                     <div id="lineAccountBoxnew" class="mb-2" style="display:none;">
                         <select name="lineAccountId" class="tw-input">
                             <option value="">送信元LINEアカウントを選択</option>
+                            <option value="-1">紐づきアカ（発動時点で紐づいているアカウント）</option>
                             <option th:each="a : ${lineAccounts}" th:value="${a.id}" th:text="${a.name}"></option>
                         </select>
                     </div>
@@ -298,8 +300,9 @@
             var lineBox = document.getElementById('lineAccountBox' + id);
             if (lineBox) lineBox.style.display = (channel === 'LINE') ? 'block' : 'none';
             var imgToggleBox = document.getElementById('imageToggleBox' + id);
-            if (imgToggleBox) imgToggleBox.style.display = (channel === 'EMAIL') ? 'block' : 'none';
-            if (channel !== 'EMAIL') {
+            var imgAllowed = (channel === 'EMAIL' || channel === 'LINE');
+            if (imgToggleBox) imgToggleBox.style.display = imgAllowed ? 'block' : 'none';
+            if (!imgAllowed) {
                 var cb = document.getElementById('imageToggle' + id);
                 if (cb && cb.checked) { cb.checked = false; toggleImageStep(id); }
             }

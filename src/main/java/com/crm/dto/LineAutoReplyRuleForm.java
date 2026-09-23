@@ -16,6 +16,9 @@ public class LineAutoReplyRuleForm {
 
     private Integer sortOrder;
 
+    /** 何分後に返信 — null/0 sends immediately. */
+    private Integer delayMinutes;
+
     public String getTriggerType() { return triggerType; }
     public void setTriggerType(String triggerType) { this.triggerType = triggerType; }
     public String getKeyword() { return keyword; }
@@ -24,4 +27,6 @@ public class LineAutoReplyRuleForm {
     public void setReplyBody(String replyBody) { this.replyBody = replyBody; }
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+    public Integer getDelayMinutes() { return delayMinutes; }
+    public void setDelayMinutes(Integer delayMinutes) { this.delayMinutes = delayMinutes; }
 }

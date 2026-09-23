@@ -42,6 +42,7 @@ public class MessageController {
     private final com.crm.service.AuditLogService auditLog;
     private final com.crm.repository.LineUserRepository lineUserRepository;
     private final com.crm.service.DomainSettingService domainSettingService;
+    private final com.crm.repository.LineAccountRepository lineAccountRepository;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -55,7 +56,8 @@ public class MessageController {
                              com.crm.service.DiffScheduleService diffScheduleService,
                              com.crm.service.AuditLogService auditLog,
                              com.crm.repository.LineUserRepository lineUserRepository,
-                             com.crm.service.DomainSettingService domainSettingService) {
+                             com.crm.service.DomainSettingService domainSettingService,
+                             com.crm.repository.LineAccountRepository lineAccountRepository) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -69,6 +71,7 @@ public class MessageController {
         this.auditLog = auditLog;
         this.lineUserRepository = lineUserRepository;
         this.domainSettingService = domainSettingService;
+        this.lineAccountRepository = lineAccountRepository;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -175,6 +178,23 @@ public class MessageController {
         }
         model.addAttribute("diffReservations", diffReservations);
         model.addAttribute("diffSchedulesById", diffSchedulesById);
+        // 紐づいているLINEアカウント名 — shown next to each LINE-channel history row (both past
+        // messages and pending 差分予約 cards) so the admin doesn't have to cross-check the
+        // account separately (2026-09-23 client request).
+        java.util.Set<Long> lineAccountIds = new java.util.HashSet<>();
+        for (com.crm.entity.Message m : thread) {
+            if (m.getLineAccountId() != null) lineAccountIds.add(m.getLineAccountId());
+        }
+        for (com.crm.entity.DiffScheduleStep s : diffReservations) {
+            if (s.getLineAccountId() != null) lineAccountIds.add(s.getLineAccountId());
+        }
+        java.util.Map<Long, String> lineAccountNamesById = new java.util.HashMap<>();
+        if (!lineAccountIds.isEmpty()) {
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(lineAccountIds)) {
+                lineAccountNamesById.put(a.getId(), a.getName());
+            }
+        }
+        model.addAttribute("lineAccountNamesById", lineAccountNamesById);
         // Inbound attachment thumbnails — fetch every attachment linked to any IN-message
         // in this thread, group by message_id so the template can render the badge + grid.
         java.util.Map<Long, java.util.List<com.crm.entity.ReplyPageAttachment>> attsByMsg

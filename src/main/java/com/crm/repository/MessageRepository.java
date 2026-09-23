@@ -52,6 +52,19 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
                                     @org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now);
 
     /**
+     * Same as {@link #markReadByUserAndDirection} but for many users in one UPDATE — used when
+     * an automated send (auto-reply, diff-schedule broadcast) is itself the thing that marks a
+     * customer's prior inbound as handled, rather than an admin opening the thread.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Query(
+            "UPDATE Message m SET m.readAt = :now WHERE m.userId IN :userIds AND m.direction = :dir AND m.readAt IS NULL")
+    int markReadByUsersAndDirection(@org.springframework.data.repository.query.Param("userIds") java.util.Collection<Long> userIds,
+                                     @org.springframework.data.repository.query.Param("dir") String direction,
+                                     @org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now);
+
+    /**
      * Bulk-flip all QUEUED messages of a broadcast to CANCELLED in one UPDATE. Replaces the
      * old per-row save loop in BroadcastService.cancel(), which on a 5K-row broadcast took
      * long enough that the dispatcher's race gate could not stop the leak in time.

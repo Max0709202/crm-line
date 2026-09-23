@@ -185,7 +185,14 @@ public class LineWebhookService {
         try {
             com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
             form.setBody(match.get().getReplyBody());
+            Integer delay = match.get().getDelayMinutes();
+            if (delay != null && delay > 0) {
+                form.setScheduledAt(java.time.LocalDateTime.now().plusMinutes(delay));
+            }
             messageService.composeLine(lineUser.getCrmUserId(), null, form);
+            // 既読 marking now happens inside MessageService.sendNow() itself, at the moment
+            // the reply actually sends — correct for both immediate and 何分後に返信-delayed
+            // auto-replies (see sendNow()'s non-broadcast OUT-send branch).
             log.info("[LINE] auto-reply sent: account={} ruleId={} trigger={}",
                     account.getId(), match.get().getId(), triggerType);
         } catch (Exception e) {

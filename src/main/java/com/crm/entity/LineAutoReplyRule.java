@@ -40,6 +40,12 @@ public class LineAutoReplyRule {
     @Column(name = "REPLY_BODY", columnDefinition = "LONGTEXT", nullable = false)
     private String replyBody;
 
+    /** 何分後に返信 — 0 sends immediately (unchanged default behavior); &gt;0 queues the reply
+     *  and lets the existing QUEUED-message dispatcher send it once that many minutes have
+     *  passed (see LineWebhookService#sendAutoReplyIfMatched). */
+    @Column(name = "DELAY_MINUTES", nullable = false)
+    private Integer delayMinutes;
+
     @Column(name = "IS_ACTIVE")
     private Boolean isActive;
 
@@ -58,6 +64,7 @@ public class LineAutoReplyRule {
         updatedAt = now;
         if (isActive == null) isActive = true;
         if (sortOrder == null) sortOrder = 0;
+        if (delayMinutes == null) delayMinutes = 0;
     }
 
     @PreUpdate
@@ -79,6 +86,8 @@ public class LineAutoReplyRule {
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+    public Integer getDelayMinutes() { return delayMinutes; }
+    public void setDelayMinutes(Integer delayMinutes) { this.delayMinutes = delayMinutes; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

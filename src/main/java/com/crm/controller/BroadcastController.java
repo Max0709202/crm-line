@@ -250,6 +250,7 @@ public class BroadcastController {
 
     @GetMapping("/new")
     public String createForm(@RequestParam(name = "userIds", required = false) List<Long> userIds,
+                              @RequestParam(name = "channel", required = false) String channelParam,
                               HttpSession session,
                               Model model) {
         // Fall back to session if the GET has no userIds query string — this is the
@@ -266,6 +267,11 @@ public class BroadcastController {
         }
         String channel = (String) session.getAttribute("broadcastSelectedChannel");
         session.removeAttribute("broadcastSelectedChannel");
+        // No preselected-users session (e.g. direct "LINE一斉送信を作成" link from the
+        // history list page) — fall back to the plain query-string channel instead.
+        if (channel == null && ("SMS".equals(channelParam) || "LINE".equals(channelParam))) {
+            channel = channelParam;
+        }
         if (!model.containsAttribute("form")) {
             BroadcastForm f = new BroadcastForm();
             if (userIds != null && !userIds.isEmpty()) f.setTargetUserIds(userIds);

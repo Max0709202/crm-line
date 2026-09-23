@@ -34,12 +34,16 @@
 
     <p class="text-sm text-slate-500 mb-4">
         1つの親LINEアカウントに対し、最大100件程度の子アカウントを登録できます。
+        <br><br>
         Channel Secret / Access Tokenは常にAES-256で暗号化して保存され、画面には表示されません。
+        <br><br>
         「グループモード」を有効にしたアカウントで送信すると、担当者ごとの表示名/アイコンで送信されます
         （<a class="text-blue-600 hover:underline" th:href="@{/manager/line-settings/my-persona}">自分のLINE表示名/アイコン</a>で設定）。
+        <br><br>
         各アカウントのChannel IDの下に表示されているURLは、LINE Developersコンソールの該当アカウント「Messaging API」タブの
-        「Webhook URL」欄に貼り付けて「Verify」→「Webhookの利用」をONにしてください。これを設定しないと、
-        友達追加やメッセージが届いても本システムには反映されません。
+        「Webhook URL」欄に貼り付けて「Verify」→「Webhookの利用」をONにしてください。
+        <br>
+        これを設定しないと、友達追加やメッセージが届いても本システムには反映されません。
     </p>
 
     <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-center gap-3">

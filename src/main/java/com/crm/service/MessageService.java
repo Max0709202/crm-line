@@ -257,6 +257,18 @@ public class MessageService {
     }
 
     /**
+     * Same as {@link #markThreadAsRead} but for many users at once — called when an automated
+     * send (LINE auto-reply, diff-schedule broadcast) is itself what handles a customer's prior
+     * inbound, at the moment that send actually happens, rather than waiting for an admin to
+     * later open the thread manually (2026-09-23 client request).
+     */
+    @Transactional
+    public int markThreadsAsRead(java.util.Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) return 0;
+        return messageRepository.markReadByUsersAndDirection(userIds, Message.DIR_IN, LocalDateTime.now());
+    }
+
+    /**
      * Predicate excluding broadcast-related messages from /manager/messages.
      *   \u2022 OUT dispatched by a broadcast (broadcastId NOT NULL) \u2014 handled by /broadcast page
      *   \u2022 IN replying to such an OUT (replyToMessageId points to a broadcast OUT) \u2014 same
@@ -765,6 +777,14 @@ public class MessageService {
             } catch (Exception e) {
                 // defensive — don't fail a send because counter update failed
             }
+        } else if (Message.DIR_OUT.equals(msg.getDirection()) && msg.getUserId() != null) {
+            // 送信時点で既読 — an individual (non-broadcast) OUT send to this user IS the
+            // response to whatever they had pending, whether it was dispatched immediately
+            // or (LINE auto-reply's 何分後に返信) only just now after sitting QUEUED. Covers
+            // auto-reply at whatever moment it actually fires, without a separate call at
+            // compose/queue time that would fire too early for a delayed reply
+            // (2026-09-23 client request).
+            markThreadAsRead(msg.getUserId());
         }
     }
 

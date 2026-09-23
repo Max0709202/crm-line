@@ -27,6 +27,16 @@ public class DiffStep {
     public static final String CHANNEL_SMS = "SMS";
     public static final String CHANNEL_LINE = "LINE";
 
+    /**
+     * Sentinel {@code lineAccountId} meaning "whichever LINE account this recipient is
+     * actually linked to at fire time" (「紐づきアカ」), instead of one fixed account chosen
+     * when the step was configured. Never collides with a real id (auto-increment starts at
+     * 1), so no schema change is needed to support it — resolved per-recipient only at
+     * {@link com.crm.service.DiffScheduleService} execution time (2026-09-23 client request:
+     * "差分ステップが発動する時点で紐づいているアカウント").
+     */
+    public static final Long LINE_ACCOUNT_LINKED_DYNAMIC = -1L;
+
     /** 当日 (分後). */
     public static final String OFFSET_MINUTES = "MINUTES";
     /** 翌日以降 (日数+時刻). */

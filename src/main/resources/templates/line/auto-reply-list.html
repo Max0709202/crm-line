@@ -24,6 +24,7 @@
                 <tr>
                     <th class="px-3 py-2 text-left" style="width:70px;">順序</th>
                     <th class="px-3 py-2 text-left" style="width:140px;">トリガー</th>
+                    <th class="px-3 py-2 text-left" style="width:100px;">返信タイミング</th>
                     <th class="px-3 py-2 text-left">返信本文</th>
                     <th class="px-3 py-2 text-left" style="width:90px;">状態</th>
                     <th class="px-3 py-2 text-right" style="width:140px;">操作</th>
@@ -31,7 +32,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 <tr th:if="${rules == null or rules.empty}">
-                    <td colspan="5" class="px-3 py-6 text-center text-slate-400">自動返信ルールはまだ登録されていません</td>
+                    <td colspan="6" class="px-3 py-6 text-center text-slate-400">自動返信ルールはまだ登録されていません</td>
                 </tr>
                 <tr th:each="r : ${rules}">
                     <td class="px-3 py-2 text-slate-500" th:text="${r.sortOrder}"></td>
@@ -40,6 +41,8 @@
                         <span th:if="${r.triggerType == 'KEYWORD'}" class="px-2 py-0.5 text-xs rounded bg-amber-100 text-amber-700"
                               th:text="'キーワード: ' + ${r.keyword}"></span>
                     </td>
+                    <td class="px-3 py-2 text-slate-500 text-xs"
+                        th:text="${r.delayMinutes != null and r.delayMinutes > 0} ? (${r.delayMinutes} + '分後') : '即時'"></td>
                     <td class="px-3 py-2 text-slate-700 max-w-md truncate" th:text="${r.replyBody}"></td>
                     <td class="px-3 py-2">
                         <form method="post" th:action="@{'/manager/line-settings/' + ${account.id} + '/auto-reply/' + ${r.id} + '/toggle-active'}">
@@ -71,6 +74,9 @@
                 <label class="text-sm text-slate-600"><input type="radio" th:field="*{triggerType}" value="KEYWORD"/> キーワード一致時</label>
                 <input type="text" th:field="*{keyword}" placeholder="キーワード（キーワード一致時のみ）" class="tw-input" style="width:200px;"/>
                 <input type="number" th:field="*{sortOrder}" placeholder="順序 (小さいほど先)" class="tw-input" style="width:140px;"/>
+                <label class="text-sm text-slate-600 flex items-center gap-1">
+                    <input type="number" th:field="*{delayMinutes}" min="0" max="1440" placeholder="0" class="tw-input" style="width:80px;"/> 分後に返信
+                </label>
             </div>
             <textarea th:field="*{replyBody}" rows="3" class="tw-input w-full mb-3" placeholder="自動返信の本文"></textarea>
             <p class="text-xs text-rose-600 mb-2" th:if="${#fields.hasErrors('*')}" th:errors="*{*}"></p>

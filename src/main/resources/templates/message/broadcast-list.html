@@ -45,6 +45,8 @@
            th:href="@{/manager/messages}">← 個別メッセージ管理へ</a>
         <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md"
            th:href="@{/manager/messages/broadcast/summary}">一斉送信サマリー</a>
+        <a class="inline-flex items-center px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;"
+           th:href="@{/manager/messages/broadcast/new(channel='LINE')}">LINE一斉送信を作成</a>
     </div>
 
     <!-- Address search bar -->

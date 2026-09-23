@@ -45,8 +45,15 @@ public class LineAutoReplyService {
                 ? form.getKeyword().trim() : null);
         r.setReplyBody(form.getReplyBody());
         r.setSortOrder(form.getSortOrder() == null ? 0 : form.getSortOrder());
+        r.setDelayMinutes(clampDelay(form.getDelayMinutes()));
         r.setIsActive(true);
         return repository.save(r);
+    }
+
+    /** 0〜1440分（1日）にクランプ — 未入力は即時送信として0扱い。 */
+    private static Integer clampDelay(Integer minutes) {
+        if (minutes == null || minutes < 0) return 0;
+        return Math.min(minutes, 1440);
     }
 
     @Transactional
