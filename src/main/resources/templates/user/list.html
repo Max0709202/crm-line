@@ -426,8 +426,14 @@
                         <td th:text="${u.email}"></td>
                         <td th:text="${u.displayName}"></td>
                         <td class="text-xs text-slate-500">
-                            <span th:if="${lineLinkedUserIds.contains(u.id)}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                                  style="background:#d9f7e6;color:#046c3a;">LINE</span>
+                            <div th:if="${lineLinkedUserIds.contains(u.id)}">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                      style="background:#d9f7e6;color:#046c3a;">LINE</span>
+                                <span th:if="${lineAccountNamesByUserId.get(u.id) != null and lineAccountNamesByUserId.get(u.id).size() > 1}"
+                                      class="text-amber-500" title="複数のLINEアカウントに紐づいています">★</span>
+                                <div class="text-slate-500 whitespace-nowrap"
+                                     th:text="${lineAccountNamesByUserId.get(u.id) != null} ? ${#strings.listJoin(lineAccountNamesByUserId.get(u.id), ' / ')} : ''"></div>
+                            </div>
                             <span th:unless="${lineLinkedUserIds.contains(u.id)}" th:text="${u.carrierDomain} ? ('@' + ${u.carrierDomain}) : '-'"></span>
                         </td>
                         <td>

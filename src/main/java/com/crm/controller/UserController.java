@@ -60,6 +60,7 @@ public class UserController {
     private final com.crm.service.MessageBoxService messageBoxService;
     private final com.crm.service.DiffScheduleService diffScheduleService;
     private final com.crm.repository.LineUserRepository lineUserRepository;
+    private final com.crm.repository.LineAccountRepository lineAccountRepository;
 
     public UserController(CrmUserService service,
                           CarrierBindingService bindingService,
@@ -77,7 +78,8 @@ public class UserController {
                           com.crm.service.ReplyAttachmentService attachmentService,
                           com.crm.service.MessageBoxService messageBoxService,
                           com.crm.service.DiffScheduleService diffScheduleService,
-                          com.crm.repository.LineUserRepository lineUserRepository) {
+                          com.crm.repository.LineUserRepository lineUserRepository,
+                          com.crm.repository.LineAccountRepository lineAccountRepository) {
         this.service = service;
         this.bindingService = bindingService;
         this.placeholderService = placeholderService;
@@ -95,6 +97,7 @@ public class UserController {
         this.messageBoxService = messageBoxService;
         this.diffScheduleService = diffScheduleService;
         this.lineUserRepository = lineUserRepository;
+        this.lineAccountRepository = lineAccountRepository;
     }
 
     /** Active ad-code choices for autocomplete on the user-detail form. */
@@ -141,6 +144,28 @@ public class UserController {
                 ? java.util.Collections.emptySet()
                 : new java.util.HashSet<>(lineUserRepository.findLinkedCrmUserIds(pageUserIds));
         model.addAttribute("lineLinkedUserIds", lineLinkedUserIds);
+        // Which LINE account name(s) each of this page's LINE-linked users is actually
+        // friended with — shown alongside the LINE badge so an admin picking targets for a
+        // broadcast doesn't have to separately check each one. A user can be friends with
+        // more than one child account at once; that case is flagged with a ★ (client request
+        // 2026-09-26, mirrors the diff-schedule screen's already-shown 紐づいているLINEアカウント名).
+        java.util.Map<Long, java.util.List<String>> lineAccountNamesByUserId = new java.util.HashMap<>();
+        if (!lineLinkedUserIds.isEmpty()) {
+            java.util.List<com.crm.entity.LineUser> links =
+                    lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(lineLinkedUserIds);
+            java.util.Set<Long> accountIds = new java.util.HashSet<>();
+            for (com.crm.entity.LineUser lu : links) accountIds.add(lu.getLineAccountId());
+            java.util.Map<Long, String> accountNameById = new java.util.HashMap<>();
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(accountIds)) {
+                accountNameById.put(a.getId(), a.getName());
+            }
+            for (com.crm.entity.LineUser lu : links) {
+                lineAccountNamesByUserId
+                        .computeIfAbsent(lu.getCrmUserId(), k -> new java.util.ArrayList<>())
+                        .add(accountNameById.getOrDefault(lu.getLineAccountId(), "不明"));
+            }
+        }
+        model.addAttribute("lineAccountNamesByUserId", lineAccountNamesByUserId);
         // Configurable folder choices for the filter + bulk-move control.
         model.addAttribute("folders", folderSettingService.listFolders());
         // Active carrier-pool addresses for the bulk-bind dropdown.
