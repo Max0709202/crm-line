@@ -23,6 +23,9 @@ public class DiffSchedule {
     public static final String TARGET_PHONE = "PHONE";
     public static final String TARGET_EMAIL = "EMAIL";
     public static final String TARGET_FOLDER = "FOLDER";
+    /** Matches on the LINE display name of whichever LineUser a CrmUser is linked to, not on
+     *  anything stored on CrmUser itself (client request 2026-09-25). */
+    public static final String TARGET_LINE_NAME = "LINE_NAME";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -136,6 +136,9 @@ public class DiffScheduleService {
     }
 
     private List<Long> resolveTargetIds(String targetType, String targetRaw) {
+        if (DiffSchedule.TARGET_LINE_NAME.equals(targetType)) {
+            return resolveLineNameTargetIds(targetRaw);
+        }
         UserSearchForm form = new UserSearchForm();
         if (DiffSchedule.TARGET_PHONE.equals(targetType)) {
             form.setPhoneNumber(targetRaw);
@@ -147,6 +150,20 @@ public class DiffScheduleService {
             throw new IllegalArgumentException("unknown target type: " + targetType);
         }
         return crmUserService.findIdsBySearch(form, null);
+    }
+
+    /** LINE display-name matching lives on LineUser, not CrmUser, so it can't go through
+     *  UserSearchForm/buildSpecification like phone/email/folder — resolved separately here,
+     *  with the same newline-separated-multi-value convention as the phone/email textareas. */
+    private List<Long> resolveLineNameTargetIds(String targetRaw) {
+        if (targetRaw == null || targetRaw.trim().isEmpty()) return java.util.Collections.emptyList();
+        java.util.Set<Long> ids = new java.util.LinkedHashSet<>();
+        for (String line : targetRaw.split("\\r?\\n")) {
+            String t = line.trim();
+            if (t.isEmpty()) continue;
+            ids.addAll(lineUserRepository.findLinkedCrmUserIdsByDisplayNameContaining(t));
+        }
+        return new java.util.ArrayList<>(ids);
     }
 
     /**

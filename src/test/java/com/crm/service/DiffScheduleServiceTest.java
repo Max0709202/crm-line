@@ -197,6 +197,22 @@ class DiffScheduleServiceTest {
     }
 
     @Test
+    void register_lineName_resolvesViaLineUserDisplayNameNotCrmUserSearch() {
+        when(definitionRepo.findById(3L)).thenReturn(Optional.of(definition(3L, "diffC")));
+        when(stepRepo.findByDiffDefinitionIdOrderByStepOrderAsc(3L)).thenReturn(Arrays.asList(
+                messageStep(3L, 0, DiffStep.OFFSET_MINUTES, 5, null, null, DiffStep.CHANNEL_SMS, "body")));
+        when(lineUserRepository.findLinkedCrmUserIdsByDisplayNameContaining("ゆたか"))
+                .thenReturn(Arrays.asList(50L));
+        when(lineUserRepository.findLinkedCrmUserIdsByDisplayNameContaining("Happy"))
+                .thenReturn(Arrays.asList(39L));
+
+        DiffSchedule saved = svc.register(3L, DiffSchedule.TARGET_LINE_NAME, "ゆたか\nHappy", 9L, "admin");
+
+        assertThat(saved.getTargetUserIds()).isEqualTo("50,39");
+        verify(crmUserService, never()).findIdsBySearch(any(UserSearchForm.class), any());
+    }
+
+    @Test
     void register_throwsWhenDefinitionNotFound() {
         when(definitionRepo.findById(99L)).thenReturn(Optional.empty());
 

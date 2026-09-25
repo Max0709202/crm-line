@@ -32,4 +32,12 @@ public interface LineUserRepository extends JpaRepository<LineUser, Long> {
     @org.springframework.data.jpa.repository.Query(
             "SELECT DISTINCT lu.crmUserId FROM LineUser lu WHERE lu.crmUserId IN :crmUserIds")
     List<Long> findLinkedCrmUserIds(@org.springframework.data.repository.query.Param("crmUserIds") java.util.Collection<Long> crmUserIds);
+
+    /** Resolves a partial LINE display-name match to linked CrmUser ids — drives 差分スケジュール
+     *  の「LINE名前縛り」(client request 2026-09-25). Same partial/case-insensitive convention
+     *  as the phone/email target-type matching in CrmUserService. */
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT DISTINCT lu.crmUserId FROM LineUser lu " +
+            "WHERE lu.crmUserId IS NOT NULL AND LOWER(lu.lineDisplayName) LIKE LOWER(CONCAT('%', :name, '%'))")
+    List<Long> findLinkedCrmUserIdsByDisplayNameContaining(@org.springframework.data.repository.query.Param("name") String name);
 }

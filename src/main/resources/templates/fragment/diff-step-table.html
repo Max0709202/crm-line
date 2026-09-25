@@ -61,6 +61,7 @@
             <span th:if="${sched.targetType == 'PHONE'}">番号縛り</span>
             <span th:if="${sched.targetType == 'EMAIL'}">アドレス縛り</span>
             <span th:if="${sched.targetType == 'FOLDER'}" th:text="'フォルダ: ' + ${sched.targetValue}"></span>
+            <span th:if="${sched.targetType == 'LINE_NAME'}">LINE名前縛り</span>
         </td>
         <td class="px-2 py-1.5 text-xs text-slate-400" th:if="${sched == null}">-</td>
         <td class="px-2 py-1.5 text-slate-700" th:text="${sched != null ? sched.diffNameSnapshot : '-'}"></td>

@@ -45,6 +45,7 @@
                         <label><input type="radio" name="targetTypeRadio" value="PHONE" onchange="switchTargetPanel('PHONE')" checked/> 番号縛り</label>
                         <label><input type="radio" name="targetTypeRadio" value="EMAIL" onchange="switchTargetPanel('EMAIL')"/> アドレス縛り</label>
                         <label><input type="radio" name="targetTypeRadio" value="FOLDER" onchange="switchTargetPanel('FOLDER')"/> フォルダ縛り</label>
+                        <label><input type="radio" name="targetTypeRadio" value="LINE_NAME" onchange="switchTargetPanel('LINE_NAME')"/> LINE名前縛り</label>
                     </div>
                     <input type="hidden" name="targetType" id="targetTypeField" value="PHONE"/>
 
@@ -59,6 +60,9 @@
                             <option value="">選択してください</option>
                             <option th:each="f : ${folders}" th:value="${f}" th:text="${f}"></option>
                         </select>
+                    </div>
+                    <div class="target-panel" data-panel="LINE_NAME">
+                        <textarea class="tw-input" rows="3" placeholder="LINEの表示名を改行区切りで入力（部分一致）" id="targetRawLineName"></textarea>
                     </div>
                     <input type="hidden" name="targetRaw" id="targetRawField"/>
                 </div>
@@ -96,6 +100,7 @@
                                 <span th:if="${sched.targetType == 'PHONE'}">番号</span>
                                 <span th:if="${sched.targetType == 'EMAIL'}">アドレス</span>
                                 <span th:if="${sched.targetType == 'FOLDER'}" th:text="'フォルダ:' + ${sched.targetValue}"></span>
+                                <span th:if="${sched.targetType == 'LINE_NAME'}">LINE名前</span>
                             </td>
                             <td class="px-2 py-1.5 text-right" th:if="${sched != null}">
                                 <a class="font-mono text-blue-600 hover:underline"
@@ -124,7 +129,7 @@
 
             <!-- 条件で一括取消 -->
             <div class="mt-4 pt-4 border-t border-slate-100">
-                <h3 class="text-xs font-semibold text-slate-600 mb-2">条件で一括取消（残りステップすべて）</h3>
+                <h3 class="text-xs font-semibold text-slate-600 mb-2">LINE名前で一括削除（残りステップすべて）</h3>
                 <div class="flex items-end gap-4 flex-wrap">
                     <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-target}"
                           class="flex items-end gap-2 flex-wrap"
@@ -175,6 +180,17 @@
                         </div>
                         <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">アドレスで一括取消</button>
                     </form>
+                    <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-user-search}"
+                          class="flex items-end gap-2 flex-wrap"
+                          onsubmit="return confirm('条件に一致する保留中のステップをすべて取消します。よろしいですか?');">
+                        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                        <input type="hidden" name="targetType" value="LINE_NAME"/>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">LINE名前</label>
+                            <input type="text" name="query" class="tw-input" style="font-size:.8rem;" placeholder="部分一致"/>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">LINE名前で一括取消</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -193,6 +209,7 @@
             if (type === 'PHONE') raw = document.getElementById('targetRawPhone').value;
             else if (type === 'EMAIL') raw = document.getElementById('targetRawEmail').value;
             else if (type === 'FOLDER') raw = document.getElementById('targetRawFolder').value;
+            else if (type === 'LINE_NAME') raw = document.getElementById('targetRawLineName').value;
             if (!raw || !raw.trim()) {
                 alert('対象を指定してください');
                 return false;
