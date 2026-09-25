@@ -1011,13 +1011,13 @@ function formatFolderLabel(values) {
                 i.type = 'hidden'; i.name = 'userIds'; i.value = id;
                 f.appendChild(i);
             });
-            if (channel === 'SMS') {
+            if (channel === 'SMS' || channel === 'LINE') {
                 var ch = document.createElement('input');
-                ch.type = 'hidden'; ch.name = 'channel'; ch.value = 'SMS';
+                ch.type = 'hidden'; ch.name = 'channel'; ch.value = channel;
                 f.appendChild(ch);
             }
-        } else if (channel === 'SMS' && folders.length === 0) {
-            alert('SMS配信するユーザーを選択するか、フォルダで絞り込んでください。');
+        } else if ((channel === 'SMS' || channel === 'LINE') && folders.length === 0) {
+            alert((channel === 'LINE' ? 'LINE' : 'SMS') + '配信するユーザーを選択するか、フォルダで絞り込んでください。');
             return;
         } else if (folders.length > 0) {
             // Folder-scope broadcast (no row checks, folder filter committed). Forward every
@@ -1045,14 +1045,14 @@ function formatFolderLabel(values) {
                     ? '実際の対象 ' + actualTarget.toLocaleString() + ' 名 (現在の絞り込み)'
                     : '上限 ' + (lim > 0 ? lim.toLocaleString() : '') + ' 名';
             var folderWord = folders.length === 1 ? 'フォルダ' : 'フォルダ (' + folders.length + ' 件)';
-            var smsWord = channel === 'SMS' ? 'SMS' : '';
-            if (!confirm(folderWord + '「' + srcLabel + '」+ 現在の絞り込み条件で' + smsWord + '一斉送信します。\n' + actualText + '\n次の画面で本文を作成後に確定送信となります。よろしいですか?')) return;
+            var channelWord = (channel === 'SMS' || channel === 'LINE') ? channel : '';
+            if (!confirm(folderWord + '「' + srcLabel + '」+ 現在の絞り込み条件で' + channelWord + '一斉送信します。\n' + actualText + '\n次の画面で本文を作成後に確定送信となります。よろしいですか?')) return;
 
             f.action = '/manager/messages/broadcast/new-from-folder';
             copyCsrf();
-            if (channel === 'SMS') {
+            if (channel === 'SMS' || channel === 'LINE') {
                 var chf = document.createElement('input');
-                chf.type = 'hidden'; chf.name = 'channel'; chf.value = 'SMS';
+                chf.type = 'hidden'; chf.name = 'channel'; chf.value = channel;
                 f.appendChild(chf);
             }
             // Mirror the URL's full filter set into the POST body so the server can re-apply
