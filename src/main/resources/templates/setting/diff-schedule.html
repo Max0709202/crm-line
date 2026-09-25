@@ -129,7 +129,7 @@
 
             <!-- 条件で一括取消 -->
             <div class="mt-4 pt-4 border-t border-slate-100">
-                <h3 class="text-xs font-semibold text-slate-600 mb-2">LINE名前で一括削除（残りステップすべて）</h3>
+                <h3 class="text-xs font-semibold text-slate-600 mb-2">条件で一括取消（残りステップすべて）</h3>
                 <div class="flex items-end gap-4 flex-wrap">
                     <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-target}"
                           class="flex items-end gap-2 flex-wrap"
@@ -189,7 +189,7 @@
                             <label class="block text-xs text-slate-500 mb-1">LINE名前</label>
                             <input type="text" name="query" class="tw-input" style="font-size:.8rem;" placeholder="部分一致"/>
                         </div>
-                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">LINE名前で一括取消</button>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">LINE名で一括削除</button>
                     </form>
                 </div>
             </div>
