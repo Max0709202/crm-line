@@ -5,6 +5,7 @@ import com.crm.entity.LineAccount;
 import com.crm.line.LineApiClient;
 import com.crm.line.dto.LineBotInfoResponse;
 import com.crm.repository.LineAccountRepository;
+import com.crm.repository.LineUserRepository;
 import com.crm.util.AesEncryptionUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ class LineAccountServiceTest {
     private LineAccountRepository repo;
     private AesEncryptionUtil aes;
     private LineApiClient lineApiClient;
+    private LineUserRepository lineUserRepository;
     private LineAccountService svc;
 
     @BeforeEach
@@ -33,6 +35,7 @@ class LineAccountServiceTest {
         repo = mock(LineAccountRepository.class);
         aes = mock(AesEncryptionUtil.class);
         lineApiClient = mock(LineApiClient.class);
+        lineUserRepository = mock(LineUserRepository.class);
         when(aes.encrypt(anyString())).thenAnswer(inv -> "ENC(" + inv.getArgument(0) + ")");
         when(aes.decrypt(anyString())).thenAnswer(inv -> {
             String s = inv.getArgument(0);
@@ -43,7 +46,7 @@ class LineAccountServiceTest {
             if (a.getId() == null) a.setId(99L);
             return a;
         });
-        svc = new LineAccountService(repo, aes, lineApiClient);
+        svc = new LineAccountService(repo, aes, lineApiClient, lineUserRepository);
     }
 
     private static LineAccountForm form(Long parentId, String channelId, String secret, String token) {
@@ -187,5 +190,63 @@ class LineAccountServiceTest {
     void listParents_delegatesToRepository() {
         when(repo.findByParentAccountIdIsNullOrderByNameAsc()).thenReturn(Collections.singletonList(parent(1L)));
         assertThat(svc.listParents()).hasSize(1);
+    }
+
+    // ---- resolveDynamicLinkedAccountIds ----
+
+    @Test
+    void resolveDynamicLinkedAccountIds_picksLowestPriorityAccountWhenLinkedToMultiple() {
+        com.crm.entity.LineUser toLowPriority = new com.crm.entity.LineUser();
+        toLowPriority.setCrmUserId(1L);
+        toLowPriority.setLineAccountId(10L);
+        com.crm.entity.LineUser toHighPriority = new com.crm.entity.LineUser();
+        toHighPriority.setCrmUserId(1L);
+        toHighPriority.setLineAccountId(20L);
+        // Ordered by lastMessageAt DESC as the real repository call would return — the
+        // most-recently-active link (account 20) comes first, but it should still lose to
+        // account 10's better (lower) priority.
+        when(lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(Collections.singletonList(1L)))
+                .thenReturn(java.util.Arrays.asList(toHighPriority, toLowPriority));
+
+        LineAccount account10 = parent(10L);
+        account10.setLinkagePriority(5);
+        LineAccount account20 = parent(20L);
+        account20.setLinkagePriority(50);
+        when(repo.findAllById(any())).thenReturn(java.util.Arrays.asList(account10, account20));
+
+        java.util.Map<Long, Long> result = svc.resolveDynamicLinkedAccountIds(Collections.singletonList(1L));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(1L)).isEqualTo(10L);
+    }
+
+    @Test
+    void resolveDynamicLinkedAccountIds_tieBreaksByMostRecentlyActiveWhenPrioritiesEqual() {
+        com.crm.entity.LineUser mostRecent = new com.crm.entity.LineUser();
+        mostRecent.setCrmUserId(1L);
+        mostRecent.setLineAccountId(20L);
+        com.crm.entity.LineUser older = new com.crm.entity.LineUser();
+        older.setCrmUserId(1L);
+        older.setLineAccountId(10L);
+        when(lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(Collections.singletonList(1L)))
+                .thenReturn(java.util.Arrays.asList(mostRecent, older));
+
+        LineAccount account10 = parent(10L);
+        account10.setLinkagePriority(50);
+        LineAccount account20 = parent(20L);
+        account20.setLinkagePriority(50);
+        when(repo.findAllById(any())).thenReturn(java.util.Arrays.asList(account10, account20));
+
+        java.util.Map<Long, Long> result = svc.resolveDynamicLinkedAccountIds(Collections.singletonList(1L));
+
+        assertThat(result.get(1L)).isEqualTo(20L);
+    }
+
+    @Test
+    void resolveDynamicLinkedAccountIds_omitsUsersWithNoLink() {
+        when(lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(Collections.singletonList(1L)))
+                .thenReturn(Collections.emptyList());
+
+        assertThat(svc.resolveDynamicLinkedAccountIds(Collections.singletonList(1L))).isEmpty();
     }
 }

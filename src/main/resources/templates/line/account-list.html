@@ -106,6 +106,8 @@
                     <td class="px-3 py-2 font-semibold text-slate-800">
                         <span th:text="${p.name}"></span>
                         <span class="ml-1 text-xs text-slate-400">(親)</span>
+                        <span class="ml-1 text-xs text-slate-400" title="紐づけ優先順位（小さいほど優先）"
+                              th:text="'優先度:' + ${p.linkagePriority}"></span>
                     </td>
                     <td class="px-3 py-2 text-slate-600 font-mono text-xs">
                         <div th:text="${p.channelId}"></div>
@@ -172,6 +174,8 @@
                     <td class="px-3 py-2"><input type="checkbox" class="line-row-item" name="ids" th:value="${c.id}"/></td>
                     <td class="px-3 py-2 text-slate-700">
                         <span class="text-slate-400">└</span> <span th:text="${c.name}"></span>
+                        <span class="ml-1 text-xs text-slate-400" title="紐づけ優先順位（小さいほど優先）"
+                              th:text="'優先度:' + ${c.linkagePriority}"></span>
                     </td>
                     <td class="px-3 py-2 text-slate-600 font-mono text-xs">
                         <div th:text="${c.channelId}"></div>

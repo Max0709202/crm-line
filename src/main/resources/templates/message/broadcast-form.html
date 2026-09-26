@@ -202,11 +202,16 @@
                     <label>送信元LINEアカウント <span class="text-red-500">*</span></label>
                     <select th:field="*{lineAccountId}">
                         <option value="">選択してください</option>
+                        <option value="-1">紐づきアカ（各顧客が実際に紐づいているアカウントから配信）</option>
                         <option th:each="a : ${lineAccounts}" th:value="${a.id}"
                                 th:text="${a.name} + ' (' + ${a.channelId} + ')'"></option>
                     </select>
                     <p class="text-xs text-slate-500" style="margin-top:2px;">
                         選択したアカウントと連携済みの顧客のみに送信されます（未連携の顧客はスキップされます）。
+                    </p>
+                    <p class="text-xs" style="margin-top:2px; color:#dc2626;">
+                        ※「紐づきアカ」は配信時点で紐づいているアカウントから配信されます。1人の顧客が複数のLINEアカウントに
+                        友だち追加している場合は、LINE設定で優先順位が高い（数字が小さい）アカウントから、1通のみ配信されます。
                     </p>
                 </div>
 

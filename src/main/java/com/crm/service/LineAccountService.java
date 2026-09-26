@@ -4,14 +4,19 @@ import com.crm.dto.LineAccountForm;
 import com.crm.entity.LineAccount;
 import com.crm.line.LineApiClient;
 import com.crm.line.dto.LineBotInfoResponse;
+import com.crm.entity.LineUser;
 import com.crm.repository.LineAccountRepository;
+import com.crm.repository.LineUserRepository;
 import com.crm.util.AesEncryptionUtil;
 import com.crm.util.TokenGenerator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -28,11 +33,59 @@ public class LineAccountService {
     private final LineAccountRepository repository;
     private final AesEncryptionUtil aes;
     private final LineApiClient lineApiClient;
+    private final LineUserRepository lineUserRepository;
 
-    public LineAccountService(LineAccountRepository repository, AesEncryptionUtil aes, LineApiClient lineApiClient) {
+    public LineAccountService(LineAccountRepository repository, AesEncryptionUtil aes, LineApiClient lineApiClient,
+                               LineUserRepository lineUserRepository) {
         this.repository = repository;
         this.aes = aes;
         this.lineApiClient = lineApiClient;
+        this.lineUserRepository = lineUserRepository;
+    }
+
+    /**
+     * For each of the given CrmUser ids, resolves which single LINE account they should be
+     * treated as linked to for a 「紐づきアカ」(dynamic account) broadcast/diff-step send, when
+     * they're friended with more than one child account. The account with the lowest
+     * {@link LineAccount#getLinkagePriority()} wins; ties are broken by whichever link they
+     * most recently messaged on. A recipient with no link at all is simply absent from the
+     * result (client request 2026-09-27 — previously "most recently active" was the only
+     * tie-break, with no admin-controllable ordering, and there was no guarantee against a
+     * recipient ending up in more than one resolved group).
+     */
+    public Map<Long, Long> resolveDynamicLinkedAccountIds(Collection<Long> crmUserIds) {
+        if (crmUserIds == null || crmUserIds.isEmpty()) return java.util.Collections.emptyMap();
+        List<LineUser> links = lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(crmUserIds);
+        if (links.isEmpty()) return java.util.Collections.emptyMap();
+
+        java.util.Set<Long> accountIds = new java.util.HashSet<>();
+        for (LineUser lu : links) accountIds.add(lu.getLineAccountId());
+        Map<Long, Integer> priorityByAccountId = new HashMap<>();
+        for (LineAccount a : repository.findAllById(accountIds)) {
+            priorityByAccountId.put(a.getId(), a.getLinkagePriority() == null ? 100 : a.getLinkagePriority());
+        }
+
+        // links is already ordered by lastMessageAt DESC, so within equal priority the first
+        // one encountered per crmUserId is the most-recently-active — exactly the desired
+        // secondary tie-break.
+        Map<Long, LineUser> bestByCrmUserId = new HashMap<>();
+        for (LineUser lu : links) {
+            LineUser current = bestByCrmUserId.get(lu.getCrmUserId());
+            if (current == null) {
+                bestByCrmUserId.put(lu.getCrmUserId(), lu);
+                continue;
+            }
+            int currentPriority = priorityByAccountId.getOrDefault(current.getLineAccountId(), 100);
+            int candidatePriority = priorityByAccountId.getOrDefault(lu.getLineAccountId(), 100);
+            if (candidatePriority < currentPriority) {
+                bestByCrmUserId.put(lu.getCrmUserId(), lu);
+            }
+        }
+        Map<Long, Long> out = new HashMap<>();
+        for (Map.Entry<Long, LineUser> e : bestByCrmUserId.entrySet()) {
+            out.put(e.getKey(), e.getValue().getLineAccountId());
+        }
+        return out;
     }
 
     public List<LineAccount> listParents() {
@@ -83,6 +136,7 @@ public class LineAccountService {
         a.setAccessToken(aes.encrypt(form.getAccessToken()));
         a.setStatus(LineAccount.STATUS_UNUSED);
         a.setWebhookToken(generateUniqueWebhookToken());
+        a.setLinkagePriority(clampPriority(form.getLinkagePriority()));
         return repository.save(a);
     }
 
@@ -107,7 +161,16 @@ public class LineAccountService {
         if (form.getAccessToken() != null && !form.getAccessToken().trim().isEmpty()) {
             a.setAccessToken(aes.encrypt(form.getAccessToken()));
         }
+        a.setLinkagePriority(clampPriority(form.getLinkagePriority()));
         return repository.save(a);
+    }
+
+    /** 1〜999 にクランプ。未入力はデフォルト(100)扱い。 */
+    private static Integer clampPriority(Integer priority) {
+        if (priority == null) return 100;
+        if (priority < 1) return 1;
+        if (priority > 999) return 999;
+        return priority;
     }
 
     /**

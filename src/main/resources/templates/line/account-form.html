@@ -50,6 +50,16 @@
         </div>
 
         <div class="mb-4">
+            <label class="block text-sm font-medium text-slate-700 mb-1">紐づけ優先順位</label>
+            <input type="number" class="tw-input" style="max-width:140px;" min="1" max="999"
+                   th:field="*{linkagePriority}" placeholder="100"/>
+            <p class="mt-1 text-xs text-slate-500">
+                1人の顧客が複数のLINEアカウントに友だち追加している場合、「紐づきアカ」（一斉送信・差分ステップ）は
+                この数字が小さいアカウントから優先して1通だけ配信します。未入力の場合は100（最低優先）扱いです。
+            </p>
+        </div>
+
+        <div class="mb-4">
             <label class="block text-sm font-medium text-slate-700 mb-1">Channel ID <span class="text-red-500">*</span></label>
             <input type="text" class="tw-input" th:field="*{channelId}"
                    th:classappend="${#fields.hasErrors('channelId')} ? 'border-red-400'"/>

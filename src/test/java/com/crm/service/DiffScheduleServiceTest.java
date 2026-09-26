@@ -49,6 +49,7 @@ class DiffScheduleServiceTest {
     private HtmlImageService htmlImageService;
     private MessageService messageService;
     private LineUserRepository lineUserRepository;
+    private LineAccountService lineAccountService;
     private DiffScheduleService svc;
 
     @BeforeEach
@@ -66,9 +67,11 @@ class DiffScheduleServiceTest {
         htmlImageService = mock(HtmlImageService.class);
         messageService = mock(MessageService.class);
         lineUserRepository = mock(LineUserRepository.class);
+        lineAccountService = mock(LineAccountService.class);
         svc = new DiffScheduleService(scheduleRepo, scheduleStepRepo, definitionRepo, stepRepo,
                 crmUserService, userRepository, broadcastService, broadcastRepository, auditLog,
-                domainSettingService, htmlImageService, messageService, lineUserRepository);
+                domainSettingService, htmlImageService, messageService, lineUserRepository,
+                lineAccountService);
         when(broadcastRepository.save(any(Broadcast.class))).thenAnswer(inv -> inv.getArgument(0));
         when(scheduleRepo.save(any(DiffSchedule.class))).thenAnswer(inv -> {
             DiffSchedule s = inv.getArgument(0);
@@ -493,13 +496,12 @@ class DiffScheduleServiceTest {
         step.setLineAccountId(DiffStep.LINE_ACCOUNT_LINKED_DYNAMIC);
         step.setBodySnapshot("紐づいているアカウントから送信されます");
 
-        com.crm.entity.LineUser lu1 = new com.crm.entity.LineUser();
-        lu1.setCrmUserId(1L); lu1.setLineAccountId(100L);
-        com.crm.entity.LineUser lu2 = new com.crm.entity.LineUser();
-        lu2.setCrmUserId(2L); lu2.setLineAccountId(200L);
         // user 3 has no LineUser row at all — unlinked, dropped from every group.
-        when(lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(Arrays.asList(1L, 2L, 3L)))
-                .thenReturn(Arrays.asList(lu1, lu2));
+        java.util.Map<Long, Long> resolved = new java.util.LinkedHashMap<>();
+        resolved.put(1L, 100L);
+        resolved.put(2L, 200L);
+        when(lineAccountService.resolveDynamicLinkedAccountIds(Arrays.asList(1L, 2L, 3L)))
+                .thenReturn(resolved);
 
         when(domainSettingService.getLineRatePerMinute()).thenReturn(30);
         Broadcast b100 = new Broadcast(); b100.setId(201L); b100.setTotalCount(1);

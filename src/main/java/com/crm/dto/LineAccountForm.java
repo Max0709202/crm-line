@@ -32,6 +32,10 @@ public class LineAccountForm {
     @Size(max = 4000)
     private String accessToken;
 
+    /** 紐づけ優先順位 — lower wins when a customer is friended with more than one account
+     *  (client request 2026-09-27). Null on the form means "keep unchanged"/"default". */
+    private Integer linkagePriority;
+
     public Long getParentAccountId() { return parentAccountId; }
     public void setParentAccountId(Long parentAccountId) { this.parentAccountId = parentAccountId; }
     public String getName() { return name; }
@@ -44,6 +48,8 @@ public class LineAccountForm {
     public void setChannelSecret(String channelSecret) { this.channelSecret = channelSecret; }
     public String getAccessToken() { return accessToken; }
     public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+    public Integer getLinkagePriority() { return linkagePriority; }
+    public void setLinkagePriority(Integer linkagePriority) { this.linkagePriority = linkagePriority; }
 
     public static LineAccountForm from(LineAccount a) {
         LineAccountForm f = new LineAccountForm();
@@ -51,6 +57,7 @@ public class LineAccountForm {
         f.name = a.getName();
         f.officialAccountId = a.getOfficialAccountId();
         f.channelId = a.getChannelId();
+        f.linkagePriority = a.getLinkagePriority();
         // channelSecret/accessToken deliberately left blank — never round-tripped to the UI.
         return f;
     }

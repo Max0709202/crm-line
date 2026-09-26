@@ -42,6 +42,7 @@ public class BroadcastService {
     private final ReplyPageSettingService replyPageSettingService;
     private final SmsSettingService smsSettingService;
     private final LineUserRepository lineUserRepository;
+    private final LineAccountService lineAccountService;
 
     public BroadcastService(BroadcastRepository broadcastRepository,
                             CrmUserRepository userRepository,
@@ -53,7 +54,8 @@ public class BroadcastService {
                             DomainSettingService domainSettingService,
                             ReplyPageSettingService replyPageSettingService,
                             SmsSettingService smsSettingService,
-                            LineUserRepository lineUserRepository) {
+                            LineUserRepository lineUserRepository,
+                            LineAccountService lineAccountService) {
         this.broadcastRepository = broadcastRepository;
         this.userRepository = userRepository;
         this.poolRepository = poolRepository;
@@ -65,6 +67,7 @@ public class BroadcastService {
         this.replyPageSettingService = replyPageSettingService;
         this.smsSettingService = smsSettingService;
         this.lineUserRepository = lineUserRepository;
+        this.lineAccountService = lineAccountService;
     }
 
     public Page<Broadcast> list(int page, int size) {
@@ -434,6 +437,50 @@ public class BroadcastService {
         log.info("LINE broadcast {} created: {} queued (filter matched {}, skipped unlinked {})",
                 saved.getId(), saved.getTotalCount(), targets.size(), unsendableIds.size());
         return saved;
+    }
+
+    /**
+     * 紐づきアカ — {@code form.getLineAccountId()} is the dynamic sentinel
+     * ({@link com.crm.entity.DiffStep#LINE_ACCOUNT_LINKED_DYNAMIC}), so each target is routed
+     * to whichever single LINE account they should be treated as linked to right now (see
+     * {@link LineAccountService#resolveDynamicLinkedAccountIds} — lowest linkage priority wins,
+     * never more than one account per recipient, so exactly one message is ever delivered even
+     * when a recipient friended several accounts). One Broadcast is created per distinct
+     * resolved account by delegating to {@link #createAndQueueLine}, reusing its existing
+     * deliverability/targeting logic unchanged (client request 2026-09-27).
+     */
+    @Transactional(noRollbackFor = NoTargetsException.class)
+    public List<Broadcast> createAndQueueLineDynamic(BroadcastForm form, Long adminUserId) {
+        List<CrmUser> targets = findTargetUsers(form);
+        List<Long> targetIds = new ArrayList<>();
+        for (CrmUser u : targets) targetIds.add(u.getId());
+
+        java.util.Map<Long, Long> resolvedAccountByCrmUserId = lineAccountService.resolveDynamicLinkedAccountIds(targetIds);
+        java.util.Map<Long, List<Long>> idsByAccount = new java.util.LinkedHashMap<>();
+        for (Long id : targetIds) {
+            Long accountId = resolvedAccountByCrmUserId.get(id);
+            if (accountId == null) continue;
+            idsByAccount.computeIfAbsent(accountId, k -> new ArrayList<>()).add(id);
+        }
+        if (idsByAccount.isEmpty()) {
+            throw new NoTargetsException(
+                    "条件に合致し、いずれかのLINEアカウントと連携済みのユーザーが見つかりませんでした。"
+                  + " (絞り込みに合致したユーザー: " + targets.size() + "件)");
+        }
+
+        List<Broadcast> created = new ArrayList<>();
+        for (java.util.Map.Entry<Long, List<Long>> e : idsByAccount.entrySet()) {
+            BroadcastForm sub = new BroadcastForm();
+            sub.setTitle(form.getTitle());
+            sub.setBody(form.getBody());
+            sub.setChannel("LINE");
+            sub.setLineAccountId(e.getKey());
+            sub.setTargetUserIds(e.getValue());
+            sub.setRatePerMinute(form.getRatePerMinute());
+            sub.setScheduledAt(form.getScheduledAt());
+            created.add(createAndQueueLine(sub, adminUserId));
+        }
+        return created;
     }
 
     /**

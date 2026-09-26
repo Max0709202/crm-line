@@ -124,6 +124,10 @@
                                         <option th:each="a : ${lineAccounts}" th:value="${a.id}" th:text="${a.name}"
                                                 th:selected="${a.id == s.lineAccountId}"></option>
                                     </select>
+                                    <p class="text-xs mt-1" style="color:#dc2626;">
+                                        ※「紐づきアカ」は発動時点で紐づいているアカウントから配信されます。1人の顧客が複数のLINEアカウントに
+                                        友だち追加している場合は、LINE設定で優先順位が高い（数字が小さい）アカウントから、1通のみ配信されます。
+                                    </p>
                                 </div>
                                 <div th:id="'imageToggleBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL' or s.channel == 'LINE'} ? '' : 'display:none;'">
                                     <label class="text-xs text-slate-600">
@@ -222,6 +226,10 @@
                             <option value="-1">紐づきアカ（発動時点で紐づいているアカウント）</option>
                             <option th:each="a : ${lineAccounts}" th:value="${a.id}" th:text="${a.name}"></option>
                         </select>
+                        <p class="text-xs mt-1" style="color:#dc2626;">
+                            ※「紐づきアカ」は発動時点で紐づいているアカウントから配信されます。1人の顧客が複数のLINEアカウントに
+                            友だち追加している場合は、LINE設定で優先順位が高い（数字が小さい）アカウントから、1通のみ配信されます。
+                        </p>
                     </div>
                     <div id="imageToggleBoxnew" class="mb-2">
                         <label class="text-xs text-slate-600">

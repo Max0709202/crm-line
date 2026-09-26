@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +45,7 @@ class BroadcastServiceLineTest {
     private ReplyPageSettingService replyPageSettingService;
     private SmsSettingService smsSettingService;
     private LineUserRepository lineUserRepo;
+    private LineAccountService lineAccountService;
     private BroadcastService svc;
 
     @BeforeEach
@@ -59,6 +61,7 @@ class BroadcastServiceLineTest {
         replyPageSettingService = mock(ReplyPageSettingService.class);
         smsSettingService = mock(SmsSettingService.class);
         lineUserRepo = mock(LineUserRepository.class);
+        lineAccountService = mock(LineAccountService.class);
 
         when(replyPageSettingService.getOrCreate()).thenReturn(new com.crm.entity.ReplyPageSetting());
         when(placeholderService.substitute(any(), any(CrmUser.class)))
@@ -72,7 +75,7 @@ class BroadcastServiceLineTest {
 
         svc = new BroadcastService(broadcastRepo, userRepo, poolRepo, bindingService,
                 messageRepo, placeholderService, replyPageService, domainSettingService,
-                replyPageSettingService, smsSettingService, lineUserRepo);
+                replyPageSettingService, smsSettingService, lineUserRepo, lineAccountService);
     }
 
     private static CrmUser user(Long id) {
@@ -120,6 +123,62 @@ class BroadcastServiceLineTest {
         assertThat(m.getChannel()).isEqualTo(Message.CHANNEL_LINE);
         assertThat(m.getLineAccountId()).isEqualTo(5L);
         assertThat(m.getToAddress()).isEqualTo("Ulinked1");
+    }
+
+    @Test
+    void createAndQueueLineDynamic_splitsTargetsIntoOneBroadcastPerResolvedAccount() {
+        when(userRepo.findAllById(Arrays.asList(1L, 2L, 3L)))
+                .thenReturn(Arrays.asList(user(1L), user(2L), user(3L)));
+        when(userRepo.findAllById(Collections.singletonList(1L)))
+                .thenReturn(Collections.singletonList(user(1L)));
+        when(userRepo.findAllById(Collections.singletonList(2L)))
+                .thenReturn(Collections.singletonList(user(2L)));
+
+        java.util.Map<Long, Long> resolved = new java.util.LinkedHashMap<>();
+        resolved.put(1L, 10L);
+        resolved.put(2L, 20L);
+        // user 3 has no resolved account — dropped.
+        when(lineAccountService.resolveDynamicLinkedAccountIds(Arrays.asList(1L, 2L, 3L)))
+                .thenReturn(resolved);
+
+        LineUser lu1 = new LineUser();
+        lu1.setCrmUserId(1L);
+        lu1.setLineUserId("Uone");
+        when(lineUserRepo.findByLineAccountIdAndCrmUserIdIn(10L, Collections.singletonList(1L)))
+                .thenReturn(Collections.singletonList(lu1));
+        LineUser lu2 = new LineUser();
+        lu2.setCrmUserId(2L);
+        lu2.setLineUserId("Utwo");
+        when(lineUserRepo.findByLineAccountIdAndCrmUserIdIn(20L, Collections.singletonList(2L)))
+                .thenReturn(Collections.singletonList(lu2));
+
+        BroadcastForm form = new BroadcastForm();
+        form.setChannel("LINE");
+        form.setLineAccountId(com.crm.entity.DiffStep.LINE_ACCOUNT_LINKED_DYNAMIC);
+        form.setBody("紐づきアカ配信テスト");
+        form.setTargetUserIds(Arrays.asList(1L, 2L, 3L));
+
+        List<Broadcast> created = svc.createAndQueueLineDynamic(form, 1L);
+
+        assertThat(created).hasSize(2);
+        assertThat(created).allSatisfy(b -> assertThat(b.getChannel()).isEqualTo("LINE"));
+    }
+
+    @Test
+    void createAndQueueLineDynamic_noResolvedTargets_throwsNoTargetsException() {
+        when(userRepo.findAllById(org.mockito.ArgumentMatchers.<Long>anyCollection()))
+                .thenReturn(Collections.singletonList(user(1L)));
+        when(lineAccountService.resolveDynamicLinkedAccountIds(Collections.singletonList(1L)))
+                .thenReturn(Collections.emptyMap());
+
+        BroadcastForm form = new BroadcastForm();
+        form.setChannel("LINE");
+        form.setLineAccountId(com.crm.entity.DiffStep.LINE_ACCOUNT_LINKED_DYNAMIC);
+        form.setBody("本文");
+        form.setTargetUserIds(Collections.singletonList(1L));
+
+        assertThatThrownBy(() -> svc.createAndQueueLineDynamic(form, 1L))
+                .isInstanceOf(BroadcastService.NoTargetsException.class);
     }
 
     @Test

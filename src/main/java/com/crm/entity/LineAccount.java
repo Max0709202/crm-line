@@ -59,6 +59,11 @@ public class LineAccount {
     @Column(name = "IS_GROUP_CHAT_MODE")
     private Boolean isGroupChatMode;
 
+    /** Used to pick ONE account when a customer is friended with more than one, for a
+     *  「紐づきアカ」dynamic-account send (broadcast or diff-step) — lower value wins. */
+    @Column(name = "LINKAGE_PRIORITY", nullable = false)
+    private Integer linkagePriority;
+
     @Column(name = "CREATED_AT", nullable = false)
     private LocalDateTime createdAt;
 
@@ -75,6 +80,7 @@ public class LineAccount {
         updatedAt = now;
         if (status == null) status = STATUS_UNUSED;
         if (isGroupChatMode == null) isGroupChatMode = Boolean.FALSE;
+        if (linkagePriority == null) linkagePriority = 100;
     }
 
     @PreUpdate
@@ -102,6 +108,8 @@ public class LineAccount {
     public void setWebhookToken(String webhookToken) { this.webhookToken = webhookToken; }
     public Boolean getIsGroupChatMode() { return isGroupChatMode; }
     public void setIsGroupChatMode(Boolean isGroupChatMode) { this.isGroupChatMode = isGroupChatMode; }
+    public Integer getLinkagePriority() { return linkagePriority; }
+    public void setLinkagePriority(Integer linkagePriority) { this.linkagePriority = linkagePriority; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

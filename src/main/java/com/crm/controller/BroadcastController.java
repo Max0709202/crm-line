@@ -349,6 +349,30 @@ public class BroadcastController {
             return "message/broadcast-form";
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
+        // 紐づきアカ — the target list may span several different LINE accounts once resolved,
+        // so this one submit can produce more than one Broadcast record (client request
+        // 2026-09-27). Handled separately from the normal single-account path below.
+        if ("LINE".equals(form.getChannel())
+                && com.crm.entity.DiffStep.LINE_ACCOUNT_LINKED_DYNAMIC.equals(form.getLineAccountId())) {
+            try {
+                java.util.List<Broadcast> created = broadcastService.createAndQueueLineDynamic(form, adminId);
+                for (Broadcast b : created) {
+                    auditLog.record(com.crm.service.AuditLogService.ACTION_BROADCAST_CREATE,
+                            "Broadcast", b.getId(),
+                            "subject=" + (b.getSubject() == null ? "" : b.getSubject())
+                            + " total=" + b.getTotalCount()
+                            + " unsendable=" + (b.getUnsendableCount() == null ? 0 : b.getUnsendableCount())
+                            + " (紐づきアカ分割)");
+                }
+                ra.addFlashAttribute("flashSuccess",
+                        "紐づいているLINEアカウントごとに分けて、" + created.size() + "件の一斉送信を作成しました");
+                return "redirect:/manager/messages/broadcast/summary";
+            } catch (BroadcastService.NoTargetsException e) {
+                ra.addFlashAttribute("flashError", e.getMessage());
+                ra.addFlashAttribute("form", form);
+                return "redirect:/manager/messages/broadcast/new";
+            }
+        }
         try {
             Broadcast b = broadcastService.createAndQueue(form, adminId);
             String kind = Broadcast.STATUS_SCHEDULED.equals(b.getStatus()) ? "予約登録" : "送信開始";

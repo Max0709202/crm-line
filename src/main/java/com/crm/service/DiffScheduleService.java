@@ -52,6 +52,7 @@ public class DiffScheduleService {
     private final HtmlImageService htmlImageService;
     private final MessageService messageService;
     private final LineUserRepository lineUserRepository;
+    private final LineAccountService lineAccountService;
 
     public DiffScheduleService(DiffScheduleRepository scheduleRepository,
                                 DiffScheduleStepRepository scheduleStepRepository,
@@ -65,7 +66,8 @@ public class DiffScheduleService {
                                 DomainSettingService domainSettingService,
                                 HtmlImageService htmlImageService,
                                 MessageService messageService,
-                                LineUserRepository lineUserRepository) {
+                                LineUserRepository lineUserRepository,
+                                LineAccountService lineAccountService) {
         this.scheduleRepository = scheduleRepository;
         this.scheduleStepRepository = scheduleStepRepository;
         this.definitionRepository = definitionRepository;
@@ -79,6 +81,7 @@ public class DiffScheduleService {
         this.htmlImageService = htmlImageService;
         this.messageService = messageService;
         this.lineUserRepository = lineUserRepository;
+        this.lineAccountService = lineAccountService;
     }
 
     /** Register a new schedule: resolves + freezes the target list, then materialises one
@@ -436,15 +439,16 @@ public class DiffScheduleService {
      * 紐づきアカ — this step's lineAccountId is the dynamic sentinel, so each recipient is
      * routed to whichever LINE account they're actually linked to right now, resolved here at
      * fire time rather than whatever was chosen when the step was configured. A recipient
-     * linked to more than one child account resolves to their most-recently-active link. One
-     * Broadcast row is created per distinct resolved account so BroadcastService's existing
-     * single-account targeting/filtering logic is reused unchanged (2026-09-23 client request).
+     * linked to more than one child account resolves to exactly one account — whichever has
+     * the lowest {@link com.crm.entity.LineAccount#getLinkagePriority()}, most-recently-active
+     * as a tie-break — never more than one, so exactly one message is delivered even when a
+     * recipient friended several accounts (see {@link LineAccountService#resolveDynamicLinkedAccountIds}
+     * , 2026-09-27 client request). One Broadcast row is created per distinct resolved account
+     * so BroadcastService's existing single-account targeting/filtering logic is reused
+     * unchanged (2026-09-23 client request).
      */
     private void executeMessageLineDynamic(DiffScheduleStep step, DiffSchedule schedule, List<Long> ids) {
-        java.util.Map<Long, Long> lineAccountIdByCrmUserId = new java.util.HashMap<>();
-        for (com.crm.entity.LineUser lu : lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(ids)) {
-            lineAccountIdByCrmUserId.putIfAbsent(lu.getCrmUserId(), lu.getLineAccountId());
-        }
+        java.util.Map<Long, Long> lineAccountIdByCrmUserId = lineAccountService.resolveDynamicLinkedAccountIds(ids);
         java.util.Map<Long, List<Long>> idsByAccount = new java.util.LinkedHashMap<>();
         int unlinked = 0;
         for (Long id : ids) {

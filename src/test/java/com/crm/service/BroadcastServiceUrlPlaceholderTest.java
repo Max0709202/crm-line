@@ -57,10 +57,11 @@ class BroadcastServiceUrlPlaceholderTest {
         when(replyPageSettingService.getOrCreate()).thenReturn(new com.crm.entity.ReplyPageSetting());
         smsSettingService = mock(SmsSettingService.class);
         lineUserRepo = mock(com.crm.repository.LineUserRepository.class);
+        LineAccountService lineAccountService = mock(LineAccountService.class);
 
         svc = new BroadcastService(broadcastRepo, userRepo, poolRepo, bindingService,
                 messageRepo, placeholderService, replyPageService, domainSettingService,
-                replyPageSettingService, smsSettingService, lineUserRepo);
+                replyPageSettingService, smsSettingService, lineUserRepo, lineAccountService);
 
         when(bindingService.firstBoundFor(anyLong())).thenReturn(Optional.empty());
         when(domainSettingService.buildFromAddress()).thenReturn("info@example.com");
