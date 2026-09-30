@@ -22,7 +22,9 @@ import java.util.Map;
  * Stored in CRM_SETTING as one JSON row: {@code payment.config} for 共通, and
  * {@code payment.folder.<folder name>} for a folder with its own settings (a folder without that
  * row, or with it blank, uses 共通). Shape:
- * <pre>{"methods":{"credit":{"shown":true,"plans":[{"shown":true,"amount":1000,"points":1000}, ...]}}}</pre>
+ * <pre>{"order":["credit",...],"methods":{"credit":{"shown":true,"label":"カード決済","plans":[{"shown":true,"amount":1000,"points":1000}, ...]}}}</pre>
+ * {@code order} is the display order (missing → {@link #METHODS} order); {@code label} is the
+ * operator's name for the method (missing → the {@link #METHODS} name).
  * Each method has {@link #PLAN_ROWS} plan rows; an empty row (no amount and no points) is unused.
  * Defaults are the plans on the client's ガラケー ポイント購入 design (2026-09-29).
  */
@@ -32,6 +34,7 @@ public class PaymentSettingService {
     public static final int PLAN_ROWS = 8;
     public static final int MAX_AMOUNT = 1000000;
     public static final int MAX_POINTS = 10000000;
+    public static final int MAX_LABEL = 30;
 
     private static final String KEY_COMMON = "payment.config";
     private static final String FOLDER_PREFIX = "payment.folder.";
@@ -39,7 +42,7 @@ public class PaymentSettingService {
     public static final int MAX_FOLDER_NAME = 128 - FOLDER_PREFIX.length();
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** Payment methods, in display order: code → label. */
+    /** Payment methods, in default display order: code → default label. */
     public static final Map<String, String> METHODS;
     static {
         Map<String, String> m = new LinkedHashMap<>();
@@ -90,6 +93,7 @@ public class PaymentSettingService {
 
         public String getCode() { return code; }
         public String getLabel() { return label; }
+        public String getDefaultLabel() { return METHODS.get(code); }
         public boolean isShown() { return shown; }
         public List<Plan> getPlans() { return plans; }
 
@@ -118,10 +122,17 @@ public class PaymentSettingService {
     /** Submitted values of one method. */
     public static final class MethodInput {
         final boolean shown;
+        /** Display name; null keeps the current one, blank goes back to the default. */
+        final String label;
         final List<PlanInput> plans;
 
         public MethodInput(boolean shown, List<PlanInput> plans) {
+            this(shown, null, plans);
+        }
+
+        public MethodInput(boolean shown, String label, List<PlanInput> plans) {
             this.shown = shown;
+            this.label = label;
             this.plans = plans;
         }
     }
@@ -151,12 +162,24 @@ public class PaymentSettingService {
     /** Saves 共通; returns the rejected rows (see the private save below). */
     @Transactional
     public List<String> saveCommon(Map<String, MethodInput> input) {
-        return save(KEY_COMMON, null, input);
+        return saveCommon(input, null);
+    }
+
+    /** Saves 共通 with the methods in {@code order} (method codes; null keeps the current order). */
+    @Transactional
+    public List<String> saveCommon(Map<String, MethodInput> input, List<String> order) {
+        return save(KEY_COMMON, null, input, order);
     }
 
     /** Saves one folder's settings; with {@code own} false the folder goes back to 共通. */
     @Transactional
     public List<String> saveFolder(String folder, boolean own, Map<String, MethodInput> input) {
+        return saveFolder(folder, own, input, null);
+    }
+
+    /** As {@link #saveFolder(String, boolean, Map)}, with the methods in {@code order}. */
+    @Transactional
+    public List<String> saveFolder(String folder, boolean own, Map<String, MethodInput> input, List<String> order) {
         if (folder == null || folder.trim().isEmpty()) throw new IllegalArgumentException("folder is required");
         String f = folder.trim();
         if (f.length() > MAX_FOLDER_NAME) {
@@ -167,7 +190,7 @@ public class PaymentSettingService {
             if (get(key) != null) save(key, "");
             return new ArrayList<>();
         }
-        return save(key, f, input);
+        return save(key, f, input, order);
     }
 
     /**
@@ -175,12 +198,20 @@ public class PaymentSettingService {
      * row with both fields blank becomes unused; a row with an invalid or half-filled value keeps
      * its current values and is reported as e.g. "クレジットカード 3行目".
      */
-    private List<String> save(String key, String folder, Map<String, MethodInput> input) {
+    private List<String> save(String key, String folder, Map<String, MethodInput> input, List<String> order) {
         List<String> rejected = new ArrayList<>();
         Map<String, Object> methodsOut = new LinkedHashMap<>();
-        for (Method current : getMethods(folder)) {
+        List<Method> currentMethods = getMethods(folder);
+        List<String> currentOrder = new ArrayList<>();
+        for (Method m : currentMethods) currentOrder.add(m.getCode());
+        for (Method current : currentMethods) {
             MethodInput in = input == null ? null : input.get(current.getCode());
             boolean shown = in == null ? current.isShown() : in.shown;
+            String label = (in == null || in.label == null) ? current.getLabel() : in.label.trim();
+            if (label.length() > MAX_LABEL) {
+                rejected.add(current.getLabel() + " 表示名（" + MAX_LABEL + "文字まで）");
+                label = current.getLabel();
+            }
             List<Map<String, Object>> plansOut = new ArrayList<>();
             for (int i = 0; i < PLAN_ROWS; i++) {
                 Plan cur = current.getPlans().get(i);
@@ -206,10 +237,12 @@ public class PaymentSettingService {
             }
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("shown", shown);
+            if (!label.isEmpty() && !label.equals(METHODS.get(current.getCode()))) m.put("label", label);
             m.put("plans", plansOut);
             methodsOut.put(current.getCode(), m);
         }
         Map<String, Object> root = new LinkedHashMap<>();
+        root.put("order", normalizeOrder(order == null ? currentOrder : order));
         root.put("methods", methodsOut);
         try {
             save(key, JSON.writeValueAsString(root));
@@ -219,23 +252,44 @@ public class PaymentSettingService {
         return rejected;
     }
 
+    /** Known method codes in {@code order} (duplicates / unknown dropped), then any missing ones
+     *  in the default order. */
+    private static List<String> normalizeOrder(List<String> order) {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        if (order != null) {
+            for (String c : order) if (c != null && METHODS.containsKey(c.trim())) out.add(c.trim());
+        }
+        out.addAll(METHODS.keySet());
+        return new ArrayList<>(out);
+    }
+
     /** Builds the methods from a stored row; anything missing or unreadable gets the default. */
     private static List<Method> parse(String json) {
         JsonNode methods = null;
+        List<String> order = null;
         if (json != null) {
             try {
-                methods = JSON.readTree(json).get("methods");
+                JsonNode root = JSON.readTree(json);
+                methods = root.get("methods");
+                JsonNode o = root.get("order");
+                if (o != null && o.isArray()) {
+                    order = new ArrayList<>();
+                    for (JsonNode c : o) order.add(c.asText());
+                }
             } catch (IOException e) {
                 methods = null;   // unreadable row → defaults rather than a broken page
             }
         }
         List<Method> out = new ArrayList<>();
-        for (Map.Entry<String, String> e : METHODS.entrySet()) {
-            JsonNode m = methods == null ? null : methods.get(e.getKey());
+        for (String code : normalizeOrder(order)) {
+            String defaultLabel = METHODS.get(code);
+            JsonNode m = methods == null ? null : methods.get(code);
             if (m == null) {
-                out.add(new Method(e.getKey(), e.getValue(), true, defaultPlans()));
+                out.add(new Method(code, defaultLabel, true, defaultPlans()));
                 continue;
             }
+            String label = m.hasNonNull("label") ? m.get("label").asText().trim() : "";
+            if (label.isEmpty()) label = defaultLabel;
             JsonNode plansNode = m.get("plans");
             List<Plan> plans = new ArrayList<>();
             for (int i = 0; i < PLAN_ROWS; i++) {
@@ -250,7 +304,7 @@ public class PaymentSettingService {
                 plans.add(new Plan(!p.has("shown") || p.get("shown").asBoolean(true), amount, points));
             }
             boolean shown = !m.has("shown") || m.get("shown").asBoolean(true);
-            out.add(new Method(e.getKey(), e.getValue(), shown, plans));
+            out.add(new Method(code, label, shown, plans));
         }
         return out;
     }

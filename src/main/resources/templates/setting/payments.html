@@ -13,6 +13,7 @@
 
     <p class="text-sm text-slate-600 mb-4 max-w-5xl">
         会員ページの「ポイント購入」に表示する決済方法と、購入プラン（表示金額・付与ポイント）を設定します。<br/>
+        決済方法の表示名は自由に変更できます（空欄にすると元の名前に戻ります）。▲ ▼ で会員ページに表示する順番を変更できます。<br/>
         決済方法のチェックを外すと、その決済方法は表示されません。プランは行ごとに表示・非表示を切り替えられます。表示金額とポイントの両方が空欄の行は使われません。<br/>
         フォルダのタブで「このフォルダ専用の設定を使う」にチェックを入れると、そのフォルダの会員にだけ適用されます。チェックがないフォルダは「共通」の設定を使います。
     </p>
@@ -33,6 +34,7 @@
     <div class="flex flex-wrap gap-6 items-start">
         <form method="post" th:action="@{/manager/settings/payments}" class="w-full max-w-3xl">
             <input type="hidden" name="folder" th:value="${folder}"/>
+            <input type="hidden" name="order" id="methodOrder" th:value="${#strings.listJoin(methods.![code], ',')}"/>
             <div th:if="${folder != null}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 mb-4">
                 <label class="inline-flex items-center text-sm font-semibold text-slate-800">
                     <input type="checkbox" id="folderOwn" name="folderOwn" value="true" class="h-4 w-4 mr-2 border-slate-300 rounded"
@@ -43,9 +45,18 @@
             </div>
 
             <div id="methodCards">
-                <div th:each="m : ${methods}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 mb-4">
+                <div th:each="m : ${methods}" th:attr="data-code=${m.code}" class="js-method bg-white rounded-lg shadow-sm border border-slate-100 p-5 mb-4">
                     <div class="flex flex-wrap items-center gap-3 mb-3">
-                        <h2 class="text-base font-semibold text-slate-800 flex-1" th:text="${m.label}">クレジットカード</h2>
+                        <div class="flex flex-col gap-0.5">
+                            <button type="button" class="js-up px-2 leading-5 text-xs border border-slate-300 rounded hover:bg-slate-100" title="上へ">▲</button>
+                            <button type="button" class="js-down px-2 leading-5 text-xs border border-slate-300 rounded hover:bg-slate-100" title="下へ">▼</button>
+                        </div>
+                        <div class="flex-1 min-w-0 flex items-center gap-2">
+                            <label class="text-sm text-slate-500 shrink-0" th:for="'m_' + ${m.code} + '_label'">表示名</label>
+                            <input type="text" class="tw-input font-semibold" style="max-width:16rem;"
+                                   th:id="'m_' + ${m.code} + '_label'" th:name="'m_' + ${m.code} + '_label'"
+                                   th:value="${m.label}" th:placeholder="${m.defaultLabel}" th:maxlength="${maxLabel}"/>
+                        </div>
                         <label class="inline-flex items-center text-sm text-slate-700">
                             <input type="checkbox" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"
                                    th:name="'m_' + ${m.code} + '_shown'" th:checked="${m.shown}"/>
@@ -113,6 +124,33 @@
         </div>
     </div>
     <script>
+    // ▲ / ▼: move a method card; the hidden "order" field carries the new order on save.
+    (function () {
+        var cards = document.getElementById('methodCards');
+        var order = document.getElementById('methodOrder');
+        function sync() {
+            var list = cards.querySelectorAll('.js-method');
+            order.value = Array.prototype.map.call(list, function (c) { return c.getAttribute('data-code'); }).join(',');
+            list.forEach(function (c, i) {
+                c.querySelector('.js-up').disabled = i === 0;
+                c.querySelector('.js-down').disabled = i === list.length - 1;
+                c.querySelector('.js-up').style.opacity = i === 0 ? '.3' : '';
+                c.querySelector('.js-down').style.opacity = i === list.length - 1 ? '.3' : '';
+            });
+        }
+        cards.addEventListener('click', function (e) {
+            var btn = e.target.closest('.js-up, .js-down');
+            if (!btn) return;
+            var card = btn.closest('.js-method');
+            if (btn.classList.contains('js-up') && card.previousElementSibling) {
+                cards.insertBefore(card, card.previousElementSibling);
+            } else if (btn.classList.contains('js-down') && card.nextElementSibling) {
+                cards.insertBefore(card.nextElementSibling, card);
+            }
+            sync();
+        });
+        sync();
+    })();
     // Folder tab: the method cards are only editable while 専用の設定 is ticked.
     (function () {
         var own = document.getElementById('folderOwn');

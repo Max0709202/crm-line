@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
  *   <li>CSS — a {@code <style>} at the end of the page's head, scoped to the HTML areas
  *       (as is any {@code <style>} inside the HTML) so it can't recolor the design itself.</li>
  * </ul>
+ * ポイント購入 lists the 決済関連設定 (共通) methods and plans in their saved order.
  * Member accounts are not built yet, so pages are rendered for the admin preview only, with
  * sample member values. ガラケー has its own design for MENU / 受信BOX / ポイント表; its other
  * links lead to the standard (スマホ) pages, so those are shown for the rest.
@@ -78,10 +79,12 @@ public class MemberPageService {
     private static final String FP_MENU_FREE_AREA = "<div class=\"r\">%HTML%</div>";
 
     private final SiteDesignService siteDesignService;
+    private final PaymentSettingService paymentSettingService;
     private final Map<String, String> resources = new ConcurrentHashMap<>();
 
-    public MemberPageService(SiteDesignService siteDesignService) {
+    public MemberPageService(SiteDesignService siteDesignService, PaymentSettingService paymentSettingService) {
         this.siteDesignService = siteDesignService;
+        this.paymentSettingService = paymentSettingService;
     }
 
     /**
@@ -103,7 +106,9 @@ public class MemberPageService {
         } else {
             html = load("layout.html")
                     .replace("%title%", BAR_TITLES.get(code))
-                    .replace("%main%", load(code + ".html"));
+                    .replace("%main%", "points".equals(code)
+                            ? load("points.html").replace("%plans%", pointPlans())
+                            : load(code + ".html"));
         }
         html = fillTags(html);
 
@@ -134,6 +139,23 @@ public class MemberPageService {
             html = insertBefore(html, "</head>", "<style>\n" + scopeCss(css) + "\n</style>");
         }
         return rewriteLinks(html, linkForCode);
+    }
+
+    /** ポイント購入: each shown payment method (saved order and name) with its plans. */
+    private String pointPlans() {
+        StringBuilder b = new StringBuilder();
+        for (PaymentSettingService.Method m : paymentSettingService.getMethods(null)) {
+            List<PaymentSettingService.Plan> plans = m.getOfferedPlans();
+            if (plans.isEmpty()) continue;
+            b.append("<h3 class=\"methodtitle\">").append(esc(m.getLabel())).append("</h3>");
+            for (PaymentSettingService.Plan p : plans) {
+                b.append("<div class=\"person\"><div class=\"grow\"><b>")
+                        .append(String.format("%,d", p.getPoints())).append("ポイント</b><span>")
+                        .append(String.format("%,d", p.getAmount())).append("円(税込)</span></div>")
+                        .append("<button class=\"btn\">購入する</button></div>");
+            }
+        }
+        return b.length() == 0 ? "<div class=\"note\">現在購入できるプランはありません。</div>" : b.toString();
     }
 
     private SiteDesignService.Slot slotFor(String code) {

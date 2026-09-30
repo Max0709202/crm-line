@@ -21,7 +21,8 @@ import java.util.Map;
  * (表示金額 / ポイント). 共通 tab + one tab per folder, like ポイント設定
  * (see {@link PaymentSettingService}).
  *
- * Form fields: {@code m_<method>_shown}, and per plan row i (0-based)
+ * Form fields: {@code order} (method codes, comma-separated, in display order),
+ * {@code m_<method>_shown}, {@code m_<method>_label}, and per plan row i (0-based)
  * {@code p_<method>_<i>_shown}, {@code p_<method>_<i>_amount}, {@code p_<method>_<i>_points}.
  */
 @Controller
@@ -51,6 +52,7 @@ public class PaymentSettingController {
         model.addAttribute("methods", paymentSettingService.getMethods(f));
         model.addAttribute("maxAmount", PaymentSettingService.MAX_AMOUNT);
         model.addAttribute("maxPoints", PaymentSettingService.MAX_POINTS);
+        model.addAttribute("maxLabel", PaymentSettingService.MAX_LABEL);
         return "setting/payments";
     }
 
@@ -72,18 +74,21 @@ public class PaymentSettingController {
                 plans.add(new PaymentSettingService.PlanInput("true".equals(params.get(prefix + "shown")),
                         params.get(prefix + "amount"), params.get(prefix + "points")));
             }
-            input.put(code, new PaymentSettingService.MethodInput("true".equals(params.get("m_" + code + "_shown")), plans));
+            input.put(code, new PaymentSettingService.MethodInput("true".equals(params.get("m_" + code + "_shown")),
+                    params.get("m_" + code + "_label"), plans));
         }
+        String orderParam = params.get("order");
+        List<String> order = orderParam == null ? null : java.util.Arrays.asList(orderParam.split(","));
 
         List<String> rejected;
         String scope;
         try {
             if (isFolder) {
                 boolean own = "true".equals(params.get("folderOwn"));
-                rejected = paymentSettingService.saveFolder(folder, own, input);
+                rejected = paymentSettingService.saveFolder(folder, own, input, order);
                 scope = "フォルダ「" + folder + "」" + (own ? "" : "（共通設定を使用）");
             } else {
-                rejected = paymentSettingService.saveCommon(input);
+                rejected = paymentSettingService.saveCommon(input, order);
                 scope = "共通";
             }
         } catch (IllegalArgumentException e) {

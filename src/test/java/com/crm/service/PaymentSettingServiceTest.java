@@ -104,6 +104,28 @@ class PaymentSettingServiceTest {
     }
 
     @Test
+    void labelsAndOrderAreSavedAndBlankLabelGoesBackToDefault() {
+        Map<String, PaymentSettingService.MethodInput> in = new HashMap<>();
+        in.put("credit", new PaymentSettingService.MethodInput(true, "  カード決済 ", new ArrayList<>()));
+        List<String> order = java.util.Arrays.asList("bank", "credit", "unknown", "bank");
+        assertThat(svc.saveCommon(in, order)).isEmpty();
+
+        List<PaymentSettingService.Method> methods = svc.getMethods(null);
+        assertThat(methods).extracting(PaymentSettingService.Method::getCode)
+                .containsExactly("bank", "credit", "convenience", "emoney");
+        assertThat(methods.get(1).getLabel()).isEqualTo("カード決済");
+        assertThat(methods.get(1).getOfferedPlans()).hasSize(5);   // plans untouched
+
+        // saving without an order keeps it; a blank name is the default name again
+        in.put("credit", new PaymentSettingService.MethodInput(true, " ", new ArrayList<>()));
+        svc.saveCommon(in);
+        methods = svc.getMethods(null);
+        assertThat(methods).extracting(PaymentSettingService.Method::getCode)
+                .containsExactly("bank", "credit", "convenience", "emoney");
+        assertThat(methods.get(1).getLabel()).isEqualTo("クレジットカード");
+    }
+
+    @Test
     void overlongFolderNameIsRejected() {
         StringBuilder name = new StringBuilder();
         for (int i = 0; i <= PaymentSettingService.MAX_FOLDER_NAME; i++) name.append('x');
