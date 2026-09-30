@@ -129,15 +129,17 @@
         var cards = document.getElementById('methodCards');
         var order = document.getElementById('methodOrder');
         function sync() {
+            var locked = document.getElementById('folderOwn') && !document.getElementById('folderOwn').checked;
             var list = cards.querySelectorAll('.js-method');
             order.value = Array.prototype.map.call(list, function (c) { return c.getAttribute('data-code'); }).join(',');
             list.forEach(function (c, i) {
-                c.querySelector('.js-up').disabled = i === 0;
-                c.querySelector('.js-down').disabled = i === list.length - 1;
+                c.querySelector('.js-up').disabled = locked || i === 0;
+                c.querySelector('.js-down').disabled = locked || i === list.length - 1;
                 c.querySelector('.js-up').style.opacity = i === 0 ? '.3' : '';
                 c.querySelector('.js-down').style.opacity = i === list.length - 1 ? '.3' : '';
             });
         }
+        window.syncMethodOrder = sync;
         cards.addEventListener('click', function (e) {
             var btn = e.target.closest('.js-up, .js-down');
             if (!btn) return;
@@ -160,6 +162,7 @@
         function sync() {
             fields.forEach(function (i) { i.disabled = !own.checked; });
             cards.style.opacity = own.checked ? '' : '.5';
+            if (window.syncMethodOrder) window.syncMethodOrder();   // ▲ ▼ follow the lock too
         }
         own.addEventListener('change', sync);
         sync();

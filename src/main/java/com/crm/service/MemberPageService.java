@@ -29,14 +29,14 @@ import java.util.regex.Pattern;
  *   <li>上部HTML — MENU: just under the header (ID・ポイント表示); other pages: just under the
  *       page-name bar (受信BOX etc.). ガラケー: under the ID row / the page header;</li>
  *   <li>下部HTML — MENU: the design's free area {@code %HTML%}; other pages: just above the
- *       footer menu (ガラケー: at the end of the page);</li>
+ *       footer menu (ガラケー: above the page footer {@code <div class="f">}, else at the end);</li>
  *   <li>CSS — a {@code <style>} at the end of the page's head, scoped to the HTML areas
  *       (as is any {@code <style>} inside the HTML) so it can't recolor the design itself.</li>
  * </ul>
  * ポイント購入 lists the 決済関連設定 (共通) methods and plans in their saved order.
  * Member accounts are not built yet, so pages are rendered for the admin preview only, with
- * sample member values. ガラケー has its own design for MENU / 受信BOX / ポイント表; its other
- * links lead to the standard (スマホ) pages, so those are shown for the rest.
+ * sample member values. ガラケー has its own design ({@code fp/}) for the pages in
+ * {@link #FP_PAGES}; the rest (条件検索 / サポート窓口 / 返信) are shown in the standard (スマホ) design.
  */
 @Service
 public class MemberPageService {
@@ -61,7 +61,7 @@ public class MemberPageService {
 
     /** Pages with a separate ガラケー design. */
     public static final Set<String> FP_PAGES =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("menu", "inbox", "point_table")));
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("menu", "inbox", "friends", "profile", "points", "point_table")));
 
     /** Design file name (links inside the design) → page code. */
     private static final Map<String, String> FILE_TO_CODE = new HashMap<>();
@@ -76,7 +76,9 @@ public class MemberPageService {
     /** Class on every HTML area's wrapper; the operator's CSS only applies inside it. */
     private static final String SCOPE_CLASS = "member-free";
     private static final Pattern STYLE_BLOCK = Pattern.compile("(?is)(<style\\b[^>]*>)(.*?)(</style\\s*>)");
-    private static final String FP_MENU_FREE_AREA = "<div class=\"r\">%HTML%</div>";
+    private static final String FP_MENU_FREE_AREA = "<div class=\"row\">%HTML%</div>";
+    /** ガラケー page footer (MENUへ戻る etc.); 下部HTML goes just above it. */
+    private static final String FP_FOOTER = "<div class=\"f\">";
 
     private final SiteDesignService siteDesignService;
     private final PaymentSettingService paymentSettingService;
@@ -103,6 +105,7 @@ public class MemberPageService {
         String html;
         if (fp) {
             html = load("fp/" + code + ".html");
+            if ("points".equals(code)) html = html.replace("%plans%", fpPointPlans());
         } else {
             html = load("layout.html")
                     .replace("%title%", BAR_TITLES.get(code))
@@ -118,10 +121,10 @@ public class MemberPageService {
             if ("menu".equals(code)) {
                 // under the ID / PT row (the first row after the header)
                 html = insertAfter(html, "</div>", html.indexOf("</header>"), wrapFp(top));
-                html = html.replace(FP_MENU_FREE_AREA, bottom.isEmpty() ? "" : "<div class=\"r " + SCOPE_CLASS + "\">" + bottom + "</div>");
+                html = html.replace(FP_MENU_FREE_AREA, bottom.isEmpty() ? "" : "<div class=\"row " + SCOPE_CLASS + "\">" + bottom + "</div>");
             } else {
                 html = insertAfter(html, "</header>", 0, wrapFp(top));
-                html = insertBefore(html, "</body>", wrapFp(bottom));
+                html = insertBefore(html, html.contains(FP_FOOTER) ? FP_FOOTER : "</body>", wrapFp(bottom));
             }
         } else {
             if ("menu".equals(code)) {
@@ -158,6 +161,22 @@ public class MemberPageService {
         return b.length() == 0 ? "<div class=\"note\">現在購入できるプランはありません。</div>" : b.toString();
     }
 
+    /** ガラケー ポイント購入: the same methods / plans in the ガラケー design's list style. */
+    private String fpPointPlans() {
+        StringBuilder b = new StringBuilder();
+        for (PaymentSettingService.Method m : paymentSettingService.getMethods(null)) {
+            List<PaymentSettingService.Plan> plans = m.getOfferedPlans();
+            if (plans.isEmpty()) continue;
+            b.append("<div class=\"ttl\">").append(esc(m.getLabel())).append("</div><div class=\"m\">");
+            for (PaymentSettingService.Plan p : plans) {
+                b.append("<a href=\"#\">").append(String.format("%,d", p.getPoints())).append("ポイント　¥")
+                        .append(String.format("%,d", p.getAmount())).append("</a>");
+            }
+            b.append("</div>");
+        }
+        return b.length() == 0 ? "<div class=\"row\">現在購入できるプランはありません。</div>" : b.toString();
+    }
+
     private SiteDesignService.Slot slotFor(String code) {
         for (SiteDesignService.Slot s : siteDesignService.getSlots()) {
             if (s.getCode().equals(code)) return s;
@@ -169,7 +188,7 @@ public class MemberPageService {
     private String fillTags(String html) {
         String logo = siteDesignService.getLogoUrl();
         Map<String, String> values = new HashMap<>();
-        values.put("sitename", esc(siteDesignService.getSiteName()));
+        values.put("sitename", esc(siteDesignService.getConfiguredSiteName()));   // never the bare domain
         values.put("sitelogo", logo == null ? ""
                 : "<img src=\"" + esc(logo) + "\" alt=\"\" style=\"max-height:40px;max-width:100%\">");
         values.put("id", "000123");
@@ -207,7 +226,7 @@ public class MemberPageService {
     }
 
     private static String wrapFp(String area) {
-        return area.isEmpty() ? "" : "<div class=\"r " + SCOPE_CLASS + "\">" + area + "</div>";
+        return area.isEmpty() ? "" : "<div class=\"" + SCOPE_CLASS + "\" style=\"padding:8px\">" + area + "</div>";
     }
 
     /** {@code <style>} blocks written inside an HTML area, scoped like the page CSS. */
@@ -233,6 +252,9 @@ public class MemberPageService {
         StringBuilder out = new StringBuilder();
         int i = 0;
         while (i < src.length()) {
+            // skip stray ';' / whitespace between rules (e.g. "a{…};")
+            while (i < src.length() && (src.charAt(i) == ';' || Character.isWhitespace(src.charAt(i)))) i++;
+            if (i >= src.length()) break;
             int brace = indexOutsideQuotes(src, '{', i);
             int semi = indexOutsideQuotes(src, ';', i);
             if (brace < 0) {                       // trailing text / statement rules only

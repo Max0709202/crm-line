@@ -150,6 +150,12 @@ public class SiteDesignService {
         return host == null ? "" : host;
     }
 
+    /** The site name as set on ドメイン設定, "" when unset — no fallback to the domain. */
+    public String getConfiguredSiteName() {
+        String name = domainSettingService.getSiteName();
+        return name == null ? "" : name.trim();
+    }
+
     public String getLogoUrl()       { return blankToNull(get(DomainSettingService.KEY_SITE_LOGO_URL)); }
     public String getTopImagePcUrl() { return blankToNull(get(KEY_TOP_IMAGE_PC)); }
     public String getTopImageSpUrl() { return blankToNull(get(KEY_TOP_IMAGE_SP)); }
