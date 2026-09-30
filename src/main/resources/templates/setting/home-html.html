@@ -58,14 +58,13 @@
 <section layout:fragment="content">
     <div class="flex items-center mb-4">
         <h1 class="text-2xl font-semibold text-slate-800 flex-1">本ドメイン表示設定</h1>
-        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/settings}">設定に戻る</a>
     </div>
 
     <div class="max-w-5xl rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
         <p class="font-semibold mb-1">本ドメイン (<code th:text="${rootDomainUrl}">https://example.jp/</code>) のトップに表示するHTML</p>
         <p class="text-xs">
             3つのパターンを保存編集できます。「現在表示」にチェックを入れたパターンが、ルートURLへのアクセス時に配信されます。
-            どのパターンにもチェックを入れない場合は、管理画面ログインへのリダイレクトに戻ります（現状の動作）。
+            どのパターンにもチェックを入れない場合は、ログイン前ページ（18歳以上確認・会員登録・ログイン）が表示されます。ログイン前ページの画像やフッターのページは<a class="underline" th:href="@{/manager/settings/site-design}">番組デザイン設定</a>で変更できます。
             右側のプレビューは入力中に自動更新されます（保存不要）。
         </p>
     </div>
@@ -115,7 +114,7 @@
             <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md"
                th:href="@{/manager/settings}">キャンセル</a>
             <span class="text-xs text-slate-500 ml-2">
-                ※ 「現在表示」チェックは一つだけONにできます。すべてOFFにすると、ルートURLは管理画面リダイレクトに戻ります。
+                ※ 「現在表示」チェックは一つだけONにできます。すべてOFFにすると、ルートURLはログイン前ページになります。
             </span>
         </div>
     </form>

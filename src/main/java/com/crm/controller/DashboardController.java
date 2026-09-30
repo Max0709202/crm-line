@@ -27,13 +27,16 @@ public class DashboardController {
     private final DashboardService dashboardService;
     private final CrmUserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final com.crm.service.LineAccountService lineAccountService;
 
     public DashboardController(DashboardService dashboardService,
                                CrmUserRepository userRepository,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               com.crm.service.LineAccountService lineAccountService) {
         this.dashboardService = dashboardService;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
+        this.lineAccountService = lineAccountService;
     }
 
     @GetMapping({"", "/", "/dashboard"})
@@ -56,6 +59,8 @@ public class DashboardController {
         }
         DashboardService.Snapshot stats = dashboardService.snapshot(ym, nyukinDate, sendDate);
         model.addAttribute("stats", stats);
+        // 接続不可のLINEアカウント — warning flag at the top of the dashboard.
+        model.addAttribute("lineErrorAccounts", lineAccountService.listConnectionErrors());
         String detailJson;
         try {
             detailJson = objectMapper.writeValueAsString(stats.getNyukinDetailByUserId());
@@ -84,13 +89,15 @@ public class DashboardController {
         }
         model.addAttribute("sendScope", sendScope);
         model.addAttribute("sendBuckets", buckets);
-        long sendTotal = 0, ngTotal = 0, smsTotal = 0, emailTotal = 0;
+        long sendTotal = 0, ngTotal = 0, smsTotal = 0, emailTotal = 0, lineTotal = 0;
         Map<String, Object> hourlyChart = new HashMap<>();
         List<String> labels = new java.util.ArrayList<>();
         List<Long> sentSeries = new java.util.ArrayList<>();
         List<Long> ngSeries = new java.util.ArrayList<>();
         List<Long> smsSeries = new java.util.ArrayList<>();
         List<Long> emailSeries = new java.util.ArrayList<>();
+        List<Long> lineSeries = new java.util.ArrayList<>();
+        List<Long> lineQueuedSeries = new java.util.ArrayList<>();
         // "Queued" (future/not-yet-dispatched) portions of smsSeries/emailSeries — rendered
         // with a lighter shade so a reservation shows up (dimly) in its future send-time
         // bucket, distinguishable from sends that have actually completed.
@@ -105,10 +112,13 @@ public class DashboardController {
                 emailSeries.add(h.getEmailSent());
                 smsQueuedSeries.add(h.getSmsQueued());
                 emailQueuedSeries.add(h.getEmailQueued());
+                lineSeries.add(h.getLineSent());
+                lineQueuedSeries.add(h.getLineQueued());
                 sendTotal  += h.getSent();
                 ngTotal    += h.getNg();
                 smsTotal   += h.getSmsSent();
                 emailTotal += h.getEmailSent();
+                lineTotal  += h.getLineSent();
             }
         }
         hourlyChart.put("labels", labels);
@@ -121,9 +131,11 @@ public class DashboardController {
         hourlyChart.put("email", emailSeries);
         hourlyChart.put("smsQueued", smsQueuedSeries);
         hourlyChart.put("emailQueued", emailQueuedSeries);
+        hourlyChart.put("line", lineSeries);
+        hourlyChart.put("lineQueued", lineQueuedSeries);
         String hourlyJson;
         try { hourlyJson = objectMapper.writeValueAsString(hourlyChart); }
-        catch (JsonProcessingException e) { hourlyJson = "{\"labels\":[],\"sent\":[],\"ng\":[],\"sms\":[],\"email\":[],\"smsQueued\":[],\"emailQueued\":[]}"; }
+        catch (JsonProcessingException e) { hourlyJson = "{\"labels\":[],\"sent\":[],\"ng\":[],\"sms\":[],\"email\":[],\"smsQueued\":[],\"emailQueued\":[],\"line\":[],\"lineQueued\":[]}"; }
         model.addAttribute("hourlyChartJson", hourlyJson);
         // Totals adjust to the active scope so the cards above the chart stay in sync.
         if (!"hour".equals(sendScope)) {
@@ -132,11 +144,13 @@ public class DashboardController {
             model.addAttribute("ngTotalForScope", ngTotal);
             model.addAttribute("smsTotalForScope", smsTotal);
             model.addAttribute("emailTotalForScope", emailTotal);
+            model.addAttribute("lineTotalForScope", lineTotal);
         } else {
             model.addAttribute("sendTotalForScope", stats.getTotalSend());
             model.addAttribute("ngTotalForScope", stats.getTotalNg());
             model.addAttribute("smsTotalForScope", stats.getTotalSmsSent());
-            model.addAttribute("emailTotalForScope", stats.getTotalSend() - stats.getTotalSmsSent());
+            model.addAttribute("emailTotalForScope", stats.getTotalSend() - stats.getTotalSmsSent() - stats.getTotalLineSent());
+            model.addAttribute("lineTotalForScope", stats.getTotalLineSent());
         }
 
         // userId → display label for the bottom "直近のメッセージ" table

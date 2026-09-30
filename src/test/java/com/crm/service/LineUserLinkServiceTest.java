@@ -22,6 +22,7 @@ class LineUserLinkServiceTest {
     private LineUserRepository lineUserRepository;
     private CrmUserRepository crmUserRepository;
     private DomainSettingService domainSettingService;
+    private DiffScheduleService diffScheduleService;
     private LineUserLinkService svc;
 
     @BeforeEach
@@ -29,7 +30,8 @@ class LineUserLinkServiceTest {
         lineUserRepository = mock(LineUserRepository.class);
         crmUserRepository = mock(CrmUserRepository.class);
         domainSettingService = mock(DomainSettingService.class);
-        svc = new LineUserLinkService(lineUserRepository, crmUserRepository, domainSettingService);
+        diffScheduleService = mock(DiffScheduleService.class);
+        svc = new LineUserLinkService(lineUserRepository, crmUserRepository, domainSettingService, diffScheduleService);
         when(crmUserRepository.save(any(CrmUser.class))).thenAnswer(inv -> {
             CrmUser u = inv.getArgument(0);
             u.setId(500L);
@@ -52,6 +54,28 @@ class LineUserLinkServiceTest {
         assertThat(cap.getValue().getDisplayName()).isEqualTo("山田太郎");
         assertThat(linked.getCrmUserId()).isEqualTo(500L);
         assertThat(linked.isLinked()).isTrue();
+        verify(diffScheduleService).applyRegistrationSteps(cap.getValue(), null);   // 登録後(分後) fires for a new customer
+    }
+
+    @Test
+    void autoRegisterAndLink_sameLineUserOnAnotherCharacter_joinsExistingCustomerInsteadOfDuplicating() {
+        LineUser onFirstChar = new LineUser();
+        onFirstChar.setLineAccountId(1L);
+        onFirstChar.setLineUserId("Uyutaka");
+        onFirstChar.setCrmUserId(50L);
+        when(lineUserRepository.findByLineUserIdAndCrmUserIdIsNotNullOrderByIdAsc("Uyutaka"))
+                .thenReturn(java.util.Collections.singletonList(onFirstChar));
+        when(crmUserRepository.existsById(50L)).thenReturn(true);
+        LineUser onSecondChar = new LineUser();
+        onSecondChar.setLineAccountId(2L);
+        onSecondChar.setLineUserId("Uyutaka");
+        onSecondChar.setLineDisplayName("ゆたか");
+
+        LineUser linked = svc.autoRegisterAndLink(onSecondChar);
+
+        assertThat(linked.getCrmUserId()).isEqualTo(50L);
+        verify(crmUserRepository, org.mockito.Mockito.never()).save(any(CrmUser.class));
+        verify(diffScheduleService, org.mockito.Mockito.never()).applyRegistrationSteps(any(), any());  // not a new registration
     }
 
     @Test

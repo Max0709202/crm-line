@@ -171,11 +171,17 @@ public class DiffDefinitionService {
         }
     }
 
+    /** 登録後(分後) first, then 当日(分後), then 翌日以降(日数+時刻). */
+    private static int modeRank(DiffStep s) {
+        if (DiffStep.OFFSET_AFTER_REGISTER.equals(s.getOffsetMode())) return 0;
+        if (DiffStep.OFFSET_MINUTES.equals(s.getOffsetMode())) return 1;
+        return 2;
+    }
+
     private static int compareByTime(DiffStep a, DiffStep b) {
-        boolean aMinutes = DiffStep.OFFSET_MINUTES.equals(a.getOffsetMode());
-        boolean bMinutes = DiffStep.OFFSET_MINUTES.equals(b.getOffsetMode());
-        if (aMinutes != bMinutes) return aMinutes ? -1 : 1;
-        if (aMinutes) {
+        int ar = modeRank(a), br = modeRank(b);
+        if (ar != br) return Integer.compare(ar, br);
+        if (ar < 2) {
             int av = a.getOffsetMinutes() == null ? 0 : a.getOffsetMinutes();
             int bv = b.getOffsetMinutes() == null ? 0 : b.getOffsetMinutes();
             return Integer.compare(av, bv);
@@ -191,7 +197,7 @@ public class DiffDefinitionService {
     private void validateStep(String offsetMode, Integer offsetMinutes, Integer offsetDays,
                                String offsetClockTime, String stepType, String channel,
                                String body, Integer memoSlot, Long lineAccountId, Long imageId) {
-        if (DiffStep.OFFSET_MINUTES.equals(offsetMode)) {
+        if (DiffStep.OFFSET_MINUTES.equals(offsetMode) || DiffStep.OFFSET_AFTER_REGISTER.equals(offsetMode)) {
             if (offsetMinutes == null || offsetMinutes < 1) throw new IllegalArgumentException("分後の値は1以上で指定してください");
         } else if (DiffStep.OFFSET_DAYS.equals(offsetMode)) {
             if (offsetDays == null || offsetDays < 1) throw new IllegalArgumentException("日数は1以上で指定してください");

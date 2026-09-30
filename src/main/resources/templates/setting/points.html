@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>ポイント設定</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">ポイント設定</h1>
+    </div>
+
+    <p class="text-sm text-slate-600 mb-4 max-w-5xl">
+        会員ページで各操作に消費するポイントを設定します。ここで保存した内容が、会員ログイン後の「ポイント表」にそのまま表示されます。<br/>
+        「アドレス添付」「電話番号添付」は、チェックを外すと会員ページの返信画面とポイント表に表示されなくなります。<br/>
+        フォルダごとに消費ポイントを変えられます。フォルダのタブで「このフォルダ専用の設定を使う」にチェックを入れると、そのフォルダの会員にだけ適用されます。チェックがないフォルダは「共通」の設定を使います。
+    </p>
+
+    <!-- 共通 / folder tabs -->
+    <div class="flex flex-wrap gap-1 mb-4 border-b border-slate-200">
+        <a th:href="@{/manager/settings/points}"
+           th:classappend="${folder == null} ? 'border-blue-600 text-blue-700 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'"
+           class="px-4 py-2 -mb-px border-b-2 text-sm">共通</a>
+        <a th:each="f : ${folders}" th:href="@{/manager/settings/points(folder=${f.key})}"
+           th:classappend="${folder == f.key} ? 'border-blue-600 text-blue-700 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'"
+           class="px-4 py-2 -mb-px border-b-2 text-sm inline-flex items-center gap-1">
+            <span th:text="${f.key}">A</span>
+            <span th:if="${f.value}" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-normal">専用</span>
+        </a>
+    </div>
+
+    <div class="flex flex-wrap gap-6 items-start">
+        <form method="post" th:action="@{/manager/settings/points}"
+              class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 w-full max-w-2xl">
+            <input type="hidden" name="folder" th:value="${folder}"/>
+            <div th:if="${folder != null}" class="mb-5 pb-4 border-b border-slate-200">
+                <label class="inline-flex items-center text-sm font-semibold text-slate-800">
+                    <input type="checkbox" id="folderOwn" name="folderOwn" value="true" class="h-4 w-4 mr-2 border-slate-300 rounded"
+                           th:checked="${folderOwn}"/>
+                    フォルダ「<span th:text="${folder}">A</span>」専用の設定を使う
+                </label>
+                <p class="mt-1 text-xs text-slate-500">チェックがない場合は「共通」の設定が使われます（下の表は現在の共通設定です）。</p>
+            </div>
+            <div th:if="${folder == null}" class="mb-6 pb-5 border-b border-slate-200">
+                <label class="block text-sm font-semibold text-slate-800 mb-1" for="initialPoints">初期所持ポイント</label>
+                <div class="flex items-center gap-1">
+                    <input type="number" min="0" th:max="${T(com.crm.service.PointSettingService).MAX_COST}" step="1"
+                           class="tw-input" style="width:7rem;" id="initialPoints" name="initialPoints" th:value="${initialPoints}"/>
+                    <span class="text-slate-500">P</span>
+                </div>
+                <p class="mt-1 text-xs text-slate-500">会員登録したときに最初に付与されるポイントです。</p>
+            </div>
+            <table class="w-full text-sm" id="costTable">
+                <thead>
+                <tr class="text-left text-slate-500 border-b border-slate-200">
+                    <th class="py-2 pr-3 font-medium">項目</th>
+                    <th class="py-2 pr-3 font-medium w-40">消費ポイント</th>
+                    <th class="py-2 font-medium w-32">会員に表示</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${rows}" class="border-b border-slate-100">
+                    <td class="py-2 pr-3 text-slate-800" th:text="${r.label}">メール送信</td>
+                    <td class="py-2 pr-3">
+                        <div class="flex items-center gap-1">
+                            <input type="number" min="0" th:max="${T(com.crm.service.PointSettingService).MAX_COST}" step="1"
+                                   class="tw-input" style="width:7rem;"
+                                   th:name="'cost_' + ${r.code}" th:value="${r.cost}"/>
+                            <span class="text-slate-500">P</span>
+                        </div>
+                    </td>
+                    <td class="py-2">
+                        <label th:if="${r.toggleable}" class="inline-flex items-center text-slate-700">
+                            <input type="checkbox" name="shown" class="h-4 w-4 mr-1.5 border-slate-300 rounded"
+                                   th:value="${r.code}" th:checked="${r.shown}"/>
+                            表示する
+                        </label>
+                        <span th:unless="${r.toggleable}" class="text-xs text-slate-400">常に表示</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="mt-6">
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
+            </div>
+        </form>
+
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 w-full max-w-sm">
+            <h2 class="text-base font-semibold text-slate-800 mb-1">ポイント表（会員ページの表示）</h2>
+            <p class="text-xs text-slate-500 mb-3"
+               th:text="${folder == null ? '保存済みの内容です（共通）。' : 'フォルダ「' + folder + '」の会員に表示される、保存済みの内容です。'}">保存済みの内容です。</p>
+            <table class="w-full text-sm border border-slate-200">
+                <tr th:each="r : ${shownRows}" class="border-b border-slate-200">
+                    <td class="px-3 py-2 text-slate-700" th:text="${r.label}"></td>
+                    <td class="px-3 py-2 text-right font-semibold" style="color:#ff2d78;"
+                        th:text="${#numbers.formatInteger(r.cost, 1, 'COMMA')} + 'ポイント'"></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    <script>
+    // Folder tab: the cost table is only editable while 専用の設定 is ticked.
+    (function () {
+        var own = document.getElementById('folderOwn');
+        if (!own) return;
+        var fields = document.querySelectorAll('#costTable input');
+        function sync() {
+            fields.forEach(function (i) { i.disabled = !own.checked; });
+            document.getElementById('costTable').style.opacity = own.checked ? '' : '.5';
+        }
+        own.addEventListener('change', sync);
+        sync();
+    })();
+    </script>
+</section>
+</body>
+</html>

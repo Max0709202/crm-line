@@ -53,6 +53,7 @@ public class DiffScheduleService {
     private final MessageService messageService;
     private final LineUserRepository lineUserRepository;
     private final LineAccountService lineAccountService;
+    private final com.crm.repository.AdminUserRepository adminUserRepository;
 
     public DiffScheduleService(DiffScheduleRepository scheduleRepository,
                                 DiffScheduleStepRepository scheduleStepRepository,
@@ -67,7 +68,8 @@ public class DiffScheduleService {
                                 HtmlImageService htmlImageService,
                                 MessageService messageService,
                                 LineUserRepository lineUserRepository,
-                                LineAccountService lineAccountService) {
+                                LineAccountService lineAccountService,
+                                com.crm.repository.AdminUserRepository adminUserRepository) {
         this.scheduleRepository = scheduleRepository;
         this.scheduleStepRepository = scheduleStepRepository;
         this.definitionRepository = definitionRepository;
@@ -82,6 +84,7 @@ public class DiffScheduleService {
         this.messageService = messageService;
         this.lineUserRepository = lineUserRepository;
         this.lineAccountService = lineAccountService;
+        this.adminUserRepository = adminUserRepository;
     }
 
     /** Register a new schedule: resolves + freezes the target list, then materialises one
@@ -94,6 +97,14 @@ public class DiffScheduleService {
         List<DiffStep> steps = stepRepository.findByDiffDefinitionIdOrderByStepOrderAsc(diffDefinitionId);
         if (steps.isEmpty()) {
             throw new IllegalArgumentException("この差分にはステップが登録されていません。先に差分定義編集画面でステップを追加してください。");
+        }
+        // 登録後(分後) steps only ever fire for newly registered users (applyRegistrationSteps),
+        // never when a diff is applied by hand to existing users.
+        steps = steps.stream()
+                .filter(st -> !DiffStep.OFFSET_AFTER_REGISTER.equals(st.getOffsetMode()))
+                .collect(Collectors.toList());
+        if (steps.isEmpty()) {
+            throw new IllegalArgumentException("この差分は「登録後(分後)」のステップのみのため、新規登録ユーザーに自動で発動します（手動でセットする必要はありません）。");
         }
 
         List<Long> ids = resolveTargetIds(targetType, targetRaw);
@@ -176,7 +187,8 @@ public class DiffScheduleService {
      */
     static LocalDateTime computeScheduledFor(LocalDateTime setAt, String mode,
                                               Integer minutes, Integer days, String clockTime) {
-        if (DiffStep.OFFSET_MINUTES.equals(mode)) {
+        // 登録後(分後): setAt is the user's registration time (see applyRegistrationSteps).
+        if (DiffStep.OFFSET_MINUTES.equals(mode) || DiffStep.OFFSET_AFTER_REGISTER.equals(mode)) {
             if (minutes == null || minutes < 1) throw new IllegalArgumentException("分後の値は1以上で指定してください");
             return setAt.plusMinutes(minutes);
         }
@@ -186,6 +198,73 @@ public class DiffScheduleService {
             return setAt.toLocalDate().plusDays(days).atTime(t);
         }
         throw new IllegalArgumentException("unknown offset mode: " + mode);
+    }
+
+    /**
+     * 登録後(分後): for a user who was just newly registered (manual add or LINE friend-add —
+     * callers must NOT call this for CSV imports, which are excluded to prevent mass accidental
+     * sends), creates one schedule per diff definition that has 登録後 steps, targeting only
+     * this user, with each step due N minutes after the registration. The normal diff
+     * dispatcher then fires them. Runs in its own transaction and callers guard it, so a
+     * problem here never fails or rolls back the registration itself.
+     *
+     * @param adminId the registering admin; null (LINE friend-add) = the primary admin. A real
+     *                id is required: every send goes out as a BROADCAST, whose ADMIN_USER_ID is
+     *                NOT NULL.
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public int applyRegistrationSteps(com.crm.entity.CrmUser user, Long adminId) {
+        if (user == null || user.getId() == null) return 0;
+        int created = 0;
+        try {
+            if (adminId == null) {
+                adminId = adminUserRepository.findAll(org.springframework.data.domain.Sort.by("id")).stream()
+                        .findFirst().map(com.crm.entity.AdminUser::getId).orElse(null);
+            }
+            LocalDateTime registeredAt = user.getCreatedAt() != null ? user.getCreatedAt() : LocalDateTime.now();
+            java.util.Map<Long, List<DiffStep>> byDef = new java.util.LinkedHashMap<>();
+            for (DiffStep st : stepRepository.findByOffsetModeOrderByDiffDefinitionIdAscStepOrderAsc(DiffStep.OFFSET_AFTER_REGISTER)) {
+                byDef.computeIfAbsent(st.getDiffDefinitionId(), k -> new java.util.ArrayList<>()).add(st);
+            }
+            for (java.util.Map.Entry<Long, List<DiffStep>> e : byDef.entrySet()) {
+                DiffDefinition def = definitionRepository.findById(e.getKey()).orElse(null);
+                if (def == null) continue;
+                DiffSchedule s = new DiffSchedule();
+                s.setDiffDefinitionId(def.getId());
+                s.setDiffNameSnapshot(def.getName());
+                s.setTargetType(DiffSchedule.TARGET_REGISTER);
+                s.setTargetValue(String.valueOf(user.getId()));
+                s.setTargetUserIds(String.valueOf(user.getId()));
+                s.setSetAt(registeredAt);
+                s.setSetByAdminId(adminId);
+                s.setSetByAdminName("新規登録(自動)");
+                DiffSchedule saved = scheduleRepository.save(s);
+                for (DiffStep step : e.getValue()) {
+                    DiffScheduleStep ss = new DiffScheduleStep();
+                    ss.setDiffScheduleId(saved.getId());
+                    ss.setStepOrder(step.getStepOrder());
+                    ss.setOffsetMode(step.getOffsetMode());
+                    ss.setOffsetMinutes(step.getOffsetMinutes());
+                    ss.setScheduledFor(computeScheduledFor(registeredAt, step.getOffsetMode(),
+                            step.getOffsetMinutes(), null, null));
+                    ss.setStepType(step.getStepType());
+                    ss.setChannel(step.getChannel());
+                    ss.setSubjectSnapshot(step.getSubject());
+                    ss.setBodySnapshot(step.getBody());
+                    ss.setMemoSlotSnapshot(step.getMemoSlot());
+                    ss.setLineAccountId(step.getLineAccountId());
+                    ss.setImageIdSnapshot(step.getImageId());
+                    ss.setStatus(DiffScheduleStep.STATUS_PENDING);
+                    scheduleStepRepository.save(ss);
+                }
+                created++;
+                log.info("[DIFF] registration steps applied: user={} diff={} steps={}",
+                        user.getId(), def.getId(), e.getValue().size());
+            }
+        } catch (Exception ex) {
+            log.warn("[DIFF] registration steps failed for user={}: {}", user.getId(), ex.toString());
+        }
+        return created;
     }
 
     public List<DiffScheduleStep> listPendingSteps() {

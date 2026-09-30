@@ -37,6 +37,11 @@ public class DiffStep {
      */
     public static final Long LINE_ACCOUNT_LINKED_DYNAMIC = -1L;
 
+    /** 登録後 (分後) — N minutes after a user is newly registered (manual add or LINE
+     *  friend-add; never CSV import, to prevent mass accidental sends). Fires automatically
+     *  per new user, not when the diff is applied by hand — see
+     *  {@link com.crm.service.DiffScheduleService#applyRegistrationSteps}. */
+    public static final String OFFSET_AFTER_REGISTER = "REGISTER";
     /** 当日 (分後). */
     public static final String OFFSET_MINUTES = "MINUTES";
     /** 翌日以降 (日数+時刻). */

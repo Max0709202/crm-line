@@ -12,27 +12,142 @@
 <body class="bg-slate-50 text-slate-800">
 <div class="min-h-screen flex">
     <!-- Sticky sidebar: pinned to viewport so the nav stays visible while the main content
-         scrolls. The fixed width of 224px (=w-56) is mirrored on <main>'s ml-56 below. -->
-    <aside class="w-56 bg-slate-900 text-white flex-shrink-0 p-4 flex flex-col fixed inset-y-0 left-0 overflow-y-auto z-20">
+         scrolls. The fixed width of 256px (=w-64) is mirrored on <main>'s ml-64 below. -->
+    <aside class="w-64 bg-slate-900 text-white flex-shrink-0 p-4 flex flex-col fixed inset-y-0 left-0 overflow-y-auto z-20">
         <div class="text-xl font-bold tracking-wide mb-1">CRM</div>
         <div class="text-xs text-slate-400 mb-6" th:if="${session.adminUserName}" th:text="${session.adminUserName}"></div>
-        <nav class="flex flex-col gap-1 text-sm">
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/dashboard}">管理トップ</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/users}">ユーザー管理</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/inbox}">受信/返信管理</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/messages}">個別メッセージ管理</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/messages/broadcast}">一斉送信/返信履歴</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/settings/diff-schedule/history}">差分スケジュール履歴</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/settings/diff-schedule}">差分スケジュール設定</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/carrier-pool}">キャリア登録設定</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/settings/html-images}">HTML画像管理</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/ad-codes}">広告設定</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 text-slate-300 hover:text-white" th:href="@{/manager/settings}">設定</a>
-            <a class="px-3 py-2 rounded hover:bg-slate-800 font-medium" style="color:#06C755;" th:href="@{/manager/line-settings}">LINE設定</a>
+        <!-- Grouped nav: each section title expands its items on hover (script below);
+             the section holding the current page / last-clicked item stays open via .is-open.
+             Items marked 準備中 are placeholders for features not built yet. -->
+        <nav class="admin-nav no-anim flex flex-col gap-1">
+            <a class="nav-link nav-top" th:href="@{/manager/dashboard}">管理トップ</a>
+
+            <div class="nav-group">
+                <div class="nav-group-title">会員管理</div>
+                <div class="nav-group-items">
+                    <a class="nav-link" th:href="@{/manager/users}">ユーザー管理</a>
+                    <span class="nav-link nav-soon">サポート窓口<small>準備中</small></span>
+                    <span class="nav-link nav-soon">キャラ登録<small>準備中</small></span>
+                    <a class="nav-link" th:href="@{/manager/settings/points}">ポイント設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/folders}">フォルダ設定</a>
+                </div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">配信管理</div>
+                <div class="nav-group-items">
+                    <a class="nav-link" th:href="@{/manager/inbox}">受信/返信管理</a>
+                    <a class="nav-link" th:href="@{/manager/messages}">個別メッセージ管理</a>
+                    <a class="nav-link" th:href="@{/manager/messages/broadcast}">一斉送信/返信履歴</a>
+                    <a class="nav-link" th:href="@{/manager/settings/diff-schedule/history}">差分スケジュール履歴</a>
+                    <a class="nav-link" th:href="@{/manager/settings/diff-schedule}">差分スケジュール設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/sender-names}">メール送信設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/message-templates}">定型文</a>
+                    <a class="nav-link font-medium" style="color:#06C755;" th:href="@{/manager/line-settings}">LINE設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/sms}">SMS配信設定</a>
+                    <a class="nav-link" th:href="@{/manager/carrier-pool}">キャリア登録設定</a>
+                    <a class="nav-link nav-sub" th:href="@{/manager/settings/imap-env}">IMAP 監視同期</a>
+                    <a class="nav-link" th:href="@{/manager/settings/external-link-domains}">外部リンクドメイン生成</a>
+                </div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">スタッフ管理</div>
+                <div class="nav-group-items">
+                    <span class="nav-link nav-soon">権限設定<small>準備中</small></span>
+                    <a class="nav-link" th:href="@{/manager/settings/admin-password}">管理者パスワード変更</a>
+                    <a class="nav-link" th:href="@{/manager/settings/audit-log}">操作ログ</a>
+                </div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">広告管理</div>
+                <div class="nav-group-items">
+                    <a class="nav-link" th:href="@{/manager/ad-codes}">広告設定</a>
+                </div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">サイト構成</div>
+                <div class="nav-group-items">
+                    <a class="nav-link" th:href="@{/manager/settings/domain}">ドメイン設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/payments}">決済関連設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/home-html}">本ドメイン表示設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/site-design}">番組デザイン設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/memo-html-bulk}">HTML 一括編集</a>
+                    <a class="nav-link" th:href="@{/manager/settings/html-images}">HTML画像管理</a>
+                    <a class="nav-link" th:href="@{/manager/settings/relay-servers}">リレーサーバー設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/backup}">バックアップ設定</a>
+                </div>
+            </div>
         </nav>
+        <script>
+        // Runs inline right after the nav, before first paint.
+        //  - The section of the current page (or the one last clicked) is rendered already open, with no
+        //    animation, and the sidebar scroll position is restored, so a page change never re-opens the menu.
+        //  - Other sections open on hover after a short pause and close slowly after the mouse leaves.
+        (function () {
+            var nav = document.querySelector('.admin-nav');
+            var aside = nav.closest('aside');
+            var groups = Array.prototype.slice.call(nav.querySelectorAll('.nav-group'));
+            var OPEN_DELAY = 150, CLOSE_DELAY = 500;
+            function load(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+            function save(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } }
+
+            // Current page: longest path-prefix match.
+            var path = location.pathname.replace(/\/+$/, '');
+            var best = null, bestLen = -1;
+            nav.querySelectorAll('a.nav-link').forEach(function (a) {
+                var p = new URL(a.href, location.href).pathname.replace(/\/+$/, '');
+                if ((path === p || path.indexOf(p + '/') === 0) && p.length > bestLen) { best = a; bestLen = p.length; }
+            });
+            if (best) best.classList.add('is-active');
+
+            function pin(g) { g.classList.add('is-open', 'is-expanded'); g.querySelector('.nav-group-items').style.height = ''; }
+            if (best && best.closest('.nav-group')) pin(best.closest('.nav-group'));
+            var lastGroup = groups[parseInt(load('crmNavGroup'), 10)];
+            if (lastGroup) pin(lastGroup);
+
+            var scroll = parseInt(load('crmNavScroll'), 10);
+            if (scroll > 0) aside.scrollTop = scroll;
+            window.addEventListener('pagehide', function () { save('crmNavScroll', String(aside.scrollTop)); });
+
+            groups.forEach(function (g, idx) {
+                var items = g.querySelector('.nav-group-items');
+                var timer = null;
+                function expand() {
+                    g.classList.add('is-expanded');
+                    items.style.height = items.scrollHeight + 'px';
+                }
+                function collapse() {
+                    if (g.classList.contains('is-open')) return;
+                    g.classList.remove('is-expanded');
+                    items.style.height = items.scrollHeight + 'px';
+                    items.offsetHeight; // force reflow so the height transition starts from the current size
+                    items.style.height = '0px';
+                }
+                g.addEventListener('mouseenter', function () { clearTimeout(timer); timer = setTimeout(expand, OPEN_DELAY); });
+                g.addEventListener('mouseleave', function () { clearTimeout(timer); timer = setTimeout(collapse, CLOSE_DELAY); });
+                // Clicking an item pins its section open immediately, so it can't close while the next page loads.
+                items.querySelectorAll('a.nav-link').forEach(function (a) {
+                    a.addEventListener('click', function () {
+                        clearTimeout(timer);
+                        g.classList.add('is-open', 'is-expanded');
+                        save('crmNavGroup', String(idx));
+                    });
+                });
+            });
+            nav.querySelectorAll('a.nav-top').forEach(function (a) {
+                a.addEventListener('click', function () { save('crmNavGroup', ''); });
+            });
+
+            // Re-enable transitions only after the first frame has been painted.
+            requestAnimationFrame(function () { requestAnimationFrame(function () { nav.classList.remove('no-anim'); }); });
+        })();
+        </script>
     </aside>
 
-    <main class="flex-1 ml-56 p-6 overflow-x-auto">
+    <main class="flex-1 ml-64 p-6 overflow-x-auto">
         <div th:if="${flashSuccess}" class="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800" th:text="${flashSuccess}"></div>
         <div th:if="${flashError}" class="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800" th:text="${flashError}"></div>
         <section layout:fragment="content">

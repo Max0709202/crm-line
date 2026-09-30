@@ -100,6 +100,12 @@ public class DomainSettingService {
      *  opts in via a checkbox on the ad-codes list page. 2026-08-06, paid add-on (+5,000円). */
     public static final String KEY_AD_CODE_SHOW_LOGIN_COUNT = "ad_code.show_login_count";
 
+    /** Member-site branding, expanded into the member (番組) pages as %sitename% / %sitelogo%.
+     *  The logo is an image uploaded from ドメイン設定 into HTML画像管理; its public /img/{id}
+     *  URL is stored here. */
+    public static final String KEY_SITE_NAME     = "site.name";
+    public static final String KEY_SITE_LOGO_URL = "site.logo_url";
+
     private static final String ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
     private static final int MIN_LEN = 4;
     private static final int MAX_LEN = 64;
@@ -152,6 +158,9 @@ public class DomainSettingService {
     public String getReplyOgpTitle()       { return get(KEY_REPLY_OGP_TITLE); }
     public String getReplyOgpDescription() { return get(KEY_REPLY_OGP_DESCRIPTION); }
     public String getReplyOgpImageUrl()    { return get(KEY_REPLY_OGP_IMAGE_URL); }
+
+    public String getSiteName()    { return get(KEY_SITE_NAME); }
+    public String getSiteLogoUrl() { return get(KEY_SITE_LOGO_URL); }
 
     public String getFromBaseDomain()              { return get(KEY_FROM_BASE_DOMAIN); }
     public boolean isFromRandomEnabled()           { return getBool(KEY_FROM_RANDOM_LOCAL, true); }

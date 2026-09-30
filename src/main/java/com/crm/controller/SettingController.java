@@ -879,6 +879,7 @@ public class SettingController {
         form.setReplyOgpTitle(domainSettingService.getReplyOgpTitle());
         form.setReplyOgpDescription(domainSettingService.getReplyOgpDescription());
         form.setReplyOgpImageUrl(domainSettingService.getReplyOgpImageUrl());
+        form.setSiteName(domainSettingService.getSiteName());
         model.addAttribute("form", form);
         return "setting/domain";
     }
@@ -906,6 +907,7 @@ public class SettingController {
         domainSettingService.save(DomainSettingService.KEY_REPLY_OGP_TITLE, s(form.getReplyOgpTitle()));
         domainSettingService.save(DomainSettingService.KEY_REPLY_OGP_DESCRIPTION, s(form.getReplyOgpDescription()));
         domainSettingService.save(DomainSettingService.KEY_REPLY_OGP_IMAGE_URL, s(form.getReplyOgpImageUrl()));
+        domainSettingService.save(DomainSettingService.KEY_SITE_NAME, s(form.getSiteName()));
         ra.addFlashAttribute("flashSuccess", "ドメイン設定を保存しました");
         return "redirect:/manager/settings/domain";
     }

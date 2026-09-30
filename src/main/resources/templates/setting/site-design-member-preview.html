@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="'ログイン後ページ確認（' + ${deviceLabels.get(device)} + '） | CRM'">ログイン後ページ確認 | CRM</title>
+    <!-- 番組デザイン設定 › ログイン後 PC / スマホ / ガラケー check: one post-login page
+         (…/site-design/member-preview) in a frame of the device's width. Standalone like the
+         pre-login check (site-design-preview.html). -->
+    <style>
+        body { margin:0; background:#1e293b; font-family:system-ui,"Noto Sans JP",sans-serif; color:#e2e8f0; }
+        .bar { position:sticky; top:0; z-index:5; background:#0f172a; padding:10px 16px; }
+        .bar .row { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+        .bar .row + .row { margin-top:8px; }
+        .bar .ttl { font-weight:700; margin-right:8px; }
+        .bar a { color:#cbd5e1; text-decoration:none; padding:5px 12px; border-radius:6px; border:1px solid #334155; font-size:13px; }
+        .bar a.on { background:#db2777; border-color:#db2777; color:#fff; }
+        .bar .w { margin-left:auto; font-size:12px; color:#94a3b8; }
+        .bar .note { font-size:12px; color:#94a3b8; }
+        .stage { padding:20px; overflow-x:auto; }
+        iframe { display:block; margin:0 auto; border:0; background:#fff; height:calc(100vh - 150px); box-shadow:0 10px 30px rgba(0,0,0,.4); }
+        .phone iframe { border-radius:18px; border:10px solid #0f172a; }
+    </style>
+</head>
+<body>
+<div class="bar">
+    <div class="row">
+        <span class="ttl">ログイン後ページ確認</span>
+        <a th:each="d : ${deviceWidths}" th:href="@{/manager/settings/site-design/member-preview-frame(device=${d.key},page=${page},mark=${mark ? '1' : '0'})}"
+           th:classappend="${d.key == device} ? 'on'" th:text="${deviceLabels.get(d.key)}">PC</a>
+        <a th:href="@{/manager/settings/site-design/member-preview-frame(device=${device},page=${page},mark=${mark ? '0' : '1'})}"
+           th:classappend="${mark} ? 'on'" th:text="${mark} ? 'HTML枠の位置：表示中' : 'HTML枠の位置：非表示'">HTML枠の位置</a>
+        <span class="w" th:text="'表示幅 ' + ${deviceWidths.get(device)} + 'px（保存済みの内容・会員情報はサンプル）'">表示幅</span>
+    </div>
+    <div class="row">
+        <a th:each="p : ${memberPages}" th:href="@{/manager/settings/site-design/member-preview-frame(device=${device},page=${p.key},mark=${mark ? '1' : '0'})}"
+           th:classappend="${p.key == page} ? 'on'" th:text="${p.value}">MENU</a>
+    </div>
+    <div class="row" th:if="${device == 'fp' and !fpPages.contains(page)}">
+        <span class="note">※ガラケー専用デザインは MENU・受信BOX・ポイント表 のみです。このページはガラケーでもスマホ用デザインで表示されます。</span>
+    </div>
+</div>
+<div class="stage" th:classappend="${device != 'pc'} ? 'phone'">
+    <iframe th:src="@{/manager/settings/site-design/member-preview(device=${device},page=${page},mark=${mark ? '1' : '0'})}"
+            th:style="'width:' + ${deviceWidths.get(device)} + 'px'" title="ログイン後ページ"></iframe>
+</div>
+</body>
+</html>

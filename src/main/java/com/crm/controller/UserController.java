@@ -552,7 +552,7 @@ public class UserController {
 
     @PostMapping
     public String create(@Valid @ModelAttribute("form") UserForm form,
-                         BindingResult br, RedirectAttributes ra, Model model) {
+                         BindingResult br, RedirectAttributes ra, Model model, HttpSession session) {
         if (br.hasErrors()) {
             model.addAttribute("editing", false);
             return "user/form";
@@ -564,6 +564,13 @@ public class UserController {
         }
         try {
             CrmUserService.CreationResult result = service.create(form);
+            // 登録後(分後) diff steps — manual registration counts; CSV import deliberately doesn't.
+            try {
+                diffScheduleService.applyRegistrationSteps(result.getUser(),
+                        (Long) session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_ID));
+            } catch (RuntimeException ignored) {
+                // never fail the user creation over this; details are logged by the service
+            }
             ra.addFlashAttribute("flashSuccess", "ユーザーを作成しました");
             ra.addFlashAttribute("issuedCredentials", result.getCredentials());
             return "redirect:/manager/users/" + result.getUser().getId();
@@ -596,6 +603,18 @@ public class UserController {
         model.addAttribute("accessLogs", userAccessLogRepository.findByUserIdOrderByCreatedAtDesc(
                 id, org.springframework.data.domain.PageRequest.of(0, 20)));
         model.addAttribute("boundAddresses", bindingService.listBoundFor(id));
+        // 紐づきキャラ — the LINE accounts (characters) this customer is friends with. One
+        // customer can be linked to several; shown here by name (2026-09-29 client request).
+        java.util.List<String> linkedCharNames = new java.util.ArrayList<>();
+        java.util.List<com.crm.entity.LineUser> lineLinks = lineUserRepository.findByCrmUserId(id);
+        if (!lineLinks.isEmpty()) {
+            java.util.Map<Long, String> names = new java.util.HashMap<>();
+            java.util.List<Long> accountIds = new java.util.ArrayList<>();
+            for (com.crm.entity.LineUser lu : lineLinks) accountIds.add(lu.getLineAccountId());
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(accountIds)) names.put(a.getId(), a.getName());
+            for (Long aid : accountIds) linkedCharNames.add(names.getOrDefault(aid, "不明"));
+        }
+        model.addAttribute("linkedCharNames", linkedCharNames);
         model.addAttribute("paymentForm", paymentFormFor(id));
         model.addAttribute("paymentMethods", PAYMENT_METHODS);
         model.addAttribute("paymentStatuses", PAYMENT_STATUSES);
@@ -903,7 +922,11 @@ public class UserController {
             ra.addFlashAttribute("form", form);
             return "redirect:/manager/users/" + id;
         }
-        if (isBlank(form.getEmail()) && isBlank(form.getPhoneNumber())) {
+        // A LINE-linked customer is reachable over LINE, so neither email nor phone is required
+        // (they're auto-registered with neither — 2026-09-30 client report: removing a test
+        // address from a LINE user was refused on save).
+        if (isBlank(form.getEmail()) && isBlank(form.getPhoneNumber())
+                && lineUserRepository.findByCrmUserId(id).isEmpty()) {
             ra.addFlashAttribute("flashError", "メールアドレスまたは電話番号のいずれかを入力してください");
             ra.addFlashAttribute("form", form);
             return "redirect:/manager/users/" + id;

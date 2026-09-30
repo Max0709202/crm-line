@@ -16,10 +16,12 @@
         .search-bar .btn.primary:hover { background:#1d4ed8; }
         .search-bar .btn.ghost { background:#fff; border-color:#cbd5e1; color:#475569; }
         .search-bar .btn.ghost:hover { background:#f1f5f9; }
-        .col-body { max-width:280px; }
+        /* 本文: full text with line breaks kept; very long bodies scroll inside the cell
+         * instead of being cut off after 2 lines (operator request 2026-09-30). */
+        .col-body { min-width:320px; max-width:480px; }
         .col-body .body-text {
-            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-            overflow:hidden; line-height:1.35; font-size:.78rem; color:#475569; white-space:pre-wrap;
+            max-height:16em; overflow-y:auto; line-height:1.45; font-size:.78rem; color:#475569;
+            white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
         }
         .list-page-footer {
             flex-shrink:0; background:#fff; border-top:1px solid #e2e8f0;
@@ -73,9 +75,8 @@
                 <th class="px-3 py-2 text-left" style="width:90px;">種別</th>
                 <th class="px-3 py-2 text-left" style="width:120px;">番号</th>
                 <th class="px-3 py-2 text-left" th:text="${channel == 'SMS'} ? '番号' : 'メールアドレス'">メールアドレス</th>
-                <th class="px-3 py-2 text-left">FROM</th>
                 <th class="px-3 py-2 text-left">表示名</th>
-                <th class="px-3 py-2 text-left">広告コード</th>
+                <th class="px-3 py-2 text-left">キャラ名</th>
                 <th class="px-3 py-2 text-left">フォルダ</th>
                 <th class="px-3 py-2 text-left" th:unless="${channel == 'SMS'}">件名</th>
                 <th class="px-3 py-2 text-left col-body">本文</th>
@@ -86,7 +87,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
             <tr th:if="${messages.totalElements == 0}">
-                <td colspan="14" class="px-3 py-6 text-center text-slate-400">
+                <td colspan="13" class="px-3 py-6 text-center text-slate-400">
                     <span th:if="${addr != null and addr != ''}">該当する送信履歴はありません</span>
                     <span th:unless="${addr != null and addr != ''}">一斉送信履歴はまだありません</span>
                 </td>
@@ -128,11 +129,9 @@
                        th:text="${userEmails != null and userEmails.get(m.userId) != null} ? ${userEmails.get(m.userId)} : '-'">-</a>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
-                    th:text="${displayFrom != null and displayFrom.get(m.id) != null} ? ${displayFrom.get(m.id)} : ${m.fromAddress}"></td>
-                <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userDisplayNames != null and userDisplayNames.get(m.userId) != null and userDisplayNames.get(m.userId) != ''} ? ${userDisplayNames.get(m.userId)} : '-'"></td>
-                <td class="px-3 py-2 text-xs text-slate-500"
-                    th:text="${userAdCodes != null and userAdCodes.get(m.userId) != null} ? ${userAdCodes.get(m.userId)} : '-'"></td>
+                <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
+                    th:text="${m.lineAccountId != null and lineAccountNames != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : '-'"></td>
                 <td class="px-3 py-2 text-xs text-slate-500"
                     th:text="${userFolders != null and userFolders.get(m.userId) != null} ? ${userFolders.get(m.userId)} : '-'"></td>
                 <td class="px-3 py-2 text-xs text-slate-700 truncate" style="max-width:200px;" th:unless="${channel == 'SMS'}" th:text="${m.subject} ?: '(件名なし)'"></td>

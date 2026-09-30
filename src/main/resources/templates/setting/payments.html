@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>決済関連設定</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">決済関連設定</h1>
+    </div>
+
+    <p class="text-sm text-slate-600 mb-4 max-w-5xl">
+        会員ページの「ポイント購入」に表示する決済方法と、購入プラン（表示金額・付与ポイント）を設定します。<br/>
+        決済方法のチェックを外すと、その決済方法は表示されません。プランは行ごとに表示・非表示を切り替えられます。表示金額とポイントの両方が空欄の行は使われません。<br/>
+        フォルダのタブで「このフォルダ専用の設定を使う」にチェックを入れると、そのフォルダの会員にだけ適用されます。チェックがないフォルダは「共通」の設定を使います。
+    </p>
+
+    <!-- 共通 / folder tabs -->
+    <div class="flex flex-wrap gap-1 mb-4 border-b border-slate-200">
+        <a th:href="@{/manager/settings/payments}"
+           th:classappend="${folder == null} ? 'border-blue-600 text-blue-700 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'"
+           class="px-4 py-2 -mb-px border-b-2 text-sm">共通</a>
+        <a th:each="f : ${folders}" th:href="@{/manager/settings/payments(folder=${f.key})}"
+           th:classappend="${folder == f.key} ? 'border-blue-600 text-blue-700 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'"
+           class="px-4 py-2 -mb-px border-b-2 text-sm inline-flex items-center gap-1">
+            <span th:text="${f.key}">A</span>
+            <span th:if="${f.value}" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-normal">専用</span>
+        </a>
+    </div>
+
+    <div class="flex flex-wrap gap-6 items-start">
+        <form method="post" th:action="@{/manager/settings/payments}" class="w-full max-w-3xl">
+            <input type="hidden" name="folder" th:value="${folder}"/>
+            <div th:if="${folder != null}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 mb-4">
+                <label class="inline-flex items-center text-sm font-semibold text-slate-800">
+                    <input type="checkbox" id="folderOwn" name="folderOwn" value="true" class="h-4 w-4 mr-2 border-slate-300 rounded"
+                           th:checked="${folderOwn}"/>
+                    フォルダ「<span th:text="${folder}">A</span>」専用の設定を使う
+                </label>
+                <p class="mt-1 text-xs text-slate-500">チェックがない場合は「共通」の設定が使われます（下の内容は現在の共通設定です）。</p>
+            </div>
+
+            <div id="methodCards">
+                <div th:each="m : ${methods}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 mb-4">
+                    <div class="flex flex-wrap items-center gap-3 mb-3">
+                        <h2 class="text-base font-semibold text-slate-800 flex-1" th:text="${m.label}">クレジットカード</h2>
+                        <label class="inline-flex items-center text-sm text-slate-700">
+                            <input type="checkbox" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"
+                                   th:name="'m_' + ${m.code} + '_shown'" th:checked="${m.shown}"/>
+                            会員に表示する
+                        </label>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead>
+                        <tr class="text-left text-slate-500 border-b border-slate-200">
+                            <th class="py-2 pr-3 font-medium w-10">No.</th>
+                            <th class="py-2 pr-3 font-medium w-20">表示</th>
+                            <th class="py-2 pr-3 font-medium">表示金額（税込）</th>
+                            <th class="py-2 font-medium">付与ポイント</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="p, st : ${m.plans}" class="border-b border-slate-100">
+                            <td class="py-1.5 pr-3 text-slate-500" th:text="${st.count}">1</td>
+                            <td class="py-1.5 pr-3">
+                                <input type="checkbox" value="true" class="h-4 w-4 border-slate-300 rounded"
+                                       th:name="'p_' + ${m.code} + '_' + ${st.index} + '_shown'" th:checked="${p.shown}"
+                                       th:title="${st.count} + '行目を表示'"/>
+                            </td>
+                            <td class="py-1.5 pr-3">
+                                <div class="flex items-center gap-1">
+                                    <input type="number" min="1" th:max="${maxAmount}" step="1" class="tw-input" style="width:8rem;"
+                                           th:name="'p_' + ${m.code} + '_' + ${st.index} + '_amount'" th:value="${p.amount}"/>
+                                    <span class="text-slate-500">円</span>
+                                </div>
+                            </td>
+                            <td class="py-1.5">
+                                <div class="flex items-center gap-1">
+                                    <input type="number" min="0" th:max="${maxPoints}" step="1" class="tw-input" style="width:8rem;"
+                                           th:name="'p_' + ${m.code} + '_' + ${st.index} + '_points'" th:value="${p.points}"/>
+                                    <span class="text-slate-500">P</span>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="sticky bottom-0 py-3 bg-slate-50 border-t border-slate-200">
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
+            </div>
+        </form>
+
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 w-full max-w-sm">
+            <h2 class="text-base font-semibold text-slate-800 mb-1">ポイント購入（会員ページの表示）</h2>
+            <p class="text-xs text-slate-500 mb-3"
+               th:text="${folder == null ? '保存済みの内容です（共通）。' : 'フォルダ「' + folder + '」の会員に表示される、保存済みの内容です。'}">保存済みの内容です。</p>
+            <th:block th:each="m : ${methods}" th:if="${!m.offeredPlans.isEmpty()}">
+                <div class="text-sm font-semibold text-white px-3 py-1.5 mt-3" style="background:#135c80;" th:text="${m.label}">クレジットカード</div>
+                <table class="w-full text-sm border border-slate-200 border-t-0">
+                    <tr th:each="p : ${m.offeredPlans}" class="border-b border-slate-200">
+                        <td class="px-3 py-2 font-semibold text-slate-800"
+                            th:text="${#numbers.formatInteger(p.points, 1, 'COMMA')} + 'ポイント'">1,000ポイント</td>
+                        <td class="px-3 py-2 text-right text-slate-600"
+                            th:text="${#numbers.formatInteger(p.amount, 1, 'COMMA')} + '円(税込)'">1,000円(税込)</td>
+                    </tr>
+                </table>
+            </th:block>
+            <p th:if="${#lists.isEmpty(methods.?[!offeredPlans.isEmpty()])}" class="text-sm text-slate-400">表示される決済方法がありません。</p>
+        </div>
+    </div>
+    <script>
+    // Folder tab: the method cards are only editable while 専用の設定 is ticked.
+    (function () {
+        var own = document.getElementById('folderOwn');
+        if (!own) return;
+        var cards = document.getElementById('methodCards');
+        var fields = cards.querySelectorAll('input');
+        function sync() {
+            fields.forEach(function (i) { i.disabled = !own.checked; });
+            cards.style.opacity = own.checked ? '' : '.5';
+        }
+        own.addEventListener('change', sync);
+        sync();
+    })();
+    </script>
+</section>
+</body>
+</html>

@@ -153,6 +153,16 @@ public class MessageService {
         java.util.Map<Long, Message> msgById = new java.util.HashMap<>();
         for (Message m : messageRepository.findAllById(latestIds)) msgById.put(m.getId(), m);
 
+        // キャラ名 column: the LINE account (character) the latest inbound message came in on.
+        java.util.Set<Long> lineAccountIds = new java.util.HashSet<>();
+        for (Message m : msgById.values()) if (m.getLineAccountId() != null) lineAccountIds.add(m.getLineAccountId());
+        java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
+        if (!lineAccountIds.isEmpty()) {
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(lineAccountIds)) {
+                lineAccountNames.put(a.getId(), a.getName());
+            }
+        }
+
         java.util.List<InboxRow> out = new java.util.ArrayList<>(kept.size());
         for (Object[] g : kept) {
             InboxRow r = new InboxRow();
@@ -181,6 +191,9 @@ public class MessageService {
             if (m != null) {
                 r.latestSubject = m.getSubject();
                 r.latestPreview = preview(m.getBodyText(), 80);
+                r.latestBody = m.getBodyText() == null ? "" : m.getBodyText().trim();
+                r.latestChannel = m.getChannel();
+                r.latestLineAccountName = m.getLineAccountId() == null ? null : lineAccountNames.get(m.getLineAccountId());
                 r.latestAt = m.getCreatedAt();
                 r.latestMessageId = m.getId();
                 r.latestRead = m.getReadAt() != null;
@@ -228,6 +241,12 @@ public class MessageService {
         public Long latestMessageId;
         public String latestSubject;
         public String latestPreview;
+        /** Full body of the latest inbound message (the 最新メッセージ column shows it untruncated). */
+        public String latestBody;
+        /** CHANNEL of the latest inbound message — drives the 種別 badge. */
+        public String latestChannel;
+        /** LINE account (キャラ) name of the latest inbound message; null for non-LINE. */
+        public String latestLineAccountName;
         public LocalDateTime latestAt;
         public boolean latestRead;
         /** true when the user has at least one IN message and we haven't sent any OUT after it. */
@@ -245,6 +264,9 @@ public class MessageService {
         public Long getLatestMessageId() { return latestMessageId; }
         public String getLatestSubject() { return latestSubject; }
         public String getLatestPreview() { return latestPreview; }
+        public String getLatestBody() { return latestBody; }
+        public String getLatestChannel() { return latestChannel; }
+        public String getLatestLineAccountName() { return latestLineAccountName; }
         public LocalDateTime getLatestAt() { return latestAt; }
         public boolean isLatestRead() { return latestRead; }
         public boolean isUnreplied() { return unreplied; }
@@ -610,11 +632,19 @@ public class MessageService {
     public Message composeLine(Long userId, Long adminUserId, LineComposeForm form) {
         CrmUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new MessageException("ユーザーが見つかりません"));
-        List<LineUser> linked = lineUserRepository.findByCrmUserId(userId);
+        // Most recently messaged first — the default sender when no character is chosen.
+        List<LineUser> linked = lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(
+                java.util.Collections.singletonList(userId));
         if (linked.isEmpty()) {
             throw new MessageException("このユーザーはLINEと連携されていません");
         }
         LineUser lineUser = linked.get(0);
+        if (form.getLineAccountId() != null) {
+            lineUser = linked.stream()
+                    .filter(lu -> form.getLineAccountId().equals(lu.getLineAccountId()))
+                    .findFirst()
+                    .orElseThrow(() -> new MessageException("選択したキャラ（LINEアカウント）とこのユーザーは友だちではありません"));
+        }
 
         String renderedBody = placeholderService.substitute(form.getBody(), user);
 

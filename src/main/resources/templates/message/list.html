@@ -18,10 +18,12 @@
         }
         .list-page-footer .btn-bulk-delete:hover:not(:disabled) { background:#b91c1c; }
         .list-page-footer .btn-bulk-delete:disabled { background:#94a3b8; cursor:not-allowed; box-shadow:none; }
-        .col-body { max-width:280px; }
+        /* 本文: full text with line breaks kept; very long bodies scroll inside the cell
+         * instead of being cut off after 2 lines (operator request 2026-09-30). */
+        .col-body { min-width:320px; max-width:480px; }
         .col-body .body-text {
-            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-            overflow:hidden; line-height:1.35; font-size:.78rem; color:#475569; white-space:pre-wrap;
+            max-height:16em; overflow-y:auto; line-height:1.45; font-size:.78rem; color:#475569;
+            white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
         }
     </style>
 </head>
@@ -76,7 +78,7 @@
                 <th class="px-3 py-2 text-left" style="width: 120px;">番号</th>
                 <th class="px-3 py-2 text-left">メールアドレス</th>
                 <th class="px-3 py-2 text-left">表示名</th>
-                <th class="px-3 py-2 text-left">広告コード</th>
+                <th class="px-3 py-2 text-left">キャラ名</th>
                 <th class="px-3 py-2 text-left">フォルダ</th>
                 <th class="px-3 py-2 text-left">件名</th>
                 <th class="px-3 py-2 text-left col-body">本文</th>
@@ -122,8 +124,8 @@
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userDisplayNames != null and userDisplayNames.get(m.userId) != null} ? ${userDisplayNames.get(m.userId)} : '-'"></td>
-                <td class="px-3 py-2 text-xs text-slate-500"
-                    th:text="${userAdCodes != null and userAdCodes.get(m.userId) != null} ? ${userAdCodes.get(m.userId)} : '-'"></td>
+                <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
+                    th:text="${m.lineAccountId != null and lineAccountNames != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : '-'"></td>
                 <td class="px-3 py-2 text-xs text-slate-500"
                     th:text="${userFolders != null and userFolders.get(m.userId) != null} ? ${userFolders.get(m.userId)} : '-'"></td>
                 <td class="px-3 py-2 text-xs text-slate-700 truncate" style="max-width: 200px;" th:text="${m.subject} ?: '(件名なし)'"></td>

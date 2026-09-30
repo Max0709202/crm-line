@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>番組デザイン設定</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="flex items-center mb-4">
+        <h1 class="text-2xl font-semibold text-slate-800 flex-1">番組デザイン設定</h1>
+    </div>
+
+    <p class="text-sm text-slate-600 mb-4 max-w-4xl">
+        会員サイト（番組）の画面を設定します。左側がログイン前、右側がログイン後のページです。
+        ログイン前ページは、<a class="text-blue-600 hover:underline" th:href="@{/manager/settings/home-html}">本ドメイン表示設定</a>でどのパターンにもチェックが入っていないときに、本ドメインのトップに表示されます。
+    </p>
+
+    <form method="post" th:action="@{/manager/settings/site-design}" enctype="multipart/form-data" class="w-full">
+        <button type="submit" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">保存する</button>
+
+        <!-- ===== 共通 ===== -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
+            <h2 class="text-base font-semibold text-slate-800 mb-1">サイトロゴ <code class="text-xs text-slate-500">%sitelogo%</code>（ログイン前・ログイン後 共通）</h2>
+            <p class="text-xs text-slate-500 mb-2">ログイン前ページのヘッダー、ログイン後のページ（受信BOXなど）のヘッダーに表示されます。未登録の場合はハートのアイコンとサイト名が表示されます。JPEG / PNG / GIF / WebP、5MBまで。</p>
+            <div th:if="${logoUrl != null}" class="mb-2 flex items-center gap-4">
+                <img th:src="${logoUrl}" alt="現在のサイトロゴ" class="max-h-16 max-w-xs border border-slate-200 rounded bg-slate-50 p-1"/>
+                <label class="inline-flex items-center text-sm text-slate-700">
+                    <input type="checkbox" name="logoRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期表示に戻す
+                </label>
+            </div>
+            <p th:if="${logoUrl == null}" class="mb-2 text-xs text-slate-400">未登録（初期表示）</p>
+            <input type="file" name="logoFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm"/>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6 items-start">
+
+            <!-- ===== 左：ログイン前 ===== -->
+            <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2 mb-3 px-4 py-3 rounded-lg bg-sky-600 text-white">
+                    <h2 class="text-lg font-semibold flex-1">ログイン前</h2>
+                    <span class="text-xs opacity-90">確認：</span>
+                    <a th:each="d : ${ {'pc','sp','fp'} }"
+                       th:href="@{/manager/settings/site-design/preview-frame(device=${d})}" target="_blank"
+                       class="px-3 py-1 text-sm rounded-md bg-white text-sky-700 font-medium hover:bg-sky-50"
+                       th:text="${d == 'pc' ? 'PC' : (d == 'sp' ? 'スマホ' : 'ガラケー')}">PC</a>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
+                    <div class="flex items-center mb-1">
+                        <h3 class="text-base font-semibold text-slate-800 flex-1">ログイン前ページ（HTML）</h3>
+                        <span th:if="${topHtmlCustomized}" class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">編集済み</span>
+                        <span th:unless="${topHtmlCustomized}" class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">初期デザイン</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-2">
+                        本ドメインのトップに表示されるログイン前ページのHTMLです。編集して保存すると、そのまま表示されます。
+                    </p>
+                    <p class="text-xs text-slate-500 mb-2">
+                        使えるタグ：
+                        <code>%sitename%</code> サイト名、<code>%brand%</code> ロゴ、<code>%top_picture%</code> トップ画像、
+                        <code>%top_blur%</code> 背景画像、<code>%contact_mailto%</code> お問い合わせ、<code>%year%</code> 年、
+                        <code>%csrf%</code> 登録・ログインフォーム用（フォーム内に必要）、<code>%footer%</code> フッター
+                    </p>
+                    <p class="text-xs text-slate-500 mb-3">フッターは固定表示です。<code>%footer%</code> を消しても、ページの最後に自動で表示されます。</p>
+                    <textarea class="tw-input font-mono" name="topHtml" rows="18" spellcheck="false"
+                              style="white-space:pre; font-size:.75rem; line-height:1.4;"
+                              th:text="${topHtml}"></textarea>
+                    <label th:if="${topHtmlCustomized}" class="mt-2 inline-flex items-center text-sm text-slate-700">
+                        <input type="checkbox" name="topHtmlReset" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/>
+                        初期デザインに戻す（編集した内容は消えます）
+                    </label>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
+                    <h3 class="text-base font-semibold text-slate-800 mb-1">トップ画像</h3>
+                    <p class="text-xs text-slate-500 mb-4">未登録の場合は初期デザインの画像が表示されます。画像内の「男性無料入会」「女性無料入会」ボタンの位置にリンクが重なるため、同じ構図での差し替えをおすすめします。</p>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">PC用（初期画像 1501×527）</label>
+                        <div class="mb-2 flex items-center gap-4">
+                            <img th:src="${topPcUrl != null ? topPcUrl : '/member/images/main_pc.jpg'}" alt="トップ画像（PC）"
+                                 class="max-h-24 border border-slate-200 rounded"/>
+                            <label th:if="${topPcUrl != null}" class="inline-flex items-center text-sm text-slate-700">
+                                <input type="checkbox" name="topPcRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期画像に戻す
+                            </label>
+                            <span th:if="${topPcUrl == null}" class="text-xs text-slate-400">初期画像</span>
+                        </div>
+                        <input type="file" name="topPcFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">スマホ用（初期画像 992×345）</label>
+                        <div class="mb-2 flex items-center gap-4">
+                            <img th:src="${topSpUrl != null ? topSpUrl : '/member/images/main_sp.jpg'}" alt="トップ画像（スマホ）"
+                                 class="max-h-24 border border-slate-200 rounded"/>
+                            <label th:if="${topSpUrl != null}" class="inline-flex items-center text-sm text-slate-700">
+                                <input type="checkbox" name="topSpRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期画像に戻す
+                            </label>
+                            <span th:if="${topSpUrl == null}" class="text-xs text-slate-400">初期画像</span>
+                        </div>
+                        <input type="file" name="topSpFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm"/>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
+                    <h3 class="text-base font-semibold text-slate-800 mb-1">フッター（固定表示）</h3>
+                    <p class="text-xs text-slate-500 mb-2">
+                        すべてのページの下部に必ず表示されます。リンク（ホーム・よくある質問・年齢認証・特定商取引法に基づく表記・
+                        プライバシーポリシー・利用規約・料金表・お問い合わせ・会員ログイン）は固定です。
+                    </p>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">フッター表記</label>
+                    <textarea class="tw-input" name="footerNote" rows="3" maxlength="2000"
+                              placeholder="例：インターネット異性紹介事業 届出・受理番号 ○○○○○○○○"
+                              th:text="${footerNote}"></textarea>
+                    <p class="mt-1 text-xs text-slate-500">インターネット異性紹介事業の届出・受理番号などを記載してください。改行はそのまま表示されます。</p>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
+                    <h3 class="text-base font-semibold text-slate-800 mb-1">フッターのページ</h3>
+                    <p class="text-xs text-slate-500 mb-4">
+                        フッターのリンクから表示されるページの本文です。HTMLで入力できます。未入力のページは「現在準備中です」と表示されます。
+                    </p>
+                    <div class="mb-5" th:each="entry : ${pageTitles}">
+                        <div class="flex items-center mb-1">
+                            <label class="block text-sm font-medium text-slate-700 flex-1" th:text="${entry.value}">利用規約</label>
+                            <a class="text-xs text-blue-600 hover:underline" th:href="@{'/page/' + ${entry.key}}" target="_blank">表示を確認 ↗</a>
+                        </div>
+                        <textarea class="tw-input font-mono" rows="6"
+                                  th:name="'page_' + ${entry.key}"
+                                  th:text="${pages.get(entry.key)}"></textarea>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
+                    <h3 class="text-base font-semibold text-slate-800 mb-1">お問い合わせ</h3>
+                    <p class="text-xs text-slate-500 mb-3">フッターの「お問い合わせ」を押すと、メールアプリがこのアドレス宛てで開きます。</p>
+                    <input type="email" class="tw-input" name="contactEmail" maxlength="200"
+                           th:value="${contactEmail}" th:placeholder="${contactEmailDefault != null ? contactEmailDefault : 'info@example.com'}"/>
+                    <p class="mt-1 text-xs text-slate-500" th:if="${contactEmail == null and contactEmailDefault != null}">
+                        未入力の場合は <code th:text="${contactEmailDefault}">info@example.com</code> 宛てになります。
+                    </p>
+                </div>
+            </div>
+
+            <!-- ===== 右：ログイン後 ===== -->
+            <div class="min-w-0 2xl:col-span-2">
+                <div class="flex flex-wrap items-center gap-2 mb-3 px-4 py-3 rounded-lg bg-pink-600 text-white">
+                    <h2 class="text-lg font-semibold flex-1">ログイン後</h2>
+                    <span class="text-xs opacity-90">確認：</span>
+                    <a th:each="d : ${ {'pc','sp','fp'} }"
+                       th:href="@{/manager/settings/site-design/member-preview-frame(device=${d})}" target="_blank"
+                       class="px-3 py-1 text-sm rounded-md bg-white text-pink-700 font-medium hover:bg-pink-50"
+                       th:text="${d == 'pc' ? 'PC' : (d == 'sp' ? 'スマホ' : 'ガラケー')}">PC</a>
+                </div>
+                <p class="text-xs text-slate-500 mb-3">
+                    ログイン後のページの形（レイアウト）は固定です。各ページの「上部HTML」「下部HTML」「CSS」を設定できます。
+                    上部HTMLはページ名（受信BOX・プロフ編集など）のすぐ下、下部HTMLはページ下のメニューのすぐ上に表示されます。
+                    CSSはそのページの &lt;head&gt; に &lt;style&gt; として出力されます（&lt;style&gt;タグは不要です）。CSSはHTML枠の中だけに効き、元のデザインの色合いは変わりません。
+                    空欄の場所には何も表示されません。
+                    上の「確認」ボタン（または各ページの「このページを確認」）で、保存済みの内容を実際のページに当てはめて確認できます（HTML枠の位置も表示されます）。
+                </p>
+                <p class="text-xs text-slate-500 mb-3">
+                    各HTMLの右側の「表示範囲」で、<strong>全表示</strong>（全会員に表示）か、<strong>フォルダ限定</strong>（チェックしたフォルダの会員にだけ表示）を選べます。
+                </p>
+                <p class="text-xs text-slate-500 mb-3">
+                    文字数の上限：HTMLは各 <span th:text="${#numbers.formatInteger(maxSlotHtml, 1, 'COMMA')}">5,000</span> 文字、
+                    CSSは <span th:text="${#numbers.formatInteger(maxSlotCss, 1, 'COMMA')}">3,000</span> 文字まで（改行も1文字）。
+                    ガラケーは表示できるページの容量が小さいため、画像や装飾は控えめにしてください。
+                </p>
+
+                <!-- On wide screens: MENU〜条件検索 on the left, サポート窓口〜ポイント表 on the right. -->
+                <div class="2xl:grid 2xl:grid-cols-2 2xl:gap-4 items-start">
+                <div th:each="col : ${ {0, 1} }" class="min-w-0">
+                <div th:each="slot, st : ${slots}" th:if="${(st.index < 5) == (col == 0)}"
+                     th:id="'slot-' + ${slot.code}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 mb-4 scroll-mt-4">
+                    <!-- Same colors as the member site's footer menu. -->
+                    <div class="relative -mx-5 -mt-5 mb-4 px-5 py-2.5 rounded-t-lg text-center text-white"
+                         style="background:#082b4c;border-top:4px solid #e0b82f;">
+                        <h3 class="text-base font-semibold" th:text="${slot.title}">受信BOX</h3>
+                        <a th:href="@{/manager/settings/site-design/member-preview-frame(device='sp',page=${slot.code})}" target="_blank"
+                           class="absolute right-4 top-1/2 -translate-y-1/2 text-xs hover:underline" style="color:#e0b82f;">このページを確認</a>
+                    </div>
+                    <div class="mb-3">
+                        <div class="flex items-baseline mb-1">
+                            <label class="text-sm font-medium text-slate-700 flex-1" th:for="'slottop_' + ${slot.code}">
+                                上部HTML <span class="text-xs font-normal text-slate-500" th:text="${slot.code == 'menu' ? '（ID・ポイント表示のすぐ下）' : '（ページ名「' + slot.title + '」のすぐ下）'}"></span>
+                            </label>
+                            <span class="text-xs text-slate-500 js-count"></span>
+                        </div>
+                        <div class="flex gap-3 items-stretch">
+                        <div class="flex-1 min-w-0 flex flex-col">
+                        <textarea class="tw-input font-mono js-limit flex-1" rows="4" spellcheck="false" style="font-size:.78rem;"
+                                  th:id="'slottop_' + ${slot.code}" th:name="'slottop_' + ${slot.code}" th:maxlength="${maxSlotHtml}"
+                                  th:text="${slot.topHtml}"></textarea>
+                        </div>
+                        <!-- 表示範囲: 全表示 or only members in the checked folders. -->
+                        <div class="w-40 shrink-0 border border-slate-200 rounded-md p-2 text-xs js-scope"
+                             th:with="sel=${slot.topFolders}">
+                            <div class="font-medium text-slate-600 mb-1">表示範囲</div>
+                            <label class="flex items-center gap-1 mb-0.5">
+                                <input type="radio" value="all" th:name="'slottopscope_' + ${slot.code}" th:checked="${sel.empty}"/> 全表示
+                            </label>
+                            <label class="flex items-center gap-1 mb-1">
+                                <input type="radio" value="folders" th:name="'slottopscope_' + ${slot.code}" th:checked="${!sel.empty}"/> フォルダ限定
+                            </label>
+                            <div class="js-scope-folders pl-4 border-t border-slate-100 pt-1">
+                                <label th:each="f : ${folders}" class="flex items-center gap-1">
+                                    <input type="checkbox" th:name="'slottopfolders_' + ${slot.code}" th:value="${f}"
+                                           th:checked="${#lists.contains(sel, f)}"/>
+                                    <span class="truncate" th:text="${f}">フォルダ</span>
+                                </label>
+                                <!-- Saved folder that no longer exists in フォルダ設定 — kept visible so saving doesn't silently drop it. -->
+                                <label th:each="f : ${sel}" th:unless="${#lists.contains(folders, f)}" class="flex items-center gap-1 text-amber-700">
+                                    <input type="checkbox" th:name="'slottopfolders_' + ${slot.code}" th:value="${f}" checked/>
+                                    <span class="truncate" th:text="${f} + '（旧名）'">旧フォルダ</span>
+                                </label>
+                                <p th:if="${folders.empty and sel.empty}" class="text-slate-400">フォルダ未設定</p>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="flex items-baseline mb-1">
+                            <label class="text-sm font-medium text-slate-700 flex-1" th:for="'slotbottom_' + ${slot.code}">
+                                下部HTML <span class="text-xs font-normal text-slate-500" th:text="${slot.code == 'menu' ? '（自由枠 %HTML% の位置）' : '（ページ下のメニューのすぐ上）'}"></span>
+                            </label>
+                            <span class="text-xs text-slate-500 js-count"></span>
+                        </div>
+                        <div class="flex gap-3 items-stretch">
+                        <div class="flex-1 min-w-0 flex flex-col">
+                        <textarea class="tw-input font-mono js-limit flex-1" rows="4" spellcheck="false" style="font-size:.78rem;"
+                                  th:id="'slotbottom_' + ${slot.code}" th:name="'slotbottom_' + ${slot.code}" th:maxlength="${maxSlotHtml}"
+                                  th:text="${slot.bottomHtml}"></textarea>
+                        </div>
+                        <!-- 表示範囲: 全表示 or only members in the checked folders. -->
+                        <div class="w-40 shrink-0 border border-slate-200 rounded-md p-2 text-xs js-scope"
+                             th:with="sel=${slot.bottomFolders}">
+                            <div class="font-medium text-slate-600 mb-1">表示範囲</div>
+                            <label class="flex items-center gap-1 mb-0.5">
+                                <input type="radio" value="all" th:name="'slotbottomscope_' + ${slot.code}" th:checked="${sel.empty}"/> 全表示
+                            </label>
+                            <label class="flex items-center gap-1 mb-1">
+                                <input type="radio" value="folders" th:name="'slotbottomscope_' + ${slot.code}" th:checked="${!sel.empty}"/> フォルダ限定
+                            </label>
+                            <div class="js-scope-folders pl-4 border-t border-slate-100 pt-1">
+                                <label th:each="f : ${folders}" class="flex items-center gap-1">
+                                    <input type="checkbox" th:name="'slotbottomfolders_' + ${slot.code}" th:value="${f}"
+                                           th:checked="${#lists.contains(sel, f)}"/>
+                                    <span class="truncate" th:text="${f}">フォルダ</span>
+                                </label>
+                                <!-- Saved folder that no longer exists in フォルダ設定 — kept visible so saving doesn't silently drop it. -->
+                                <label th:each="f : ${sel}" th:unless="${#lists.contains(folders, f)}" class="flex items-center gap-1 text-amber-700">
+                                    <input type="checkbox" th:name="'slotbottomfolders_' + ${slot.code}" th:value="${f}" checked/>
+                                    <span class="truncate" th:text="${f} + '（旧名）'">旧フォルダ</span>
+                                </label>
+                                <p th:if="${folders.empty and sel.empty}" class="text-slate-400">フォルダ未設定</p>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-baseline mb-1">
+                            <label class="text-sm font-medium text-slate-700 flex-1" th:for="'slotcss_' + ${slot.code}">CSS</label>
+                            <span class="text-xs text-slate-500 js-count"></span>
+                        </div>
+                        <textarea class="tw-input font-mono js-limit" rows="3" spellcheck="false" style="font-size:.78rem;"
+                                  th:id="'slotcss_' + ${slot.code}" th:name="'slotcss_' + ${slot.code}" th:maxlength="${maxSlotCss}"
+                                  placeholder=".campaign { color: #e8246f; }"
+                                  th:text="${slot.css}"></textarea>
+                    </div>
+                    <div class="mt-4 text-right">
+                        <button type="submit" name="jump" th:value="${slot.code}"
+                                class="inline-flex items-center px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
+                    </div>
+                </div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sticky bottom-0 py-3 bg-slate-50 border-t border-slate-200 mt-2">
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
+        </div>
+    </form>
+    <script>
+    // "123 / 5,000文字" under each limited field; turns red at the limit.
+    document.querySelectorAll('textarea.js-limit').forEach(function (ta) {
+        // nearest wrapper holding this field's counter (the textarea sits beside its 表示範囲 box)
+        var box = ta.parentElement;
+        while (box && !box.querySelector('.js-count')) box = box.parentElement;
+        var out = box.querySelector('.js-count');
+        var max = parseInt(ta.getAttribute('maxlength'), 10);
+        function update() {
+            var n = ta.value.length;
+            out.textContent = n.toLocaleString() + ' / ' + max.toLocaleString() + '文字';
+            out.style.color = n >= max ? '#dc2626' : '';
+        }
+        ta.addEventListener('input', update);
+        update();
+    });
+    // 表示範囲: the folder checkboxes only apply with フォルダ限定 selected.
+    document.querySelectorAll('.js-scope').forEach(function (box) {
+        var list = box.querySelector('.js-scope-folders');
+        function sync() {
+            var limited = box.querySelector('input[type=radio][value=folders]').checked;
+            list.style.opacity = limited ? '' : '.4';
+            list.querySelectorAll('input').forEach(function (c) { c.disabled = !limited; });
+        }
+        box.querySelectorAll('input[type=radio]').forEach(function (r) { r.addEventListener('change', sync); });
+        sync();
+    });
+    </script>
+</section>
+</body>
+</html>

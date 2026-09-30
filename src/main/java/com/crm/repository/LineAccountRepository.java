@@ -19,4 +19,9 @@ public interface LineAccountRepository extends JpaRepository<LineAccount, Long> 
     boolean existsByWebhookToken(String webhookToken);
 
     Optional<LineAccount> findByWebhookToken(String webhookToken);
+
+    /** 接続エラー accounts for the dashboard warning, and the auto connection-check targets. */
+    List<LineAccount> findByStatusOrderByNameAsc(String status);
+
+    List<LineAccount> findByStatusIn(java.util.Collection<String> statuses);
 }

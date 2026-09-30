@@ -36,6 +36,12 @@
         .count-grid .val.mail    { background:#e2e8f0; color:#475569; }
         .count-grid .val.out     { background:#dbeafe; color:#1d4ed8; }
         .count-grid .val.sms     { background:#fef9c3; color:#854d0e; }
+        /* 最新メッセージ: full body, line breaks kept; very long bodies scroll inside the cell
+         * instead of being cut off (operator request 2026-09-30). */
+        .inbox-body {
+            white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
+            max-height:16em; overflow-y:auto; line-height:1.45; font-size:.78rem; color:#475569;
+        }
     </style>
 </head>
 <body>
@@ -83,22 +89,24 @@
     </div>
 
     <form id="inboxBulkForm" method="post">
-    <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-hidden">
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
             <tr>
                 <th class="px-4 py-2 text-left" style="width: 36px;"><input type="checkbox" id="inboxCheckAll" title="全選択"/></th>
                 <th class="px-4 py-2 text-left" style="width: 60px;">No</th>
-                <th class="px-4 py-2 text-left" style="width: 240px;">表示名</th>
+                <th class="px-4 py-2 text-left" style="width: 90px;">種別</th>
+                <th class="px-4 py-2 text-left" style="width: 200px;">表示名</th>
+                <th class="px-4 py-2 text-left" style="width: 140px;">キャラ名</th>
                 <th class="px-4 py-2 text-left" style="width: 160px;">件数内訳</th>
-                <th class="px-4 py-2 text-left">最新メッセージ</th>
-                <th class="px-4 py-2 text-left" style="width: 160px;">最終返信日時</th>
+                <th class="px-4 py-2 text-left" style="min-width: 320px;">最新メッセージ</th>
+                <th class="px-4 py-2 text-left" style="width: 140px;">受信日時</th>
                 <th class="px-4 py-2 text-right" style="width: 150px;">操作</th>
             </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
             <tr th:if="${rows.empty}">
-                <td colspan="7" class="px-4 py-10 text-center text-slate-400">
+                <td colspan="9" class="px-4 py-10 text-center text-slate-400">
                     <span th:if="${unreadOnly}">未読のメッセージはありません</span>
                     <span th:unless="${unreadOnly}">受信メッセージはまだありません</span>
                 </td>
@@ -107,6 +115,21 @@
                 th:classappend="${r.unreadCount > 0} ? 'bg-blue-50/40' : ''">
                 <td class="px-4 py-2"><input type="checkbox" class="inbox-row-item" name="userIds" th:value="${r.userId}"/></td>
                 <td class="px-4 py-2"><code class="text-xs text-slate-600" th:text="${it.count}"></code></td>
+                <!-- 種別: channel of the latest received message -->
+                <td class="px-4 py-2 whitespace-nowrap">
+                    <span th:if="${r.latestChannel == 'EMAIL'}"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700"
+                          title="ユーザーからの直接メール返信">メール返信</span>
+                    <span th:if="${r.latestChannel == 'WEB_REPLY'}"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700"
+                          title="返信URLからのフォーム返信">Web返信</span>
+                    <span th:if="${r.latestChannel == 'SMS'}"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
+                          title="ユーザーからのSMS返信">SMS返信</span>
+                    <span th:if="${r.latestChannel == 'LINE'}"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                          style="background:#d9f7e6; color:#046c3a;" title="ユーザーからのLINE返信">LINE返信</span>
+                </td>
                 <td class="px-4 py-2">
                     <a class="text-blue-700 hover:underline font-semibold"
                        th:href="@{'/manager/users/' + ${r.userId}}" target="_blank"
@@ -115,6 +138,9 @@
                     <div class="text-xs text-slate-400 truncate" th:if="${r.phoneNumber != null and !r.phoneNumber.isEmpty()}"
                          th:text="${r.phoneNumber}" style="max-width: 220px;"></div>
                 </td>
+                <!-- キャラ名: LINE account the latest message was received on (LINE only) -->
+                <td class="px-4 py-2 text-xs text-slate-700"
+                    th:text="${r.latestLineAccountName != null} ? ${r.latestLineAccountName} : '-'">-</td>
                 <td class="px-4 py-2">
                     <div class="count-grid">
                         <span class="lbl">未読</span>
@@ -131,8 +157,9 @@
                     </div>
                 </td>
                 <td class="px-4 py-2 min-w-0">
-                    <div class="font-medium text-slate-800 truncate" th:text="${r.latestSubject} ?: '(件名なし)'"></div>
-                    <div class="text-xs text-slate-500 truncate" th:text="${r.latestPreview}"></div>
+                    <div class="font-medium text-slate-800" th:unless="${r.latestChannel == 'LINE'}"
+                         th:text="${r.latestSubject} ?: '(件名なし)'"></div>
+                    <div class="inbox-body" th:text="${r.latestBody}"></div>
                 </td>
                 <td class="px-4 py-2 text-slate-600 text-xs whitespace-nowrap"
                     th:text="${r.latestAt != null} ? ${#temporals.format(r.latestAt, 'yyyy-MM-dd HH:mm')} : '-'">

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="'ログイン前ページ確認（' + ${deviceLabels.get(device)} + '） | CRM'">ログイン前ページ確認 | CRM</title>
+    <!-- 番組デザイン設定 › PC / スマホ / ガラケー check: the saved pre-login page (…/site-design/preview)
+         in a frame of the device's width. Standalone (no admin sidebar) so the PC width fits. -->
+    <style>
+        body { margin:0; background:#1e293b; font-family:system-ui,"Noto Sans JP",sans-serif; color:#e2e8f0; }
+        .bar { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px; padding:10px 16px; background:#0f172a; }
+        .bar .ttl { font-weight:700; margin-right:8px; }
+        .bar a { color:#cbd5e1; text-decoration:none; padding:6px 14px; border-radius:6px; border:1px solid #334155; font-size:14px; }
+        .bar a.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+        .bar .w { margin-left:auto; font-size:12px; color:#94a3b8; }
+        .stage { padding:20px; overflow-x:auto; }
+        iframe { display:block; margin:0 auto; border:0; background:#fff; height:calc(100vh - 100px); box-shadow:0 10px 30px rgba(0,0,0,.4); }
+        .phone iframe { border-radius:18px; border:10px solid #0f172a; }
+    </style>
+</head>
+<body>
+<div class="bar">
+    <span class="ttl">ログイン前ページ確認</span>
+    <a th:each="d : ${deviceWidths}" th:href="@{/manager/settings/site-design/preview-frame(device=${d.key})}"
+       th:classappend="${d.key == device} ? 'on'" th:text="${deviceLabels.get(d.key)}">PC</a>
+    <span class="w" th:text="'表示幅 ' + ${deviceWidths.get(device)} + 'px（保存済みの内容）'">表示幅</span>
+</div>
+<div class="stage" th:classappend="${device != 'pc'} ? 'phone'">
+    <iframe th:src="@{/manager/settings/site-design/preview}" th:style="'width:' + ${deviceWidths.get(device)} + 'px'"
+            title="ログイン前ページ"></iframe>
+</div>
+</body>
+</html>

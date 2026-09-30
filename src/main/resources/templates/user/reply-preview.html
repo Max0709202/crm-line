@@ -35,14 +35,14 @@
 
 <div th:if="${usingDefaultHtml}"
      style="background:#f0f9ff;border-bottom:1px solid #bae6fd;padding:8px 16px;font-size:.78rem;color:#075985;font-family:sans-serif;line-height:1.5;">
-    このユーザーには専用返信画面HTMLが未設定です。<strong>設定ページのデフォルト返信画面HTML</strong>を表示しています。
+    このユーザーには専用HTMLが未設定です。<strong>設定ページのデフォルト返信画面HTML</strong>を表示しています。
     <a th:href="@{/manager/settings/reply-page}" style="color:#2563eb;text-decoration:underline;margin-left:8px;">設定ページへ</a>
 </div>
 <div th:if="${repaired}"
      style="background:#fef2f2;border-bottom:1px solid #fecaca;padding:8px 16px;font-size:.78rem;color:#991b1b;font-family:sans-serif;line-height:1.5;">
     メモのHTMLに <code style="background:#fff;padding:1px 6px;border-radius:3px;border:1px solid #fecaca;">&lt;/style&gt;</code> または
     <code style="background:#fff;padding:1px 6px;border-radius:3px;border:1px solid #fecaca;">&lt;script&gt;</code> の不足が検出されたため、プレビューでは自動修復しています。
-    実際のユーザー画面でも正しく表示されるよう、専用返信画面HTMLの保存内容をご確認のうえ修正ください。
+    実際のユーザー画面でも正しく表示されるよう、専用HTMLの保存内容をご確認のうえ修正ください。
 </div>
 
 <!-- Same DOM structure as templates/reply/page.html so reply.css applies identically. -->
@@ -50,7 +50,7 @@
 
     <iframe class="reply-header-frame"
             sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
-            th:attr="srcdoc=${memoText} ?: '&lt;p style=&quot;padding:24px;color:#94a3b8;&quot;&gt;専用返信画面HTMLが未設定です。&lt;/p&gt;'"></iframe>
+            th:attr="srcdoc=${memoText} ?: '&lt;p style=&quot;padding:24px;color:#94a3b8;&quot;&gt;専用HTMLが未設定です。&lt;/p&gt;'"></iframe>
 
     <div class="reply-banner">
         <h1>入力欄</h1>

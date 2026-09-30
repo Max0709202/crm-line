@@ -14,6 +14,10 @@ public interface LineUserRepository extends JpaRepository<LineUser, Long> {
 
     List<LineUser> findByCrmUserId(Long crmUserId);
 
+    /** Same LINE person's already-linked friend rows on our other accounts — lets a new
+     *  friend-add join the existing customer instead of creating a duplicate one. */
+    List<LineUser> findByLineUserIdAndCrmUserIdIsNotNullOrderByIdAsc(String lineUserId);
+
     /** Batch version of {@link #findByCrmUserId} for resolving each recipient's currently-
      *  linked LINE account at diff-step fire time ("紐づきアカ" — a recipient friended via
      *  more than one child account resolves to whichever they messaged most recently). */

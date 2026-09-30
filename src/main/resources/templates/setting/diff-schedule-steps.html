@@ -29,6 +29,10 @@
         セットした時刻を起点に、各ステップが指定のタイミングで実行されます（「分後」は当日、「日後+時刻」は翌日以降）。
         下にスクロールすると、後のタイミングのステップを確認できます。ステップは最大 <span th:text="${maxSteps}">20</span> 件まで登録できます。
     </p>
+    <div class="text-sm mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+        「登録後(分後)」のステップは、ユーザーが新しく登録された時点（手動登録・LINE友だち追加）から指定の分数後に、自動で発動します（差分のセットは不要です）。<br/>
+        <strong>※注意：CSV登録のユーザーには、誤発動を防ぐため「登録後(分後)」のステップは発動しません。</strong>
+    </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <!-- 左2/3: 既存ステップ（縦スクロール） -->
@@ -45,6 +49,7 @@
                         <span class="step-badge" th:text="${iter.index + 1}"></span>
                         <div class="flex-1 min-w-0">
                             <div class="text-xs text-slate-500 mb-1">
+                                <span th:if="${s.offsetMode == 'REGISTER'}" th:text="'登録から ' + ${s.offsetMinutes} + ' 分後'" class="font-semibold text-emerald-700"></span>
                                 <span th:if="${s.offsetMode == 'MINUTES'}" th:text="'セットから ' + ${s.offsetMinutes} + ' 分後'"></span>
                                 <span th:if="${s.offsetMode == 'DAYS'}" th:text="'セットから ' + ${s.offsetDays} + ' 日後 ' + ${s.offsetClockTime}"></span>
                                 &nbsp;·&nbsp;
@@ -77,6 +82,9 @@
                             <input type="hidden" name="diffDefinitionId" th:value="${definition.id}"/>
 
                             <div class="flex gap-4 mb-2 text-xs">
+                                <label><input type="radio" th:name="'offsetModeRadio' + ${s.id}" value="REGISTER"
+                                              th:checked="${s.offsetMode == 'REGISTER'}"
+                                              th:attr="onchange=|switchOffsetPanel(${s.id}, 'REGISTER')|"/> 登録後(分後)</label>
                                 <label><input type="radio" th:name="'offsetModeRadio' + ${s.id}" value="MINUTES"
                                               th:checked="${s.offsetMode == 'MINUTES'}"
                                               th:attr="onchange=|switchOffsetPanel(${s.id}, 'MINUTES')|"/> 当日(分後)</label>
@@ -86,7 +94,7 @@
                             </div>
                             <input type="hidden" name="offsetMode" th:id="'offsetMode' + ${s.id}" th:value="${s.offsetMode}"/>
 
-                            <div th:id="'offsetPanelMINUTES' + ${s.id}" th:class="${s.offsetMode == 'MINUTES'} ? 'offset-panel active' : 'offset-panel'" class="mb-2">
+                            <div th:id="'offsetPanelMINUTES' + ${s.id}" th:class="${s.offsetMode == 'MINUTES' or s.offsetMode == 'REGISTER'} ? 'offset-panel active' : 'offset-panel'" class="mb-2">
                                 <input type="number" name="offsetMinutes" min="1" class="tw-input" style="width:100px;" th:value="${s.offsetMinutes}"/> 分後
                             </div>
                             <div th:id="'offsetPanelDAYS' + ${s.id}" th:class="${s.offsetMode == 'DAYS'} ? 'offset-panel active' : 'offset-panel'" class="mb-2 flex items-center gap-2">
@@ -192,6 +200,7 @@
                 <input type="hidden" name="_csrf" th:value="${_csrf}"/>
 
                 <div class="flex gap-4 mb-2 text-xs">
+                    <label><input type="radio" name="offsetModeRadio" value="REGISTER" onchange="switchOffsetPanel('new', 'REGISTER')"/> 登録後(分後)</label>
                     <label><input type="radio" name="offsetModeRadio" value="MINUTES" checked onchange="switchOffsetPanel('new', 'MINUTES')"/> 当日(分後)</label>
                     <label><input type="radio" name="offsetModeRadio" value="DAYS" onchange="switchOffsetPanel('new', 'DAYS')"/> 翌日以降(日数+時刻)</label>
                 </div>
@@ -289,9 +298,11 @@
         function switchOffsetPanel(id, mode) {
             var field = document.getElementById('offsetMode' + id);
             if (field) field.value = mode;
+            // 登録後(分後) uses the same minutes input as 当日(分後).
+            var panel = mode === 'REGISTER' ? 'MINUTES' : mode;
             ['MINUTES', 'DAYS'].forEach(function (m) {
                 var p = document.getElementById('offsetPanel' + m + id);
-                if (p) p.classList.toggle('active', m === mode);
+                if (p) p.classList.toggle('active', m === panel);
             });
         }
         function switchTypePanel(id, type) {

@@ -719,7 +719,7 @@ class MessageServiceTest {
         CrmUser user = new CrmUser();
         user.setId(60L);
         when(userRepo.findById(60L)).thenReturn(Optional.of(user));
-        when(lineUserRepo.findByCrmUserId(60L)).thenReturn(java.util.Collections.emptyList());
+        when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(60L))).thenReturn(java.util.Collections.emptyList());
 
         com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
         form.setBody("こんにちは");
@@ -737,7 +737,7 @@ class MessageServiceTest {
         LineUser lineUser = new LineUser();
         lineUser.setLineAccountId(5L);
         lineUser.setLineUserId("Uabc123");
-        when(lineUserRepo.findByCrmUserId(61L)).thenReturn(java.util.Collections.singletonList(lineUser));
+        when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(61L))).thenReturn(java.util.Collections.singletonList(lineUser));
         when(placeholderService.substitute(anyString(), any(CrmUser.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -773,7 +773,7 @@ class MessageServiceTest {
         LineUser lineUser = new LineUser();
         lineUser.setLineAccountId(5L);
         lineUser.setLineUserId("Ushort");
-        when(lineUserRepo.findByCrmUserId(63L)).thenReturn(java.util.Collections.singletonList(lineUser));
+        when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(63L))).thenReturn(java.util.Collections.singletonList(lineUser));
         when(placeholderService.substitute(anyString(), any(CrmUser.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -805,7 +805,7 @@ class MessageServiceTest {
         LineUser lineUser = new LineUser();
         lineUser.setLineAccountId(5L);
         lineUser.setLineUserId("Uabc999");
-        when(lineUserRepo.findByCrmUserId(62L)).thenReturn(java.util.Collections.singletonList(lineUser));
+        when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(62L))).thenReturn(java.util.Collections.singletonList(lineUser));
         when(placeholderService.substitute(anyString(), any(CrmUser.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -818,6 +818,39 @@ class MessageServiceTest {
 
         assertThat(saved.getStatus()).isEqualTo(Message.STATUS_QUEUED);
         verify(outboundLine, never()).send(any());
+    }
+
+    @Test
+    void composeLine_customerLinkedToSeveralCharacters_sendsFromTheChosenOne() {
+        CrmUser user = new CrmUser();
+        user.setId(64L);
+        when(userRepo.findById(64L)).thenReturn(Optional.of(user));
+        LineUser viaA = new LineUser();
+        viaA.setLineAccountId(5L);
+        viaA.setLineUserId("Usame");
+        LineUser viaB = new LineUser();
+        viaB.setLineAccountId(6L);
+        viaB.setLineUserId("Usame");
+        when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(64L)))
+                .thenReturn(java.util.Arrays.asList(viaA, viaB));
+        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
+        form.setBody("キャラBから");
+        form.setLineAccountId(6L);
+        form.setScheduledAt(java.time.LocalDateTime.now().plusDays(1));
+        assertThat(svc.composeLine(64L, 1L, form).getLineAccountId()).isEqualTo(6L);
+
+        // no choice → the character they most recently messaged (first in the list)
+        form.setLineAccountId(null);
+        assertThat(svc.composeLine(64L, 1L, form).getLineAccountId()).isEqualTo(5L);
+
+        // a character they aren't friends with is refused, not silently swapped
+        form.setLineAccountId(99L);
+        assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> svc.composeLine(64L, 1L, form)))
+                .isInstanceOf(MessageService.MessageException.class);
     }
 
     private static Message lineQueued() {

@@ -44,6 +44,16 @@ public class UserActivityService {
     }
 
     /**
+     * Same as {@link #touchLastLogin(CrmUser)} by user id — for inbound LINE / SMS, which only
+     * carry the linked CRM user id. Without this, a user active only on LINE kept a blank
+     * 最終ログイン and sank below everyone in the user list's ログイン順 (2026-09-30).
+     */
+    public void touchLastLogin(Long userId) {
+        if (userId == null) return;
+        userRepository.findById(userId).ifPresent(this::touchLastLoginOnly);
+    }
+
+    /**
      * Record activity for this user AND append an access-log row with the request's source/IP/UA.
      * Use from any HTTP-facing click path (reply page view/submit, future short-link redirect).
      */

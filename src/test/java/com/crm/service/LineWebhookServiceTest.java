@@ -35,6 +35,7 @@ class LineWebhookServiceTest {
     private LineUserLinkService lineUserLinkService;
     private LineAutoReplyService lineAutoReplyService;
     private MessageService messageService;
+    private UserActivityService userActivityService;
     private LineWebhookService svc;
 
     @BeforeEach
@@ -47,6 +48,7 @@ class LineWebhookServiceTest {
         lineUserLinkService = mock(LineUserLinkService.class);
         lineAutoReplyService = mock(LineAutoReplyService.class);
         messageService = mock(MessageService.class);
+        userActivityService = mock(UserActivityService.class);
         when(aes.decrypt(anyString())).thenAnswer(inv -> inv.getArgument(0));
         when(lineUserRepository.save(any(LineUser.class))).thenAnswer(inv -> {
             LineUser u = inv.getArgument(0);
@@ -61,7 +63,7 @@ class LineWebhookServiceTest {
             return lineUserRepository.save(u);
         });
         svc = new LineWebhookService(lineAccountRepository, lineUserRepository, messageRepository, aes, lineApiClient,
-                lineUserLinkService, lineAutoReplyService, messageService);
+                lineUserLinkService, lineAutoReplyService, messageService, userActivityService);
     }
 
     private static LineAccount account() {
@@ -127,6 +129,8 @@ class LineWebhookServiceTest {
         assertThat(m.getBodyText()).isEqualTo("予約したいです");
         assertThat(m.getLineAccountId()).isEqualTo(1L);
         assertThat(m.getMessageIdHeader()).isEqualTo("line-mo:evt2");
+        // LINE activity moves the user up the ログイン順 user list (最終ログイン).
+        verify(userActivityService).touchLastLogin(999L);
     }
 
     @Test
@@ -205,6 +209,8 @@ class LineWebhookServiceTest {
         ArgumentCaptor<com.crm.dto.LineComposeForm> cap = ArgumentCaptor.forClass(com.crm.dto.LineComposeForm.class);
         verify(messageService).composeLine(org.mockito.ArgumentMatchers.eq(999L), org.mockito.ArgumentMatchers.isNull(), cap.capture());
         assertThat(cap.getValue().getBody()).isEqualTo("友だち追加ありがとうございます！");
+        // replies from the character that was friended, not whichever link comes first
+        assertThat(cap.getValue().getLineAccountId()).isEqualTo(1L);
     }
 
     @Test

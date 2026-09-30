@@ -30,6 +30,8 @@ import java.util.Optional;
 @Service
 public class LineAccountService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(LineAccountService.class);
+
     private final LineAccountRepository repository;
     private final AesEncryptionUtil aes;
     private final LineApiClient lineApiClient;
@@ -219,6 +221,64 @@ public class LineAccountService {
         a.setStatus(info != null ? LineAccount.STATUS_ACTIVE : LineAccount.STATUS_ERROR);
         a.setLastConnectionCheckAt(LocalDateTime.now());
         return repository.save(a);
+    }
+
+    /** Separate lane so a slow LINE API (up to connect+read timeout per account) never holds
+     *  the shared @Scheduled thread that message dispatch also runs on. */
+    private final java.util.concurrent.ExecutorService connectionCheckLane =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "line-connection-check");
+                t.setDaemon(true);
+                return t;
+            });
+    private final java.util.concurrent.atomic.AtomicBoolean connectionCheckRunning =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /**
+     * Every 10 minutes — re-runs {@link #checkConnection} for every account in use (ACTIVE)
+     * or already failing (ERROR, so a recovered one clears by itself), so an account that
+     * stops connecting is flagged on the 管理トップ without anyone pressing 接続確認
+     * (2026-09-29 client request). UNUSED accounts are left alone — never checked yet.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(
+            fixedDelayString = "${app.line.connection-check-ms:600000}",
+            initialDelayString = "${app.line.connection-check-initial-delay-ms:120000}")
+    public void scheduleConnectionChecks() {
+        if (!connectionCheckRunning.compareAndSet(false, true)) return;
+        try {
+            connectionCheckLane.submit(() -> {
+                try {
+                    checkAllConnections();
+                } finally {
+                    connectionCheckRunning.set(false);
+                }
+            });
+        } catch (RuntimeException e) {
+            connectionCheckRunning.set(false);
+            throw e;
+        }
+    }
+
+    void checkAllConnections() {
+        List<LineAccount> targets = repository.findByStatusIn(
+                java.util.Arrays.asList(LineAccount.STATUS_ACTIVE, LineAccount.STATUS_ERROR));
+        for (LineAccount a : targets) {
+            try {
+                String before = a.getStatus();
+                LineAccount after = checkConnection(a.getId());
+                if (!before.equals(after.getStatus())) {
+                    log.warn("[LINE] connection status changed: account={} name={} {} -> {}",
+                            a.getId(), com.crm.util.LogSafe.of(a.getName()), before, after.getStatus());
+                }
+            } catch (Exception e) {
+                log.warn("[LINE] auto connection check failed: account={} error={}", a.getId(), com.crm.util.LogSafe.of(e.toString()));
+            }
+        }
+    }
+
+    /** Accounts currently failing their connection check — the dashboard warning list. */
+    public List<LineAccount> listConnectionErrors() {
+        return repository.findByStatusOrderByNameAsc(LineAccount.STATUS_ERROR);
     }
 
     @Transactional

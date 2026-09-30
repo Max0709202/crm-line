@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import org.mockito.ArgumentCaptor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -52,8 +53,11 @@ class DiffScheduleServiceTest {
     private LineAccountService lineAccountService;
     private DiffScheduleService svc;
 
+    private com.crm.repository.AdminUserRepository adminUserRepository;
+
     @BeforeEach
     void setUp() {
+        adminUserRepository = mock(com.crm.repository.AdminUserRepository.class);
         scheduleRepo = mock(DiffScheduleRepository.class);
         scheduleStepRepo = mock(DiffScheduleStepRepository.class);
         definitionRepo = mock(DiffDefinitionRepository.class);
@@ -71,7 +75,7 @@ class DiffScheduleServiceTest {
         svc = new DiffScheduleService(scheduleRepo, scheduleStepRepo, definitionRepo, stepRepo,
                 crmUserService, userRepository, broadcastService, broadcastRepository, auditLog,
                 domainSettingService, htmlImageService, messageService, lineUserRepository,
-                lineAccountService);
+                lineAccountService, adminUserRepository);
         when(broadcastRepository.save(any(Broadcast.class))).thenAnswer(inv -> inv.getArgument(0));
         when(scheduleRepo.save(any(DiffSchedule.class))).thenAnswer(inv -> {
             DiffSchedule s = inv.getArgument(0);
@@ -116,6 +120,62 @@ class DiffScheduleServiceTest {
         s.setStepType(DiffStep.STEP_HTML_SWITCH);
         s.setMemoSlot(slot);
         return s;
+    }
+
+    // ---- 登録後(分後) ----
+
+    @Test
+    void applyRegistrationSteps_schedulesRegisterStepsForTheNewUserOnly() {
+        DiffStep reg = messageStep(7L, 0, DiffStep.OFFSET_AFTER_REGISTER, 10, null, null, DiffStep.CHANNEL_LINE, "ようこそ");
+        when(stepRepo.findByOffsetModeOrderByDiffDefinitionIdAscStepOrderAsc(DiffStep.OFFSET_AFTER_REGISTER))
+                .thenReturn(java.util.Collections.singletonList(reg));
+        when(definitionRepo.findById(7L)).thenReturn(Optional.of(definition(7L, "新規ステップ")));
+        com.crm.entity.CrmUser u = new com.crm.entity.CrmUser();
+        u.setId(88L);
+        u.setCreatedAt(LocalDateTime.of(2026, 9, 30, 12, 0));
+
+        com.crm.entity.AdminUser primary = new com.crm.entity.AdminUser();
+        primary.setId(1L);
+        when(adminUserRepository.findAll(any(org.springframework.data.domain.Sort.class)))
+                .thenReturn(java.util.Collections.singletonList(primary));
+
+        assertThat(svc.applyRegistrationSteps(u, null)).isEqualTo(1);   // LINE friend-add: no admin
+
+        ArgumentCaptor<DiffSchedule> sched = ArgumentCaptor.forClass(DiffSchedule.class);
+        verify(scheduleRepo).save(sched.capture());
+        assertThat(sched.getValue().getTargetType()).isEqualTo(DiffSchedule.TARGET_REGISTER);
+        // BROADCAST.ADMIN_USER_ID is NOT NULL — the run must carry an admin to be sendable
+        assertThat(sched.getValue().getSetByAdminId()).isEqualTo(1L);
+        assertThat(sched.getValue().getTargetUserIds()).isEqualTo("88");
+        ArgumentCaptor<DiffScheduleStep> step = ArgumentCaptor.forClass(DiffScheduleStep.class);
+        verify(scheduleStepRepo).save(step.capture());
+        assertThat(step.getValue().getScheduledFor()).isEqualTo(LocalDateTime.of(2026, 9, 30, 12, 10));
+        assertThat(step.getValue().getStatus()).isEqualTo(DiffScheduleStep.STATUS_PENDING);
+    }
+
+    @Test
+    void register_manualApply_skipsRegisterSteps() {
+        when(definitionRepo.findById(7L)).thenReturn(Optional.of(definition(7L, "混在")));
+        when(stepRepo.findByDiffDefinitionIdOrderByStepOrderAsc(7L)).thenReturn(Arrays.asList(
+                messageStep(7L, 0, DiffStep.OFFSET_AFTER_REGISTER, 5, null, null, DiffStep.CHANNEL_SMS, "登録後"),
+                messageStep(7L, 1, DiffStep.OFFSET_MINUTES, 30, null, null, DiffStep.CHANNEL_SMS, "当日")));
+        when(crmUserService.findIdsBySearch(any(), any())).thenReturn(java.util.Collections.singletonList(1L));
+
+        svc.register(7L, DiffSchedule.TARGET_FOLDER, "A", 1L, "admin");
+
+        ArgumentCaptor<DiffScheduleStep> step = ArgumentCaptor.forClass(DiffScheduleStep.class);
+        verify(scheduleStepRepo).save(step.capture());   // only the 当日 step
+        assertThat(step.getValue().getOffsetMode()).isEqualTo(DiffStep.OFFSET_MINUTES);
+    }
+
+    @Test
+    void register_manualApply_onlyRegisterSteps_isRefusedWithExplanation() {
+        when(definitionRepo.findById(7L)).thenReturn(Optional.of(definition(7L, "登録のみ")));
+        when(stepRepo.findByDiffDefinitionIdOrderByStepOrderAsc(7L)).thenReturn(java.util.Collections.singletonList(
+                messageStep(7L, 0, DiffStep.OFFSET_AFTER_REGISTER, 5, null, null, DiffStep.CHANNEL_SMS, "登録後")));
+
+        assertThatThrownBy(() -> svc.register(7L, DiffSchedule.TARGET_FOLDER, "A", 1L, "admin"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("登録後");
     }
 
     // ---- computeScheduledFor ----

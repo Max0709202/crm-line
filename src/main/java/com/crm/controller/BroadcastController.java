@@ -101,7 +101,6 @@ public class BroadcastController {
         java.util.Map<Long, String> userEmails       = new java.util.HashMap<>();
         java.util.Map<Long, String> userPhones       = new java.util.HashMap<>();
         java.util.Map<Long, String> userDisplayNames = new java.util.HashMap<>();
-        java.util.Map<Long, String> userAdCodes      = new java.util.HashMap<>();
         java.util.Map<Long, String> userFolders      = new java.util.HashMap<>();
         if (!uids.isEmpty()) {
             for (com.crm.entity.CrmUser u : userService.findAllByIds(uids)) {
@@ -110,27 +109,17 @@ public class BroadcastController {
                 String name = (u.getDisplayName() == null || u.getDisplayName().isEmpty())
                         ? "" : u.getDisplayName();
                 userDisplayNames.put(u.getId(), name);
-                if (u.getAdCode() != null) userAdCodes.put(u.getId(), u.getAdCode());
                 if (u.getFolder() != null) userFolders.put(u.getId(), u.getFolder());
             }
         }
-        // FROM column shows what the CRM actually emitted as the From: header (with the
-        // from.base_domain override applied). The downstream AMG/relay decides which
-        // physical carrier address to ship from at send-time — that selection is not
-        // visible to us, so we cannot show it. Operator decision (2026-05-15): display
-        // the override-applied value instead, since that's what the recipient saw.
-        // Inbound messages are not rewritten — their fromAddress is the user's real email.
-        String fromBaseDomain = settingService.getFromBaseDomain();
-        java.util.Map<Long, String> displayFrom = new java.util.HashMap<>();
+        // キャラ名 column (replaced FROM / 広告コード, operator request 2026-09-30): the LINE
+        // account (character) each LINE message was sent / received on.
+        java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
         for (com.crm.entity.Message m : messages.getContent()) {
-            String fa = m.getFromAddress();
-            if (com.crm.entity.Message.DIR_OUT.equals(m.getDirection())
-                    && fromBaseDomain != null && !fromBaseDomain.trim().isEmpty()
-                    && fa != null && fa.indexOf('@') > 0) {
-                String localPart = fa.substring(0, fa.indexOf('@'));
-                displayFrom.put(m.getId(), localPart + "@" + fromBaseDomain.trim());
-            } else {
-                displayFrom.put(m.getId(), fa);
+            Long aid = m.getLineAccountId();
+            if (aid != null && !lineAccountNames.containsKey(aid)) {
+                lineAccountNames.put(aid, lineAccountService.findById(aid)
+                        .map(com.crm.entity.LineAccount::getName).orElse(null));
             }
         }
         // 種別バッジ用: メッセージの元となったBROADCASTが差分スケジュールから実行されたものかどうか
@@ -149,9 +138,8 @@ public class BroadcastController {
         model.addAttribute("userEmails", userEmails);
         model.addAttribute("userPhones", userPhones);
         model.addAttribute("userDisplayNames", userDisplayNames);
-        model.addAttribute("userAdCodes", userAdCodes);
         model.addAttribute("userFolders", userFolders);
-        model.addAttribute("displayFrom", displayFrom);
+        model.addAttribute("lineAccountNames", lineAccountNames);
         model.addAttribute("diffOriginByBroadcastId", diffOriginByBroadcastId);
         model.addAttribute("addr", addrTrim == null ? "" : addrTrim);
         model.addAttribute("channel", channelFilter == null ? "" : channelFilter);

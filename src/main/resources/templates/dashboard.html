@@ -287,6 +287,22 @@
         })();
         </script>
 
+        <!-- 接続不可のLINEアカウント (automatic check every ~10 min + manual 接続確認). -->
+        <div th:if="${!lineErrorAccounts.empty}"
+             class="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900 flex items-start gap-3">
+            <div class="flex-1">
+                <strong>⚠ 接続できないLINEアカウントが <span th:text="${#lists.size(lineErrorAccounts)}">0</span> 件あります。</strong>
+                このアカウントからはLINEの送信・受信ができません。
+                <div class="mt-1 flex flex-wrap gap-1">
+                    <span th:each="a : ${lineErrorAccounts}"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-700"
+                          th:text="${a.name} + (${a.lastConnectionCheckAt != null} ? '（' + ${#temporals.format(a.lastConnectionCheckAt, 'MM/dd HH:mm')} + ' 確認）' : '')">アカウント名</span>
+                </div>
+            </div>
+            <a class="inline-flex items-center px-3 py-1.5 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded whitespace-nowrap"
+               th:href="@{/manager/line-settings}">LINE設定を確認</a>
+        </div>
+
         <div th:if="${stats.unboundPoolCount > 0}"
              class="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start gap-3">
             <div class="flex-1">
@@ -427,6 +443,10 @@
                         <span class="cl">メール送信合計</span>
                         <span class="cv" th:text="${#numbers.formatInteger(emailTotalForScope, 1, 'COMMA')}">0</span>
                     </div>
+                    <div class="chip send" style="background:#ecfdf3;">
+                        <span class="cl">LINE送信合計</span>
+                        <span class="cv" th:text="${#numbers.formatInteger(lineTotalForScope, 1, 'COMMA')}">0</span>
+                    </div>
                     <div class="chip ng">
                         <span class="cl">NG合計</span>
                         <span class="cv" th:text="${#numbers.formatInteger(ngTotalForScope, 1, 'COMMA')}">0</span>
@@ -435,7 +455,7 @@
             </form>
             <script th:inline="javascript">
                 /*<![CDATA[*/
-                window.__hourlyChartData = /*[[${hourlyChartJson}]]*/ "{\"labels\":[],\"sent\":[],\"ng\":[],\"sms\":[],\"email\":[],\"smsQueued\":[],\"emailQueued\":[]}";
+                window.__hourlyChartData = /*[[${hourlyChartJson}]]*/ "{\"labels\":[],\"sent\":[],\"ng\":[],\"sms\":[],\"email\":[],\"smsQueued\":[],\"emailQueued\":[],\"line\":[],\"lineQueued\":[]}";
                 /*]]>*/
             </script>
 
@@ -446,7 +466,7 @@
                  The canvas wrapper has 100px left padding to match the table's 「指標」 column
                  width (.lbl); Chart.js Y-axis is hidden so the plot area uses the full canvas
                  width. Keep these two values in lockstep — see .dash table.d th.lbl / td.lbl. -->
-            <div class="tbl-scroll">
+            <div class="tbl-scroll" id="sendScroll">
                 <div style="min-width:100%; width:max-content;">
                     <div style="padding:10px 0 4px 100px;">
                         <canvas id="hourlyChart" style="display:block;width:100%;height:200px;"></canvas>
@@ -475,6 +495,15 @@
                                 <span th:text="${#numbers.formatInteger(h.emailSent, 1, 'COMMA')}">0</span>
                                 <span class="queued-note" th:if="${h.emailQueued > 0}"
                                       th:text="'(うち予約 ' + ${#numbers.formatInteger(h.emailQueued, 1, 'COMMA')} + ')'"></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="lbl">LINE送信数</td>
+                            <td th:each="h : ${sendBuckets}"
+                                th:classappend="${h.lineSent > 0} ? 'send-v' : 'zero'">
+                                <span th:text="${#numbers.formatInteger(h.lineSent, 1, 'COMMA')}">0</span>
+                                <span class="queued-note" th:if="${h.lineQueued > 0}"
+                                      th:text="'(うち予約 ' + ${#numbers.formatInteger(h.lineQueued, 1, 'COMMA')} + ')'"></span>
                             </td>
                         </tr>
                         <tr>
@@ -722,6 +751,7 @@
         // so a reservation appears as a dim preview at its actual future send time.
         var smsConfirmed = (data.sms || []).map(function (v, i) { return v - ((data.smsQueued || [])[i] || 0); });
         var emailConfirmed = (data.email || []).map(function (v, i) { return v - ((data.emailQueued || [])[i] || 0); });
+        var lineConfirmed = (data.line || []).map(function (v, i) { return v - ((data.lineQueued || [])[i] || 0); });
         new Chart(canvas.getContext('2d'), {
             type: 'bar',
             data: {
@@ -731,6 +761,8 @@
                     { label: 'SMS予約中(未来)', data: data.smsQueued, backgroundColor: 'rgba(8,145,178,0.25)', borderRadius: 3, stack: 'sms' },
                     { label: 'メール送信数', data: emailConfirmed, backgroundColor: 'rgba(22,163,74,0.7)', borderRadius: 3, stack: 'email' },
                     { label: 'メール予約中(未来)', data: data.emailQueued, backgroundColor: 'rgba(22,163,74,0.25)', borderRadius: 3, stack: 'email' },
+                    { label: 'LINE送信数', data: lineConfirmed, backgroundColor: 'rgba(6,199,85,0.7)', borderRadius: 3, stack: 'line' },
+                    { label: 'LINE予約中(未来)', data: data.lineQueued, backgroundColor: 'rgba(6,199,85,0.25)', borderRadius: 3, stack: 'line' },
                     { label: 'NG',     data: data.ng,   backgroundColor: 'rgba(220,38,38,0.7)', borderRadius: 3 }
                 ]
             },
@@ -742,12 +774,19 @@
                 layout: { padding: { left: 0, right: 0, top: 0, bottom: 0 } },
                 plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
                 scales: {
-                    x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 0 }, grid: { display: false } },
+                    // Time labels hidden on the chart — the table header right below already
+                    // shows them (2026-09-30 client request: the two rows of times duplicated).
+                    x: { stacked: true, ticks: { display: false }, grid: { display: false } },
                     y: { stacked: true, display: false, beginAtZero: true }
                 }
             }
         });
     })();
+    // Start the send table/chart scrolled to the middle (e.g. around midday on the hourly view).
+    window.addEventListener('load', function () {
+        var sc = document.getElementById('sendScroll');
+        if (sc && sc.scrollWidth > sc.clientWidth) sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) / 2;
+    });
     </script>
 </section>
 </body>

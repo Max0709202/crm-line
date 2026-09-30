@@ -43,6 +43,7 @@ public class MessageController {
     private final com.crm.repository.LineUserRepository lineUserRepository;
     private final com.crm.service.DomainSettingService domainSettingService;
     private final com.crm.repository.LineAccountRepository lineAccountRepository;
+    private final com.crm.service.ReplyHtmlSlotService replyHtmlSlotService;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -57,7 +58,8 @@ public class MessageController {
                              com.crm.service.AuditLogService auditLog,
                              com.crm.repository.LineUserRepository lineUserRepository,
                              com.crm.service.DomainSettingService domainSettingService,
-                             com.crm.repository.LineAccountRepository lineAccountRepository) {
+                             com.crm.repository.LineAccountRepository lineAccountRepository,
+                             com.crm.service.ReplyHtmlSlotService replyHtmlSlotService) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -72,6 +74,7 @@ public class MessageController {
         this.lineUserRepository = lineUserRepository;
         this.domainSettingService = domainSettingService;
         this.lineAccountRepository = lineAccountRepository;
+        this.replyHtmlSlotService = replyHtmlSlotService;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -108,6 +111,16 @@ public class MessageController {
         model.addAttribute("userDisplayNames", userDisplayNames);
         model.addAttribute("userAdCodes", userAdCodes);
         model.addAttribute("userFolders", userFolders);
+        // キャラ名 column: LINE account (character) each LINE message was sent / received on.
+        java.util.Set<Long> lineAccountIds = new java.util.HashSet<>();
+        for (Message m : messages.getContent()) if (m.getLineAccountId() != null) lineAccountIds.add(m.getLineAccountId());
+        java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
+        if (!lineAccountIds.isEmpty()) {
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(lineAccountIds)) {
+                lineAccountNames.put(a.getId(), a.getName());
+            }
+        }
+        model.addAttribute("lineAccountNames", lineAccountNames);
         return "message/list";
     }
 
@@ -213,7 +226,31 @@ public class MessageController {
         model.addAttribute("inboxRows", messageService.inboxByUser(false));
         // Gates the LINE返信 button — LINE only lets you message someone who has already
         // followed the Official Account (see LineWebhookService's javadoc).
-        model.addAttribute("hasLineLink", !lineUserRepository.findByCrmUserId(userId).isEmpty());
+        // Most recently messaged first: that character is the default sender.
+        List<com.crm.entity.LineUser> lineLinks = lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(
+                java.util.Collections.singletonList(userId));
+        model.addAttribute("hasLineLink", !lineLinks.isEmpty());
+        // 送信キャラ selector next to LINE返信 — a customer friended with several characters
+        // picks which one replies (2026-09-29 client request).
+        java.util.Map<Long, String> linkedCharNames = new java.util.LinkedHashMap<>();
+        if (!lineLinks.isEmpty()) {
+            java.util.Map<Long, String> names = new java.util.HashMap<>();
+            java.util.List<Long> ids = new java.util.ArrayList<>();
+            for (com.crm.entity.LineUser lu : lineLinks) ids.add(lu.getLineAccountId());
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(ids)) names.put(a.getId(), a.getName());
+            for (Long id : ids) linkedCharNames.put(id, names.getOrDefault(id, "不明"));
+        }
+        model.addAttribute("linkedCharNames", linkedCharNames);
+        // 専用HTML (使用中) — the reply-page HTML this character is showing the customer; its
+        // title is linked directly above the exchange so the operator notices it while
+        // replying (2026-09-29/30 client request). Only when the in-use slot has content.
+        int activeSlot = user.get().getActiveMemoSlot();
+        String activeMemo = user.get().getMemoSlot(activeSlot);
+        if (activeMemo != null && !activeMemo.trim().isEmpty()) {
+                String circled = com.crm.service.ReplyHtmlSlotService.circled(activeSlot);
+            String title = replyHtmlSlotService.getSlotTitle(activeSlot);
+            model.addAttribute("activeMemoLabel", title.startsWith(circled) ? title : circled + " " + title);
+        }
         model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         if (!model.containsAttribute("form")) {
             MessageComposeForm form = new MessageComposeForm();

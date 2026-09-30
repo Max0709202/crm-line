@@ -26,6 +26,9 @@ public class DiffSchedule {
     /** Matches on the LINE display name of whichever LineUser a CrmUser is linked to, not on
      *  anything stored on CrmUser itself (client request 2026-09-25). */
     public static final String TARGET_LINE_NAME = "LINE_NAME";
+    /** Created automatically for one newly registered user, carrying the definition's
+     *  登録後(分後) steps (client request 2026-09-30). */
+    public static final String TARGET_REGISTER = "REGISTER";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

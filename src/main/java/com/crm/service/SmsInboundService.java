@@ -38,13 +38,16 @@ public class SmsInboundService {
     private final CrmUserRepository userRepository;
     private final MessageRepository messageRepository;
     private final SmsSettingService smsSettingService;
+    private final UserActivityService userActivityService;
 
     public SmsInboundService(CrmUserRepository userRepository,
                               MessageRepository messageRepository,
-                              SmsSettingService smsSettingService) {
+                              SmsSettingService smsSettingService,
+                              UserActivityService userActivityService) {
         this.userRepository = userRepository;
         this.messageRepository = messageRepository;
         this.smsSettingService = smsSettingService;
+        this.userActivityService = userActivityService;
     }
 
     public static class Result {
@@ -107,6 +110,8 @@ public class SmsInboundService {
         m.setStatus(Message.STATUS_SENT);
         if (msgId != null) m.setMessageIdHeader("byteplus-mo:" + msgId);
         messageRepository.save(m);
+        // An SMS reply counts as activity (最終ログイン), same as an inbound email.
+        userActivityService.touchLastLogin(user);
 
         log.info("[BYTEPLUS SMS] inbound matched: user={} from={}", user.getId(), LogSafe.of(domestic));
         return Result.ok();

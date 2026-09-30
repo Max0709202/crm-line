@@ -50,6 +50,7 @@ public class LineWebhookService {
     private final LineUserLinkService lineUserLinkService;
     private final LineAutoReplyService lineAutoReplyService;
     private final MessageService messageService;
+    private final UserActivityService userActivityService;
 
     public LineWebhookService(LineAccountRepository lineAccountRepository,
                                LineUserRepository lineUserRepository,
@@ -58,7 +59,8 @@ public class LineWebhookService {
                                LineApiClient lineApiClient,
                                LineUserLinkService lineUserLinkService,
                                LineAutoReplyService lineAutoReplyService,
-                               MessageService messageService) {
+                               MessageService messageService,
+                               UserActivityService userActivityService) {
         this.lineAccountRepository = lineAccountRepository;
         this.lineUserRepository = lineUserRepository;
         this.messageRepository = messageRepository;
@@ -67,6 +69,7 @@ public class LineWebhookService {
         this.lineUserLinkService = lineUserLinkService;
         this.lineAutoReplyService = lineAutoReplyService;
         this.messageService = messageService;
+        this.userActivityService = userActivityService;
     }
 
     public static class ProcessResult {
@@ -166,6 +169,8 @@ public class LineWebhookService {
         m.setStatus(Message.STATUS_SENT);
         if (dedupKey != null) m.setMessageIdHeader(dedupKey);
         messageRepository.save(m);
+        // A LINE message counts as activity (最終ログイン), same as an inbound email.
+        userActivityService.touchLastLogin(lineUser.getCrmUserId());
 
         log.info("[LINE] inbound matched: account={} lineUserId={} crmUserId={}",
                 account.getId(), LogSafe.of(lineUserId), lineUser.getCrmUserId());
@@ -185,6 +190,9 @@ public class LineWebhookService {
         try {
             com.crm.dto.LineComposeForm form = new com.crm.dto.LineComposeForm();
             form.setBody(match.get().getReplyBody());
+            // Reply from the character that received the event — the customer may be
+            // friends with several of our accounts.
+            form.setLineAccountId(account.getId());
             Integer delay = match.get().getDelayMinutes();
             if (delay != null && delay > 0) {
                 form.setScheduledAt(java.time.LocalDateTime.now().plusMinutes(delay));

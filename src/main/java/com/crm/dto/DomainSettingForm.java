@@ -19,6 +19,8 @@ public class DomainSettingForm {
     private String replyOgpDescription;
     private String replyOgpImageUrl;
 
+    private String siteName;
+
     public String getReplyBaseUrl() { return replyBaseUrl; }
     public void setReplyBaseUrl(String replyBaseUrl) { this.replyBaseUrl = replyBaseUrl; }
     public Boolean getReplyRandomSubdomainEnabled() { return replyRandomSubdomainEnabled; }
@@ -47,4 +49,6 @@ public class DomainSettingForm {
     public void setReplyOgpDescription(String replyOgpDescription) { this.replyOgpDescription = replyOgpDescription; }
     public String getReplyOgpImageUrl() { return replyOgpImageUrl; }
     public void setReplyOgpImageUrl(String replyOgpImageUrl) { this.replyOgpImageUrl = replyOgpImageUrl; }
+    public String getSiteName() { return siteName; }
+    public void setSiteName(String siteName) { this.siteName = siteName; }
 }

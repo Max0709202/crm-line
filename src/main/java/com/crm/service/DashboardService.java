@@ -117,7 +117,7 @@ public class DashboardService {
         // still-future (not yet dispatched) portion of each bucket so the UI can render it
         // in a lighter shade, distinct from already-completed sends.
         List<HourlySend> hourly = new ArrayList<>(24);
-        long totalSend = 0, totalNg = 0, totalSmsSent = 0;
+        long totalSend = 0, totalNg = 0, totalSmsSent = 0, totalLineSent = 0;
         for (int h = 0; h < 24; h++) {
             LocalDateTime from = day.atTime(h, 0);
             LocalDateTime to = from.plusHours(1);
@@ -126,6 +126,11 @@ public class DashboardService {
                     Message.DIR_OUT, Message.STATUS_FAILED, from, to);
             long smsSent = messageRepository.countByDirectionAndChannelBetweenEffective(
                     Message.DIR_OUT, Message.CHANNEL_SMS, from, to);
+            long lineSent = messageRepository.countByDirectionAndChannelBetweenEffective(
+                    Message.DIR_OUT, Message.CHANNEL_LINE, from, to);
+            long lineQueued = messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
+                    Message.DIR_OUT, Message.CHANNEL_LINE, from, to)
+                    + diffScheduleStepRepository.countPendingMessageStepsByChannelBetween("LINE", from, to);
             // 差分スケジュール pending MESSAGE steps count toward the same 予約 bucket (2026-09-09
             // operator request) — they won't have a real Message row until they actually fire,
             // so the reservation graph would otherwise miss them entirely.
@@ -144,15 +149,19 @@ public class DashboardService {
             hb.smsSent = smsSent;
             hb.smsQueued = smsQueued;
             hb.emailQueued = emailQueued;
+            hb.lineSent = lineSent;
+            hb.lineQueued = lineQueued;
             hourly.add(hb);
             totalSend += sent;
             totalNg += ng;
             totalSmsSent += smsSent;
+            totalLineSent += lineSent;
         }
         s.hourlySends = hourly;
         s.totalSend = totalSend;
         s.totalNg = totalNg;
         s.totalSmsSent = totalSmsSent;
+        s.totalLineSent = totalLineSent;
 
         // ---- Recent messages (latest 10) ----
         s.recentMessages = messageRepository.findAll(
@@ -175,14 +184,20 @@ public class DashboardService {
          *  projected sends from ones that already completed. */
         public long smsQueued;
         public long emailQueued;
+        /** LINE outbound (replies + LINE broadcasts), shown as its own series — before this it
+         *  was silently counted inside getEmailSent(). */
+        public long lineSent;
+        public long lineQueued;
         public String getLabel() { return label; }
         public long getSent() { return sent; }
         public long getNg() { return ng; }
         public long getSmsSent() { return smsSent; }
-        /** Non-SMS outbound (email replies + email broadcasts) — sent minus smsSent. */
-        public long getEmailSent() { return sent - smsSent; }
+        /** Email outbound (email replies + email broadcasts) — sent minus SMS and LINE. */
+        public long getEmailSent() { return sent - smsSent - lineSent; }
         public long getSmsQueued() { return smsQueued; }
         public long getEmailQueued() { return emailQueued; }
+        public long getLineSent() { return lineSent; }
+        public long getLineQueued() { return lineQueued; }
     }
 
     /**
@@ -206,6 +221,10 @@ public class DashboardService {
                     Message.DIR_OUT, Message.CHANNEL_SMS, from, to);
             hb.smsQueued = messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
                     Message.DIR_OUT, Message.CHANNEL_SMS, from, to);
+            hb.lineSent = messageRepository.countByDirectionAndChannelBetweenEffective(
+                    Message.DIR_OUT, Message.CHANNEL_LINE, from, to);
+            hb.lineQueued = messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
+                    Message.DIR_OUT, Message.CHANNEL_LINE, from, to);
             hb.emailQueued = messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
                     Message.DIR_OUT, Message.CHANNEL_EMAIL, from, to)
                     + messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
@@ -236,6 +255,10 @@ public class DashboardService {
                     Message.DIR_OUT, Message.CHANNEL_SMS, from, to);
             hb.smsQueued = messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
                     Message.DIR_OUT, Message.CHANNEL_SMS, from, to);
+            hb.lineSent = messageRepository.countByDirectionAndChannelBetweenEffective(
+                    Message.DIR_OUT, Message.CHANNEL_LINE, from, to);
+            hb.lineQueued = messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
+                    Message.DIR_OUT, Message.CHANNEL_LINE, from, to);
             hb.emailQueued = messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
                     Message.DIR_OUT, Message.CHANNEL_EMAIL, from, to)
                     + messageRepository.countQueuedByDirectionAndChannelBetweenEffective(
@@ -291,6 +314,7 @@ public class DashboardService {
         public long totalSend;
         public long totalNg;
         public long totalSmsSent;
+        public long totalLineSent;
 
         public List<Message> recentMessages;
 
@@ -307,6 +331,7 @@ public class DashboardService {
         public long getTotalSend() { return totalSend; }
         public long getTotalNg() { return totalNg; }
         public long getTotalSmsSent() { return totalSmsSent; }
+        public long getTotalLineSent() { return totalLineSent; }
         public List<Message> getRecentMessages() { return recentMessages; }
 
         /** For the <input type="month"> default. Empty when day scope is active. */

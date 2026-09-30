@@ -21,12 +21,15 @@ public class LineUserLinkService {
     private final LineUserRepository lineUserRepository;
     private final CrmUserRepository crmUserRepository;
     private final DomainSettingService domainSettingService;
+    private final DiffScheduleService diffScheduleService;
 
     public LineUserLinkService(LineUserRepository lineUserRepository, CrmUserRepository crmUserRepository,
-                                DomainSettingService domainSettingService) {
+                                DomainSettingService domainSettingService,
+                                @org.springframework.context.annotation.Lazy DiffScheduleService diffScheduleService) {
         this.lineUserRepository = lineUserRepository;
         this.crmUserRepository = crmUserRepository;
         this.domainSettingService = domainSettingService;
+        this.diffScheduleService = diffScheduleService;
     }
 
     public List<LineUser> listUnlinked() {
@@ -111,16 +114,36 @@ public class LineUserLinkService {
      * 差分予約 like any other user. Replaces the old "friend-add leaves an unmatched contact
      * that must be manually linked" default (2026-09-18 client request) — manual {@link #link}
      * still exists for merging into an already-existing customer record when that's wanted.
+     *
+     * <p>A person who friends several of our accounts (キャラ) arrives with the same LINE
+     * {@code userId} on each one (userIds are per-provider, and our accounts share one), so
+     * that userId already being linked means they're an existing customer — the new friend
+     * row joins that same CrmUser instead of creating a duplicate customer per account
+     * (2026-09-29 client request: one ゆたか with 3 linked characters, not 3 ゆたか).
      */
     @Transactional
     public LineUser autoRegisterAndLink(LineUser lineUser) {
+        for (LineUser other : lineUserRepository.findByLineUserIdAndCrmUserIdIsNotNullOrderByIdAsc(lineUser.getLineUserId())) {
+            if (crmUserRepository.existsById(other.getCrmUserId())) {
+                lineUser.setCrmUserId(other.getCrmUserId());
+                return lineUserRepository.save(lineUser);
+            }
+        }
         CrmUser u = new CrmUser();
         String name = lineUser.getLineDisplayName();
         u.setDisplayName((name != null && !name.trim().isEmpty()) ? name : "LINE友だち");
         u.setFolder(domainSettingService.getLineAutoRegisterFolder());
         CrmUser saved = crmUserRepository.save(u);
         lineUser.setCrmUserId(saved.getId());
-        return lineUserRepository.save(lineUser);
+        LineUser linked = lineUserRepository.save(lineUser);
+        // 登録後(分後) diff steps — a brand-new customer only (not a friend-add that joined an
+        // existing customer above).
+        try {
+            diffScheduleService.applyRegistrationSteps(saved, null);
+        } catch (RuntimeException e) {
+            // never fail the friend-add over this; details are logged by the service
+        }
+        return linked;
     }
 
     public static class NotFoundException extends RuntimeException {

@@ -431,6 +431,8 @@
                                       style="background:#d9f7e6;color:#046c3a;">LINE</span>
                                 <span th:if="${lineAccountNamesByUserId.get(u.id) != null and lineAccountNamesByUserId.get(u.id).size() > 1}"
                                       class="text-amber-500" title="複数のLINEアカウントに紐づいています">★</span>
+                                <span th:if="${lineAccountNamesByUserId.get(u.id) != null and lineAccountNamesByUserId.get(u.id).size() > 1}"
+                                      class="text-slate-600" th:text="'紐づきキャラ' + ${lineAccountNamesByUserId.get(u.id).size()} + '人'">紐づきキャラ3人</span>
                                 <div class="text-slate-500 whitespace-nowrap"
                                      th:text="${lineAccountNamesByUserId.get(u.id) != null} ? ${#strings.listJoin(lineAccountNamesByUserId.get(u.id), ' / ')} : ''"></div>
                             </div>

@@ -249,6 +249,20 @@
             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700"
                   th:text="'送 ' + ${threadOut}" title="送信数 (SMS送信を含む) — SMSは返信を受信できないためSMS返信数は表示しません"></span>
         </header>
+        <!-- Directly above the exchange (2026-09-30 client request — a panel under the reply
+             form was easy to miss): the in-use 専用HTML's title as a link to its preview, and a
+             link to the user's own view of the exchange (メッセージボックス). -->
+        <div style="padding:4px 10px; border-bottom:1px solid #e2e8f0; background:#fffbeb; font-size:.76rem; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center;">
+            <span th:if="${activeMemoLabel != null}">
+                <span style="font-weight:700; color:#92400e;">専用HTML使用中：</span>
+                <a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank"
+                   style="color:#2563eb; text-decoration:underline; font-weight:600;"
+                   th:text="${activeMemoLabel}">③ キャンペーン</a>
+            </span>
+            <span th:unless="${activeMemoLabel != null}" style="color:#94a3b8;">専用HTML：未使用</span>
+            <a th:href="@{'/manager/users/' + ${user.id} + '/message-box'}" target="_blank"
+               style="color:#2563eb; text-decoration:underline;">ユーザーの受信画面を確認 ↗</a>
+        </div>
         <div class="body" id="historyBody">
             <!-- 差分予約 — pending (not-yet-fired) diff-schedule sends for this user, displayed
                  1件ずつ as individual cards matching normal 予約送信 rows (2026-09-10 operator
@@ -392,6 +406,13 @@
                     <span th:if="${hasLineLink}" id="lineCharCount" class="text-xs text-slate-400"
                           th:attr="data-max=${lineMaxBodyLength}"
                           th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
+                    <!-- 送信キャラ: a customer friended with several characters picks which one
+                         replies; first option = the one they most recently messaged. -->
+                    <select th:if="${#maps.size(linkedCharNames) > 1}" name="lineAccountId"
+                            title="LINE返信を送るキャラ"
+                            style="font-size:.72rem;padding:3px 4px;border:1px solid #06C755;border-radius:4px;max-width:12em;">
+                        <option th:each="c : ${linkedCharNames}" th:value="${c.key}" th:text="${c.value}">キャラ</option>
+                    </select>
                     <button type="submit" th:if="${hasLineLink}"
                             th:formaction="@{'/manager/users/' + ${user.id} + '/messages/line'}"
                             class="btn" style="background:#06C755;">LINE返信</button>

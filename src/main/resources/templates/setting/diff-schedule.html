@@ -17,7 +17,6 @@
         <h1 class="text-2xl font-semibold text-slate-800 flex-1">差分スケジュール設定</h1>
         <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md mr-2" th:href="@{/manager/settings/diff-schedule/definitions}">差分定義を管理</a>
         <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md mr-2" th:href="@{/manager/settings/diff-schedule/history}">履歴を見る</a>
-        <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/settings}">設定に戻る</a>
     </div>
 
     <div th:if="${definitions == null or definitions.empty}" class="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-4 text-sm text-amber-800">
@@ -101,6 +100,7 @@
                                 <span th:if="${sched.targetType == 'EMAIL'}">アドレス</span>
                                 <span th:if="${sched.targetType == 'FOLDER'}" th:text="'フォルダ:' + ${sched.targetValue}"></span>
                                 <span th:if="${sched.targetType == 'LINE_NAME'}">LINE名前</span>
+                                <span th:if="${sched.targetType == 'REGISTER'}">新規登録(自動)</span>
                             </td>
                             <td class="px-2 py-1.5 text-right" th:if="${sched != null}">
                                 <a class="font-mono text-blue-600 hover:underline"
