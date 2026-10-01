@@ -181,7 +181,7 @@
                     <div class="mb-3">
                         <div class="flex items-baseline mb-1">
                             <label class="text-sm font-medium text-slate-700 flex-1" th:for="'slottop_' + ${slot.code}">
-                                上部HTML <span class="text-xs font-normal text-slate-500" th:text="${slot.code == 'menu' ? '（ID・ポイント表示のすぐ下）' : '（ページ名「' + slot.title + '」のすぐ下）'}"></span>
+                                上部HTML <span class="text-xs font-normal text-slate-500" th:text="'（ページ名「' + slot.title + '」のすぐ下）'"></span>
                             </label>
                             <span class="text-xs text-slate-500 js-count"></span>
                         </div>

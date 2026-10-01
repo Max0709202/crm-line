@@ -26,8 +26,8 @@ import java.util.regex.Pattern;
  * Post-login (会員) pages in the client-approved design ({@code site/member/}), with the
  * 番組デザイン設定 上部HTML / 下部HTML / CSS of each page placed where that screen describes:
  * <ul>
- *   <li>上部HTML — MENU: just under the header (ID・ポイント表示); other pages: just under the
- *       page-name bar (受信BOX etc.). ガラケー: under the ID row / the page header;</li>
+ *   <li>上部HTML — just under the page-name bar (MENU・受信BOX etc.); ガラケー: under the ID・PT row
+ *       that follows the page-name bar;</li>
  *   <li>下部HTML — MENU: the design's free area {@code %HTML%}; other pages: just above the
  *       footer menu (ガラケー: above the page footer {@code <div class="f">}, else at the end);</li>
  *   <li>CSS — a {@code <style>} at the end of the page's head, scoped to the HTML areas
@@ -36,7 +36,8 @@ import java.util.regex.Pattern;
  * ポイント購入 lists the 決済関連設定 (共通) methods and plans in their saved order.
  * Member accounts are not built yet, so pages are rendered for the admin preview only, with
  * sample member values. ガラケー has its own design ({@code fp/}) for the pages in
- * {@link #FP_PAGES}; the rest (条件検索 / サポート窓口 / 返信) are shown in the standard (スマホ) design.
+ * {@link #FP_PAGES} (all of them), each with MENU's logo / page-name bar / ID・PT row header;
+ * a page missing from it would be shown in the standard (スマホ) design.
  */
 @Service
 public class MemberPageService {
@@ -61,7 +62,7 @@ public class MemberPageService {
 
     /** Pages with a separate ガラケー design. */
     public static final Set<String> FP_PAGES =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("menu", "inbox", "friends", "profile", "points", "point_table")));
+            Collections.unmodifiableSet(new HashSet<>(BAR_TITLES.keySet()));
 
     /** Design file name (links inside the design) → page code. */
     private static final Map<String, String> FILE_TO_CODE = new HashMap<>();
@@ -118,20 +119,19 @@ public class MemberPageService {
         String top = area("上部HTML", slot.getTopHtml(), slot.getTopFolders(), markAreas);
         String bottom = area("下部HTML", slot.getBottomHtml(), slot.getBottomFolders(), markAreas);
         if (fp) {
+            // every page: under the ID / PT row that follows the page-name bar
+            html = insertAfter(html, "</div>", html.indexOf("<div class=\"acct\">"), wrapFp(top));
             if ("menu".equals(code)) {
-                // under the ID / PT row (the first row after the header)
-                html = insertAfter(html, "</div>", html.indexOf("</header>"), wrapFp(top));
                 html = html.replace(FP_MENU_FREE_AREA, bottom.isEmpty() ? "" : "<div class=\"row " + SCOPE_CLASS + "\">" + bottom + "</div>");
             } else {
-                html = insertAfter(html, "</header>", 0, wrapFp(top));
                 html = insertBefore(html, html.contains(FP_FOOTER) ? FP_FOOTER : "</body>", wrapFp(bottom));
             }
         } else {
+            // every page: just under the page-name bar (MENU・受信BOX …)
+            html = insertAfter(html, "</div>", html.indexOf("<div class=\"bar\">"), wrapTop(top));
             if ("menu".equals(code)) {
-                html = insertAfter(html, "</header>", 0, wrapTop(top));
                 html = html.replace(MENU_FREE_AREA, bottom.isEmpty() ? "" : "<div class=\"htmlslot " + SCOPE_CLASS + "\">" + bottom + "</div>");
             } else {
-                html = insertAfter(html, "</div>", html.indexOf("<div class=\"bar\">"), wrapTop(top));
                 html = insertBefore(html, "</main>", bottom.isEmpty() ? ""
                         : "<div class=\"member-area member-area-bottom " + SCOPE_CLASS + "\" style=\"margin-top:15px\">" + bottom + "</div>");
             }

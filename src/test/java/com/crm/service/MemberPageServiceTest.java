@@ -128,15 +128,40 @@ class MemberPageServiceTest {
                     .contains("<div class=\"logo\"><img src=\"/img/6\"");
             assertThat(html.indexOf("<div class=\"logo\">")).as(code).isLessThan(html.indexOf("<header>"));
             assertThat(html.indexOf("サイト名")).as(code).isLessThan(html.indexOf("<header>"));
-            if (html.contains("<div class=\"f\">")) {
-                assertThat(html.indexOf("BOTTOM")).as(code).isLessThan(html.indexOf("<div class=\"f\">"));
-            }
+            // every ガラケー page ends with the same footer (MENUへ戻る etc.); 下部HTML sits just above it
+            assertThat(html).as(code).contains("<div class=\"f\">");
+            assertThat(html.indexOf("BOTTOM")).as(code).isLessThan(html.indexOf("<div class=\"f\">"));
         }
         assertThat(svc.renderPreview("points", "fp", false, c -> c + ".html"))
                 .contains("<div class=\"ttl\">振込</div><div class=\"m\"><a href=\"#\">2,200ポイント　¥2,000</a></div>");
         assertThat(svc.renderPreview("point_table", "fp", false, c -> c + ".html")).contains("メール送信：55ポイント");
-        // pages without a ガラケー design fall back to the スマホ one
-        assertThat(svc.renderPreview("search", "fp", false, c -> c + ".html")).contains("class=\"bar\"");
+        assertThat(MemberPageService.FP_PAGES).containsExactlyInAnyOrderElementsOf(MemberPageService.BAR_TITLES.keySet());
+    }
+
+    @Test
+    void topHtmlSitsUnderThePageNameEverywhereAndFeaturePhoneHeadersMatchMenu() {
+        SiteDesignService site = mock(SiteDesignService.class);
+        List<SiteDesignService.Slot> slots = new ArrayList<>();
+        for (String code : SiteDesignService.MEMBER_PAGES.keySet()) {
+            slots.add(new SiteDesignService.Slot(code, code, "<p>TOP</p>", "", "",
+                    Collections.<String>emptyList(), Collections.<String>emptyList()));
+        }
+        when(site.getSlots()).thenReturn(slots);
+        when(site.getConfiguredSiteName()).thenReturn("");
+        PaymentSettingService pay = mock(PaymentSettingService.class);
+        when(pay.getMethods(null)).thenReturn(new ArrayList<>());
+        MemberPageService svc = new MemberPageService(site, pay);
+        String acct = "<div class=\"acct\">ID:000123　サンプル<br>PT:1,000P<br><a href=\"point_table.html\">[ポイント表]</a></div>";
+
+        for (String code : MemberPageService.BAR_TITLES.keySet()) {
+            String sp = svc.renderPreview(code, "sp", false, c -> c + ".html");
+            int bar = sp.indexOf("<div class=\"bar\">");
+            assertThat(bar).as("sp/" + code).isGreaterThan(0).isLessThan(sp.indexOf("TOP"));
+            String fp = svc.renderPreview(code, "fp", false, c -> c + ".html");
+            assertThat(fp).as("fp/" + code).contains("<header>" + MemberPageService.BAR_TITLES.get(code) + "</header>" + acct);
+            assertThat(fp.indexOf(acct)).as("fp/" + code).isLessThan(fp.indexOf("TOP"));
+        }
+        assertThat(svc.renderPreview("point_table", "sp", false, c -> c + ".html")).doesNotContain("消費ポイント");
     }
 
     private static PaymentSettingService.Method method(String code, String label, boolean shown,
