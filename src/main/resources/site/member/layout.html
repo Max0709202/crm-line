@@ -170,8 +170,8 @@
             left: 0;
             right: 0;
             height: 76px;
-            background: #082b4c;
-            border-top: 4px solid #e0b82f;
+            background: #1b2230;
+            border-top: 4px solid #b8995a;
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             z-index: 20
@@ -182,13 +182,25 @@
             text-align: center;
             padding: 8px 2px;
             font-size: 11px;
+            font-weight: 700;
             position: relative
+        }
+
+        .bottom a + a {
+            border-left: 1px solid #343d4f
         }
 
         .bottom .bi {
             display: block;
             font-size: 25px;
             margin-bottom: 3px
+        }
+
+        .bottom .bi svg {
+            display: block;
+            width: 28px;
+            height: 28px;
+            margin: 0 auto
         }
 
         .fb {
@@ -198,6 +210,12 @@
             padding: 2px 5px;
             top: 2px;
             margin-left: 5px
+        }
+
+        .bottom .fb {
+            left: 50%;
+            margin-left: 6px;
+            font-style: normal
         }
 
         .box {
@@ -218,6 +236,14 @@
         .boxline {
             height: 10px;
             background: linear-gradient(90deg, #e9e7ff, #f2ecff)
+        }
+
+        /* 下部HTML (pages other than MENU): rounded purple frame separating it from the page */
+        .member-area-bottom {
+            border: 2px solid #7046e9;
+            border-radius: 8px;
+            padding: 12px;
+            background: #fff
         }
 
         .pbtns {
@@ -521,6 +547,11 @@
                 font-size: 20px
             }
 
+            .bottom .bi svg {
+                width: 22px;
+                height: 22px
+            }
+
             .bottom a {
                 font-size: 9px
             }
@@ -545,9 +576,23 @@
     </header>
     <div class="bar">%title%</div>
     <main class="wrap">%main%</main>
-    <nav class="bottom"><a href="index.html"><span class="bi">⌂</span>TOP</a><a href="inbox.html"><span class="bi">💬<i
-                    class="fb">17</i></span>受信BOX</a><a href="friends.html"><span class="bi">♟</span>友達</a><a
-            href="search.html"><span class="bi">⌕</span>検索</a><a href="points.html"><span class="bi">🪙</span>ポイント購入</a>
+    <nav class="bottom"><a href="index.html"><span class="bi"><svg viewBox="0 0 24 24" aria-hidden="true"><path
+                    fill="#e8604c" d="M12 2.5 1.5 11.5h3V21h6v-5.5h3V21h6v-9.5h3z" /></svg></span>TOP</a><a
+            href="inbox.html"><span class="bi"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4aa6e8"
+                        d="M3 3h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H10l-5 4.5V17H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+                    <circle fill="#fff" cx="8" cy="10" r="1.5" />
+                    <circle fill="#fff" cx="12" cy="10" r="1.5" />
+                    <circle fill="#fff" cx="16" cy="10" r="1.5" /></svg><i class="fb">17</i></span>受信BOX</a><a
+            href="friends.html"><span class="bi"><svg viewBox="0 0 24 24" aria-hidden="true"><circle fill="#9a6ae6"
+                        cx="12" cy="7" r="5" />
+                    <path fill="#9a6ae6" d="M2.5 23a9.5 9.5 0 0 1 19 0z" /></svg></span>友達</a><a
+            href="search.html"><span class="bi"><svg viewBox="0 0 24 24" aria-hidden="true"><circle fill="none"
+                        stroke="#f5c84c" stroke-width="3" cx="10" cy="10" r="6.5" />
+                    <path stroke="#f5c84c" stroke-width="4" stroke-linecap="round" d="m15.5 15.5 5.5 5.5" /></svg></span>検索</a><a
+            href="points.html"><span class="bi"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse fill="#c9a43e"
+                        cx="12" cy="12" rx="11" ry="8" />
+                    <text x="12" y="16.2" fill="#fff" font-size="11" font-weight="900" text-anchor="middle"
+                        font-family="Arial,sans-serif">P</text></svg></span>ポイント購入</a>
     </nav>
     <script>(function () { var h = document.querySelector(".top"); function f() { document.documentElement.style.setProperty("--hh", h.offsetHeight + "px") } f(); addEventListener("resize", f); addEventListener("load", f) })()</script>
 </body>

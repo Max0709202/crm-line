@@ -175,13 +175,16 @@ public class SiteDesignController {
         return "setting/site-design-preview";
     }
 
-    /** The pre-login top page as visitors would see it with the saved settings. */
+    /** The pre-login top page as visitors would see it with the saved settings;
+     *  ガラケー (device=fp) shows its own design. */
     @GetMapping("/preview")
-    public ResponseEntity<String> preview(HttpServletRequest request) {
+    public ResponseEntity<String> preview(@RequestParam(value = "device", defaultValue = "pc") String device,
+                                          HttpServletRequest request) {
         Object csrf = request.getAttribute("_csrf");
+        String token = csrf == null ? null : csrf.toString();
         return ResponseEntity.ok()
                 .header("Content-Type", "text/html; charset=UTF-8")
-                .body(publicSiteService.renderTop(csrf == null ? null : csrf.toString()));
+                .body("fp".equals(device) ? publicSiteService.renderTopFp(token) : publicSiteService.renderTop(token));
     }
 
     /**

@@ -37,6 +37,7 @@ import java.util.regex.Pattern;
 public class PublicSiteService {
 
     private static final String TOP_TEMPLATE = "site/top.html";
+    private static final String FP_TOP_TEMPLATE = "site/top_fp.html";
     private static final String DEFAULT_IMAGES = "/member/images/";
     private static final Pattern TAG = Pattern.compile(
             "%(sitename|brand|top_picture|top_blur|year|csrf|contact_mailto|footer)%");
@@ -44,12 +45,45 @@ public class PublicSiteService {
 
     private final SiteDesignService siteDesignService;
     private volatile String defaultTopTemplate;
+    private volatile String fpTopTemplate;
 
     public PublicSiteService(SiteDesignService siteDesignService) {
         this.siteDesignService = siteDesignService;
     }
 
     public String renderTop(String csrfToken) {
+        String template = siteDesignService.getTopHtml();
+        if (template == null) template = getDefaultTopTemplate();
+        if (!template.contains("%footer%")) {
+            Matcher end = BODY_END.matcher(template);
+            int at = -1;
+            while (end.find()) at = end.start();
+            template = at < 0 ? template + "\n%footer%\n"
+                    : template.substring(0, at) + "%footer%\n" + template.substring(at);
+        }
+
+        return fillTags(template, csrfToken);
+    }
+
+    /**
+     * The ガラケー pre-login page: the client-supplied design in {@code site/top_fp.html}
+     * (XHTML Mobile, 240px wide) with the same tags filled. It has its own footer with the
+     * required links and notes, so {@code %footer%} is not added.
+     */
+    public String renderTopFp(String csrfToken) {
+        String t = fpTopTemplate;
+        if (t == null) {
+            try (InputStream in = new ClassPathResource(FP_TOP_TEMPLATE).getInputStream()) {
+                t = StreamUtils.copyToString(in, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new UncheckedIOException("missing " + FP_TOP_TEMPLATE, e);
+            }
+            fpTopTemplate = t;
+        }
+        return fillTags(t, csrfToken);
+    }
+
+    private String fillTags(String template, String csrfToken) {
         String name = siteDesignService.getSiteName();
         String logo = siteDesignService.getLogoUrl();
         String pc = siteDesignService.getTopImagePcUrl();
@@ -64,16 +98,6 @@ public class PublicSiteService {
         values.put("csrf", esc(csrfToken == null ? "" : csrfToken));
         values.put("contact_mailto", esc(contactMailto()));
         values.put("footer", footerHtml("#login"));
-
-        String template = siteDesignService.getTopHtml();
-        if (template == null) template = getDefaultTopTemplate();
-        if (!template.contains("%footer%")) {
-            Matcher end = BODY_END.matcher(template);
-            int at = -1;
-            while (end.find()) at = end.start();
-            template = at < 0 ? template + "\n%footer%\n"
-                    : template.substring(0, at) + "%footer%\n" + template.substring(at);
-        }
 
         Matcher m = TAG.matcher(template);
         StringBuffer out = new StringBuffer();
@@ -92,7 +116,8 @@ public class PublicSiteService {
      * @param loginHref "#login" on the top page (opens its login dialog), "/#login" elsewhere
      */
     public String footerHtml(String loginHref) {
-        String name = esc(siteDesignService.getSiteName());
+        // only the ドメイン設定 site name — never the bare domain (nothing shown while unset)
+        String name = esc(siteDesignService.getConfiguredSiteName());
         StringBuilder b = new StringBuilder();
         b.append("<footer class=\"sysft\" id=\"footer\">\n<style>")
          .append(".sysft{background:#0E2B45;color:#B9CCDC;padding:52px 24px calc(40px + env(safe-area-inset-bottom,0px));font-size:13px;line-height:1.8}")
@@ -103,8 +128,9 @@ public class PublicSiteService {
          .append(".sysft-links a{padding:4px 0}")
          .append(".sysft-links a:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}")
          .append(".sysft-note{margin:0;line-height:1.7}.sysft-copy{margin:8px 0 0;opacity:.8}")
-         .append("</style>\n  <div class=\"sysft-in\">\n    <div class=\"sysft-brand\">").append(name).append("</div>\n")
-         .append("    <nav class=\"sysft-links\" aria-label=\"サイト情報\">\n")
+         .append("</style>\n  <div class=\"sysft-in\">\n");
+        if (!name.isEmpty()) b.append("    <div class=\"sysft-brand\">").append(name).append("</div>\n");
+        b.append("    <nav class=\"sysft-links\" aria-label=\"サイト情報\">\n")
          .append("      <a href=\"/\">ホーム</a>\n");
         for (Map.Entry<String, String> p : SiteDesignService.PAGES.entrySet()) {
             b.append("      <a href=\"/page/").append(p.getKey()).append("\">").append(esc(p.getValue())).append("</a>\n");
@@ -116,7 +142,7 @@ public class PublicSiteService {
         if (note != null && !note.trim().isEmpty()) {
             b.append("    <p class=\"sysft-note\">").append(esc(note.trim()).replace("\n", "<br>")).append("</p>\n");
         }
-        b.append("    <p class=\"sysft-copy\">© ").append(Year.now().getValue()).append(' ').append(name).append("</p>\n")
+        b.append("    <p class=\"sysft-copy\">© ").append(Year.now().getValue()).append(name.isEmpty() ? "" : " " + name).append("</p>\n")
          .append("  </div>\n</footer>");
         return b.toString();
     }

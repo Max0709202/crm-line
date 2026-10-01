@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />
+<meta http-equiv="Cache-Control" content="no-cache" />
+<title>%sitename%</title>
+</head>
+<body style="margin:0;padding:24px 0;background-color:#dfe6ec;color:#16324a;">
+<div style="width:240px;margin:0 auto;background-color:#ffffff;border:1px solid #9aa9b6;">
+<a name="top" id="top"></a>
+
+<!-- ===== ヘッダー ===== -->
+<div style="text-align:center;padding:2px 0;">
+<span style="color:#dd1470;font-size:medium;"><strong>%sitename%</strong></span>
+</div>
+<div style="background-color:#0f74c2;color:#ffffff;text-align:center;font-size:x-small;padding:1px 0;">18歳以上限定コミュニティ</div>
+
+<!-- ===== メイン画像（240×180） ===== -->
+<div style="text-align:center;">
+<a href="#reg"><img src="/member/images/main_fp.jpg" width="240" height="180" alt="HAPPY 理想の出会いはここに" /></a>
+</div>
+
+<!-- ===== 登録ボタン（数字キーでも押せます） ===== -->
+<div style="background-color:#0f74c2;text-align:center;padding:4px 0;margin:2px 0;">
+<a href="#reg" accesskey="1" style="color:#ffffff;"><span style="color:#ffffff;">[1]♂男性 無料登録</span></a>
+</div>
+<div style="background-color:#dd1470;text-align:center;padding:4px 0;margin:2px 0;">
+<a href="#reg" accesskey="2" style="color:#ffffff;"><span style="color:#ffffff;">[2]♀女性 無料登録</span></a>
+</div>
+<div style="font-size:x-small;text-align:center;padding:2px 0;">
+○登録無料　○ニックネームでOK<br />○約1分で完了
+</div>
+<div style="text-align:right;font-size:x-small;padding:0 2px;">
+<a href="#login" accesskey="3">[3]会員ログイン</a>
+</div>
+
+<!-- ===== 無料会員登録 ===== -->
+<a name="reg" id="reg"></a>
+<div style="background-color:#dd1470;color:#ffffff;padding:2px 4px;margin-top:6px;">
+<span style="color:#ffffff;">■無料会員登録</span>
+</div>
+<div style="background-color:#eef8fc;padding:4px;">
+<form method="post" action="/member/register">
+<input type="hidden" name="_csrf" value="%csrf%" />
+<div style="font-size:small;">
+<span style="color:#0b5f9e;">▼性別</span><br />
+<input type="radio" name="gender" value="male" />男性　<input type="radio" name="gender" value="female" />女性<br />
+<span style="color:#0b5f9e;">▼ニックネーム</span>(2～12文字)<br />
+<input type="text" name="nickname" size="16" maxlength="12" istyle="1" format="*M" mode="hiragana" style="-wap-input-format:&quot;*&lt;ja:h&gt;&quot;;" /><br />
+<span style="font-size:x-small;color:#4f6679;">※あとから変更できます</span><br />
+<span style="color:#0b5f9e;">▼メールアドレス</span><br />
+<input type="text" name="email" autocomplete="email" size="20" maxlength="100" istyle="3" format="*m" mode="alphabet" style="-wap-input-format:&quot;*&lt;ja:en&gt;&quot;;" /><br />
+<span style="color:#0b5f9e;">▼パスワード</span><br />
+<span style="font-size:x-small;color:#4f6679;">半角英数字8文字以上(英字と数字を両方)</span><br />
+<input type="password" name="password" autocomplete="new-password" size="16" maxlength="32" istyle="3" format="*m" mode="alphabet" style="-wap-input-format:&quot;*&lt;ja:en&gt;&quot;;" /><br />
+<input type="checkbox" name="agree" value="1" />18歳以上(高校生を除く)です。<a href="/page/terms">利用規約</a>と<a href="/page/privacy">プライバシーポリシー</a>に同意します。<br />
+</div>
+<div style="text-align:center;padding:4px 0;">
+<input type="submit" value="無料で登録する" />
+</div>
+</form>
+<div style="font-size:x-small;color:#4f6679;">
+※登録後、確認メールが届きます。メール内のリンクを押すと登録完了です。<br />
+※ドメイン指定受信をしている方は、当サイトからのメールを受信できるよう設定してください。
+</div>
+<!--
+空メール登録に対応している場合は、ここにリンクを追加すると入力の手間を減らせます。
+例：<a href="mailto:登録用アドレス">空メールで登録する</a>
+-->
+</div>
+
+<!-- ===== 登録の流れ ===== -->
+<a name="guide" id="guide"></a>
+<div style="background-color:#0f74c2;color:#ffffff;padding:2px 4px;margin-top:6px;">
+<span style="color:#ffffff;">■登録の流れ(約1分)</span>
+</div>
+<div style="font-size:small;padding:4px;">
+①性別を選ぶ<br />
+②ニックネーム・メール・パスワードを入力<br />
+③届いたメールのリンクを押して完了
+</div>
+
+<!-- ===== 安心して使えるように ===== -->
+<div style="background-color:#0f74c2;color:#ffffff;padding:2px 4px;margin-top:6px;">
+<span style="color:#ffffff;">■安心して使えるように</span>
+</div>
+<div style="font-size:small;padding:4px;">
+<span style="color:#0b5f9e;">◆ニックネームで利用</span><br />
+本名や住所を公開する必要はありません。<br />
+<span style="color:#0b5f9e;">◆年齢確認をした会員どうし</span><br />
+法律にもとづき、メッセージの送受信には年齢確認が必要です。<br />
+<span style="color:#0b5f9e;">◆困ったときはサポートへ</span><br />
+お問い合わせ窓口から運営に連絡できます。
+</div>
+
+<!-- ===== よくある質問 ===== -->
+<a name="faq" id="faq"></a>
+<div style="background-color:#0f74c2;color:#ffffff;padding:2px 4px;margin-top:6px;">
+<span style="color:#ffffff;">■よくある質問</span>
+</div>
+<div style="font-size:small;padding:4px;">
+<span style="color:#dd1470;">Q.</span>登録に料金はかかりますか？<br />
+<span style="color:#0f74c2;">A.</span>会員登録は無料です。有料機能の料金は<a href="/page/price">料金表</a>で確認できます。<br />
+<br />
+<span style="color:#dd1470;">Q.</span>本名や顔写真は必要ですか？<br />
+<span style="color:#0f74c2;">A.</span>必要ありません。写真の掲載も任意です。<br />
+<br />
+<span style="color:#dd1470;">Q.</span>確認メールが届きません<br />
+<span style="color:#0f74c2;">A.</span>迷惑メールの設定やドメイン指定受信を確認し、当サイトからの受信を許可してから、もう一度登録してください。
+</div>
+
+<!-- ===== 会員ログイン ===== -->
+<a name="login" id="login"></a>
+<div style="background-color:#16324a;color:#ffffff;padding:2px 4px;margin-top:6px;">
+<span style="color:#ffffff;">■会員ログイン</span>
+</div>
+<div style="background-color:#eef8fc;padding:4px;">
+<form method="post" action="/member/login">
+<input type="hidden" name="_csrf" value="%csrf%" />
+<div style="font-size:small;">
+メールアドレスまたはログインID<br />
+<input type="text" name="login_id" size="20" maxlength="100" istyle="3" format="*m" mode="alphabet" style="-wap-input-format:&quot;*&lt;ja:en&gt;&quot;;" /><br />
+パスワード<br />
+<input type="password" name="login_password" size="16" maxlength="32" istyle="3" format="*m" mode="alphabet" style="-wap-input-format:&quot;*&lt;ja:en&gt;&quot;;" /><br />
+</div>
+<div style="text-align:center;padding:4px 0;">
+<input type="submit" value="ログイン" />
+</div>
+</form>
+<div style="font-size:x-small;text-align:center;"><a href="#">パスワードを忘れた方</a></div>
+</div>
+
+<!-- ===== メニュー ===== -->
+<div style="font-size:small;padding:4px;margin-top:6px;">
+<a href="#guide" accesskey="4">[4]初めての方へ</a><br />
+<a href="#faq" accesskey="5">[5]よくある質問</a><br />
+<a href="/page/price" accesskey="6">[6]料金表</a><br />
+<a href="/page/terms" accesskey="7">[7]利用規約</a><br />
+<a href="%contact_mailto%" accesskey="8">[8]お問い合わせ</a><br />
+<a href="/page/age">年齢認証</a><br />
+<a href="/page/privacy">プライバシーポリシー</a><br />
+<a href="/page/tokushoho">特定商取引法に基づく表記</a><br />
+<a href="#top" accesskey="0">[0]ページTOPへ</a>
+</div>
+
+<!-- ===== フッター ===== -->
+<div style="background-color:#0e2b45;color:#ffffff;font-size:x-small;text-align:center;padding:4px 2px;margin-top:4px;">
+<span style="color:#ffffff;">18歳未満の方および高校生の方のご利用はお断りしています。</span><br />
+<!-- インターネット異性紹介事業の届出・受理番号はここに記載してください -->
+<span style="color:#b9ccdc;">&#169; %year% %sitename%</span>
+</div>
+</div>
+</body>
+</html>
