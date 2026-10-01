@@ -107,6 +107,8 @@
                 var p = new URL(a.href, location.href).pathname.replace(/\/+$/, '');
                 if ((path === p || path.indexOf(p + '/') === 0) && p.length > bestLen) { best = a; bestLen = p.length; }
             });
+            // A message thread is where 受信/返信管理 lands, so it stays the highlighted item there.
+            if (/^\/manager\/users\/\d+\/thread$/.test(path)) best = nav.querySelector('a.nav-link[href="/manager/inbox"]') || best;
             if (best) best.classList.add('is-active');
 
             function pin(g) { g.classList.add('is-open', 'is-expanded'); g.querySelector('.nav-group-items').style.height = ''; }
