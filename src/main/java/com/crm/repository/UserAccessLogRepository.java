@@ -27,19 +27,6 @@ public interface UserAccessLogRepository extends JpaRepository<UserAccessLog, Lo
     @Query("select count(distinct l.userId) from UserAccessLog l where l.domainHost = :domainHost")
     long countDistinctUserIdsByDomainHost(@Param("domainHost") String domainHost);
 
-    /** 入金レポート ログイン数: distinct users per day, as [yyyy-MM-dd, count] rows. */
-    @Query(value = "SELECT DATE_FORMAT(CREATED_AT, '%Y-%m-%d') AS d, COUNT(DISTINCT USER_ID) " +
-                   "FROM USER_ACCESS_LOG GROUP BY d", nativeQuery = true)
-    List<Object[]> countDistinctUsersByDay();
-
-    /** 入金レポート ログイン数: distinct users per month, as [yyyy-MM, count] rows. */
-    @Query(value = "SELECT DATE_FORMAT(CREATED_AT, '%Y-%m') AS m, COUNT(DISTINCT USER_ID) " +
-                   "FROM USER_ACCESS_LOG GROUP BY m", nativeQuery = true)
-    List<Object[]> countDistinctUsersByMonth();
-
-    @Query("select count(distinct l.userId) from UserAccessLog l")
-    long countDistinctUsers();
-
     @Modifying
     @Transactional
     @Query("delete from UserAccessLog l where l.createdAt < :cutoff")

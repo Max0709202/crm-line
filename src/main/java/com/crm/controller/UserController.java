@@ -894,10 +894,12 @@ public class UserController {
             ra.addFlashAttribute("flashError", "入金削除には管理者パスワードの確認が必要です");
             return "redirect:/manager/users/" + id;
         }
-        paymentService.delete(pid);
+        boolean cancelled = paymentService.delete(pid);
         auditLog.record(com.crm.service.AuditLogService.ACTION_PAYMENT_DELETE,
-                "Payment", pid, "userId=" + id);
-        ra.addFlashAttribute("flashSuccess", "入金を削除しました");
+                "Payment", pid, "userId=" + id + (cancelled ? " status=CANCELLED" : ""));
+        ra.addFlashAttribute("flashSuccess", cancelled
+                ? "入金をキャンセル済にしました（入金レポートにはキャンセル済として表示されます）"
+                : "入金を削除しました");
         return "redirect:/manager/users/" + id;
     }
 

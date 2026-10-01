@@ -12,6 +12,12 @@
 <section id="nyukinReport">
   <div class="flex items-center mb-4">
     <h1 class="text-2xl font-semibold text-slate-700 flex-1">入金レポート</h1>
+    <!-- 本日のログイン数: users whose 最終ログイン is today, 0:00 → now (LoginCountService) -->
+    <div class="flex items-baseline gap-2 text-slate-700" title="本日0:00から現在までにログインしたユーザー数（同じユーザーは1回）">
+      <span class="text-xl">本日のログイン数</span>
+      <span class="whitespace-nowrap"><span class="text-2xl font-semibold tabular-nums" th:text="${#numbers.formatInteger(todayLogins, 1, 'COMMA')}">0</span><span class="text-xl ml-0.5">人</span></span>
+      <span class="text-sm text-slate-600">（0:00〜現在）</span>
+    </div>
   </div>
 
   <!-- 表示切替タブ -->
@@ -29,16 +35,16 @@
   <!-- 絞り込み＋合計 -->
   <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-4 flex flex-wrap items-end gap-3">
     <div id="monthField" style="width: 220px;">
-      <label for="monthSelect" class="block text-xs text-slate-500 mb-1">対象月</label>
+      <label for="monthSelect" class="block text-xs text-slate-600 mb-1">対象月</label>
       <select id="monthSelect" class="tw-input"></select>
     </div>
     <div id="periodField" class="hidden">
-      <span class="block text-xs text-slate-500 mb-1">対象期間</span>
+      <span class="block text-xs text-slate-600 mb-1">対象期間</span>
       <span id="periodText" class="inline-flex items-center px-3 py-2 text-sm bg-slate-100 text-slate-700 font-semibold rounded"></span>
     </div>
     <div id="dayFilter" class="hidden flex items-end gap-3">
       <div>
-        <span class="block text-xs text-slate-500 mb-1">日付</span>
+        <span class="block text-xs text-slate-600 mb-1">日付</span>
         <span id="dayFilterText" class="inline-flex items-center px-3 py-2 text-sm bg-slate-100 text-slate-700 font-semibold rounded"></span>
       </div>
       <button type="button" id="clearDay"
@@ -47,17 +53,17 @@
 
     <div class="ml-auto flex items-baseline gap-8 pb-1.5 text-slate-700" aria-live="polite">
       <div class="flex items-baseline gap-2">
-        <span class="text-xs text-slate-500">入金回数</span>
+        <span class="text-xl text-slate-600">入金回数</span>
         <span class="whitespace-nowrap">
-          <span id="sumCount" class="text-xl font-semibold tabular-nums">0</span><span class="text-sm ml-0.5">件</span>
-          <span class="text-slate-300 mx-1">/</span>
-          <span id="sumUsers" class="text-xl font-semibold tabular-nums">0</span><span class="text-sm ml-0.5">人</span>
+          <span id="sumCount" class="text-2xl font-semibold tabular-nums">0</span><span class="text-xl ml-0.5">件</span>
+          <span class="text-xl text-slate-400 mx-1">/</span>
+          <span id="sumUsers" class="text-2xl font-semibold tabular-nums">0</span><span class="text-xl ml-0.5">人</span>
         </span>
       </div>
       <div class="flex items-baseline gap-2">
-        <span class="text-xs text-slate-500">合計</span>
-        <span class="whitespace-nowrap"><span id="sumNet" class="text-xl font-semibold tabular-nums">0</span><span class="text-sm ml-0.5">円</span></span>
-        <span id="sumNote" class="text-xs text-slate-400 whitespace-nowrap"></span>
+        <span class="text-xl text-slate-600">合計</span>
+        <span class="whitespace-nowrap"><span id="sumNet" class="text-2xl font-semibold tabular-nums">0</span><span class="text-xl ml-0.5">円</span></span>
+        <span id="sumNote" class="text-sm text-slate-500 whitespace-nowrap"></span>
       </div>
     </div>
   </div>
@@ -66,7 +72,7 @@
   <div id="view-detail" role="tabpanel" aria-labelledby="tab-detail"
        class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
     <table id="detailTable" class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1120px;">
-      <thead class="bg-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+      <thead class="bg-slate-100 text-xs text-slate-600 uppercase tracking-wider">
         <tr>
           <th class="px-3 py-2 text-left" style="width: 115px;">入金日時</th>
           <th class="px-3 py-2 text-left">ユーザー (ID)</th>
@@ -82,17 +88,21 @@
       <tbody class="divide-y divide-slate-100">
         <tr th:each="r : ${rows}" class="hover:bg-slate-50"
             th:attr="data-id=${r.id},data-canceled=${r.canceled} ? '1' : '0'">
-          <td class="px-3 py-2.5 whitespace-nowrap text-slate-700 leading-snug"><th:block th:text="${r.day}">2026-8-3</th:block><br><span class="text-xs text-slate-400" th:text="${r.time}">10:12:44</span></td>
-          <td class="px-3 py-2.5"><a th:href="@{'/manager/users/' + ${r.userId}}" class="text-slate-700 font-medium underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600" th:text="${r.userName}">名前</a> <span class="text-xs text-slate-400" th:text="'(' + ${r.userId} + ')'">(0)</span></td>
+          <td class="px-3 py-2.5 whitespace-nowrap text-slate-700 leading-snug"><th:block th:text="${r.day}">2026-8-3</th:block><br><span class="text-xs text-slate-500" th:text="${r.time}">10:12:44</span></td>
+          <td class="px-3 py-2.5"><a th:href="@{'/manager/users/' + ${r.userId}}" class="text-slate-700 font-medium underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600" th:text="${r.userName}">名前</a> <span class="text-xs text-slate-500" th:text="'(' + ${r.userId} + ')'">(0)</span></td>
           <td class="px-3 py-2.5 text-slate-600" th:text="${r.adCode} ?: '—'">—</td>
-          <td class="px-3 py-2.5 text-right tabular-nums text-slate-600" th:text="${r.count} + '回'">1回</td>
+          <td class="px-3 py-2.5 text-right tabular-nums"
+              th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-600'"
+              th:text="${r.count} + '回'">1回</td>
           <td class="px-3 py-2.5 text-right tabular-nums font-medium"
-              th:classappend="${r.canceled} ? 'text-slate-400 line-through' : 'text-slate-700'"
+              th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-700'"
               th:text="${#numbers.formatInteger(r.amount, 1, 'COMMA')} + '円'">0円</td>
           <td class="px-3 py-2.5 text-right tabular-nums"
-              th:classappend="${r.canceled} ? 'text-slate-400 line-through' : 'text-slate-600'"
+              th:classappend="${r.canceled} ? 'text-slate-500 line-through' : 'text-slate-600'"
               th:text="${r.points != null} ? ${#numbers.formatInteger(r.points, 1, 'COMMA')} + 'pt' : '—'">0pt</td>
-          <td class="px-3 py-2.5 text-slate-600 whitespace-nowrap" th:text="${r.method}">クレジットカード</td>
+          <td class="px-3 py-2.5 whitespace-nowrap"
+              th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-600'"
+              th:text="${r.method}">クレジットカード</td>
           <td class="px-3 py-2.5 text-center"><span th:if="${r.canceled}" class="inline-flex whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded bg-red-50 text-red-600">キャンセル済</span></td>
           <td class="px-3 py-2.5" th:text="${r.memo}"></td>
         </tr>
@@ -104,7 +114,7 @@
   <div id="view-daily" role="tabpanel" aria-labelledby="tab-daily"
        class="hidden bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
     <table class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1040px;">
-      <thead class="bg-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+      <thead class="bg-slate-100 text-xs text-slate-600 uppercase tracking-wider">
         <tr>
           <th class="px-3 py-2 text-left" style="width: 160px;">日付</th>
           <th class="px-3 py-2 text-right" style="width: 100px;">ログイン数</th>
@@ -119,7 +129,7 @@
       <tbody id="dailyBody" class="divide-y divide-slate-100"></tbody>
       <tfoot id="dailyFoot" class="bg-slate-50"></tfoot>
     </table>
-    <div class="px-3 py-2 text-xs text-slate-500 border-t border-slate-200">
+    <div class="px-3 py-2 text-xs text-slate-600 border-t border-slate-200">
       日付をクリックすると、その日の明細を表示します。純入金額＝入金額−キャンセル額。入金ユーザー数・ポイントはキャンセル分を除いて集計しています。
     </div>
   </div>
@@ -128,7 +138,7 @@
   <div id="view-monthly" role="tabpanel" aria-labelledby="tab-monthly"
        class="hidden bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
     <table class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1040px;">
-      <thead class="bg-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+      <thead class="bg-slate-100 text-xs text-slate-600 uppercase tracking-wider">
         <tr>
           <th class="px-3 py-2 text-left" style="width: 160px;">月</th>
           <th class="px-3 py-2 text-right" style="width: 100px;">ログイン数</th>
@@ -143,12 +153,12 @@
       <tbody id="monthlyBody" class="divide-y divide-slate-100"></tbody>
       <tfoot id="monthlyFoot" class="bg-slate-50"></tfoot>
     </table>
-    <div class="px-3 py-2 text-xs text-slate-500 border-t border-slate-200">
+    <div class="px-3 py-2 text-xs text-slate-600 border-t border-slate-200">
       月をクリックすると、その月の日別集計を表示します。純入金額＝入金額−キャンセル額。入金ユーザー数・ポイントはキャンセル分を除いて集計しています。
     </div>
   </div>
 
-  <!-- ログイン数: distinct users per day / month / overall (PaymentReportService#loginCounts). -->
+  <!-- ログイン数: users per day by 最終ログイン; months / total are the sum of their days (PaymentReportService#loginCounts). -->
   <script type="application/json" id="loginData" th:utext="${loginJson}">{}</script>
 
   <script th:inline="javascript">
@@ -180,9 +190,9 @@
     /* ================================================================ */
 
     var WEEK = ['日', '月', '火', '水', '木', '金', '土'];
-    var WEEK_COLOR = ['text-red-400', 'text-slate-400', 'text-slate-400', 'text-slate-400', 'text-slate-400', 'text-slate-400', 'text-blue-400'];
+    var WEEK_COLOR = ['text-red-400', 'text-slate-500', 'text-slate-500', 'text-slate-500', 'text-slate-500', 'text-slate-500', 'text-blue-400'];
     var TAB_ON = ['bg-slate-100', 'text-slate-800', 'font-semibold', 'border-b-2', 'border-b-slate-500'];
-    var TAB_OFF = ['text-slate-500', 'hover:bg-slate-50'];
+    var TAB_OFF = ['text-slate-600', 'hover:bg-slate-50'];
     var NUM = 'px-3 py-2.5 text-right tabular-nums';
     var LINK = 'text-slate-700 font-medium underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600';
 
@@ -238,7 +248,7 @@
 
     var emptyRow = document.createElement('tr');
     emptyRow.className = 'hidden';
-    emptyRow.innerHTML = '<td colspan="' + DETAIL_COLS + '" class="px-3 py-6 text-center text-slate-400">この条件の入金はありません</td>';
+    emptyRow.innerHTML = '<td colspan="' + DETAIL_COLS + '" class="px-3 py-6 text-center text-slate-500">この条件の入金はありません</td>';
     tbody.appendChild(emptyRow);
 
     /* ---- 備考 ---- */
@@ -263,13 +273,13 @@
         if (memo) td.appendChild(el('p', 'text-xs text-slate-600 whitespace-pre-wrap break-words leading-relaxed', memo));
         var bar = el('div', 'flex items-center gap-3' + (memo ? ' mt-1' : ''));
         if (memo) {
-          bar.appendChild(btn('編集', 'text-xs text-slate-500 hover:text-slate-800 hover:underline', edit));
-          bar.appendChild(btn('削除', 'text-xs text-slate-500 hover:text-red-600 hover:underline', remove));
+          bar.appendChild(btn('編集', 'text-xs text-slate-600 hover:text-slate-800 hover:underline', edit));
+          bar.appendChild(btn('削除', 'text-xs text-slate-600 hover:text-red-600 hover:underline', remove));
         } else {
-          bar.appendChild(btn('＋ メモを追加', 'text-xs text-slate-400 hover:text-slate-700', edit));
+          bar.appendChild(btn('＋ メモを追加', 'text-xs text-slate-500 hover:text-slate-700', edit));
         }
         if (msg) {
-          bar.appendChild(el('span', 'text-xs ' + (isError ? 'text-red-600' : 'text-slate-500'), msg));
+          bar.appendChild(el('span', 'text-xs ' + (isError ? 'text-red-600' : 'text-slate-600'), msg));
           if (!isError) timer = setTimeout(function () { view(); }, 1500);
         }
         td.appendChild(bar);
@@ -403,7 +413,7 @@
       return '<td class="px-3 py-2.5 whitespace-nowrap"><button type="button" class="' + LINK + '">' + label + '</button></td>';
     }
     function emptySumRow(text) {
-      return '<tr><td colspan="' + SUM_COLS + '" class="px-3 py-6 text-center text-slate-400">' + text + '</td></tr>';
+      return '<tr><td colspan="' + SUM_COLS + '" class="px-3 py-6 text-center text-slate-500">' + text + '</td></tr>';
     }
     function footRow(a, loginCount) {
       return '<tr class="font-semibold text-slate-700"><td class="px-3 py-2.5">合計</td>' + rowCells(a, loginCount, null) + '</tr>';
@@ -457,7 +467,7 @@
         var a = map.get(d) || newAgg();
         return a.count
           ? '<tr class="cursor-pointer hover:bg-slate-50 text-slate-700" data-day="' + d + '">' + linkCell(dayLabel(d)) + rowCells(a, loginOfDay(d), maxNet) + '</tr>'
-          : '<tr class="text-slate-400"><td class="px-3 py-2.5 whitespace-nowrap">' + dayLabel(d) + '</td>' + rowCells(a, loginOfDay(d), maxNet) + '</tr>';
+          : '<tr class="text-slate-500"><td class="px-3 py-2.5 whitespace-nowrap">' + dayLabel(d) + '</td>' + rowCells(a, loginOfDay(d), maxNet) + '</tr>';
       }).join('') || emptySumRow('この期間の入金はありません');
       $('dailyFoot').innerHTML = footRow(total(scope), state.month === 'all' ? loginOfAll() : loginOfMonth(state.month));
       renderSummary(scope);

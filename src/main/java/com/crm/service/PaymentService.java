@@ -141,13 +141,26 @@ public class PaymentService {
         return saved;
     }
 
+    /**
+     * Deletes a payment from ユーザー詳細. A payment that was paid stays on 入金レポート as キャンセル済
+     * (client request 2026-10-01), so it is marked CANCELLED instead of removed.
+     *
+     * @return true when it was kept as CANCELLED, false when it was removed
+     */
     @Transactional
-    public void delete(Long id) {
+    public boolean delete(Long id) {
         Optional<Payment> p = paymentRepository.findById(id);
-        if (!p.isPresent()) return;
+        if (!p.isPresent()) return false;
         Long uid = p.get().getUserId();
-        paymentRepository.deleteById(id);
+        boolean keep = p.get().getPaidAt() != null;
+        if (keep) {
+            p.get().setStatus(Payment.STATUS_CANCELLED);
+            paymentRepository.save(p.get());
+        } else {
+            paymentRepository.deleteById(id);
+        }
         refreshUserLastPaymentAt(uid);
+        return keep;
     }
 
     /** Recompute and cache the most-recent paid-at on the user row, for list-view display. */

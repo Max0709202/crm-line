@@ -121,4 +121,9 @@ public interface CrmUserRepository extends JpaRepository<CrmUser, Long>, JpaSpec
     List<Object[]> countByDayAndGenderForCode(@org.springframework.data.repository.query.Param("code") String code,
                                                @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
                                                @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end);
+
+    /** 入金レポート ログイン数: users whose 最終ログイン is in [from, to) — each user counts once. */
+    @Query("SELECT COUNT(u) FROM CrmUser u WHERE u.lastLoginAt >= :from AND u.lastLoginAt < :to")
+    long countByLastLoginBetween(@org.springframework.data.repository.query.Param("from") java.time.LocalDateTime from,
+                                 @org.springframework.data.repository.query.Param("to") java.time.LocalDateTime to);
 }
