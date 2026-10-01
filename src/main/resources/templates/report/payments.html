@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>入金レポート</title>
+</head>
+<body>
+<section layout:fragment="content">
+<!-- Client design: nyukin_report (2).html (2026-10-01). Rows are rendered here; the script below
+     reads them back to build the 日別 / 月別 views, so the column order must match COL. -->
+<section id="nyukinReport">
+  <div class="flex items-center mb-4">
+    <h1 class="text-2xl font-semibold text-slate-700 flex-1">入金レポート</h1>
+  </div>
+
+  <!-- 表示切替タブ -->
+  <div class="bg-white rounded-lg shadow-sm border border-slate-200 mb-4 overflow-hidden">
+    <div class="flex overflow-x-auto items-center" role="tablist" aria-label="表示の切り替え">
+      <button type="button" role="tab" id="tab-detail" data-view="detail" aria-controls="view-detail"
+              class="px-4 py-2.5 text-sm whitespace-nowrap border-r border-slate-200">明細</button>
+      <button type="button" role="tab" id="tab-daily" data-view="daily" aria-controls="view-daily"
+              class="px-4 py-2.5 text-sm whitespace-nowrap border-r border-slate-200">日別</button>
+      <button type="button" role="tab" id="tab-monthly" data-view="monthly" aria-controls="view-monthly"
+              class="px-4 py-2.5 text-sm whitespace-nowrap border-r border-slate-200">月別</button>
+    </div>
+  </div>
+
+  <!-- 絞り込み＋合計 -->
+  <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-4 flex flex-wrap items-end gap-3">
+    <div id="monthField" style="width: 220px;">
+      <label for="monthSelect" class="block text-xs text-slate-500 mb-1">対象月</label>
+      <select id="monthSelect" class="tw-input"></select>
+    </div>
+    <div id="periodField" class="hidden">
+      <span class="block text-xs text-slate-500 mb-1">対象期間</span>
+      <span id="periodText" class="inline-flex items-center px-3 py-2 text-sm bg-slate-100 text-slate-700 font-semibold rounded"></span>
+    </div>
+    <div id="dayFilter" class="hidden flex items-end gap-3">
+      <div>
+        <span class="block text-xs text-slate-500 mb-1">日付</span>
+        <span id="dayFilterText" class="inline-flex items-center px-3 py-2 text-sm bg-slate-100 text-slate-700 font-semibold rounded"></span>
+      </div>
+      <button type="button" id="clearDay"
+              class="inline-flex items-center px-3 py-2 border border-slate-300 bg-white text-slate-600 text-sm rounded hover:bg-slate-50">日付の絞り込みを解除</button>
+    </div>
+
+    <div class="ml-auto flex items-baseline gap-8 pb-1.5 text-slate-700" aria-live="polite">
+      <div class="flex items-baseline gap-2">
+        <span class="text-xs text-slate-500">入金回数</span>
+        <span class="whitespace-nowrap">
+          <span id="sumCount" class="text-xl font-semibold tabular-nums">0</span><span class="text-sm ml-0.5">件</span>
+          <span class="text-slate-300 mx-1">/</span>
+          <span id="sumUsers" class="text-xl font-semibold tabular-nums">0</span><span class="text-sm ml-0.5">人</span>
+        </span>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span class="text-xs text-slate-500">合計</span>
+        <span class="whitespace-nowrap"><span id="sumNet" class="text-xl font-semibold tabular-nums">0</span><span class="text-sm ml-0.5">円</span></span>
+        <span id="sumNote" class="text-xs text-slate-400 whitespace-nowrap"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 明細 -->
+  <div id="view-detail" role="tabpanel" aria-labelledby="tab-detail"
+       class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+    <table id="detailTable" class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1120px;">
+      <thead class="bg-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+        <tr>
+          <th class="px-3 py-2 text-left" style="width: 115px;">入金日時</th>
+          <th class="px-3 py-2 text-left">ユーザー (ID)</th>
+          <th class="px-3 py-2 text-left" style="width: 105px;">広告コード</th>
+          <th class="px-3 py-2 text-right" style="width: 85px;">入金回数</th>
+          <th class="px-3 py-2 text-right" style="width: 105px;">入金額</th>
+          <th class="px-3 py-2 text-right" style="width: 95px;">ポイント</th>
+          <th class="px-3 py-2 text-left" style="width: 145px;">支払方法</th>
+          <th class="px-3 py-2 text-center" style="width: 105px;">キャンセル</th>
+          <th class="px-3 py-2 text-left" style="width: 240px;">備考</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr th:each="r : ${rows}" class="hover:bg-slate-50"
+            th:attr="data-id=${r.id},data-canceled=${r.canceled} ? '1' : '0'">
+          <td class="px-3 py-2.5 whitespace-nowrap text-slate-700 leading-snug"><th:block th:text="${r.day}">2026-8-3</th:block><br><span class="text-xs text-slate-400" th:text="${r.time}">10:12:44</span></td>
+          <td class="px-3 py-2.5"><a th:href="@{'/manager/users/' + ${r.userId}}" class="text-slate-700 font-medium underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600" th:text="${r.userName}">名前</a> <span class="text-xs text-slate-400" th:text="'(' + ${r.userId} + ')'">(0)</span></td>
+          <td class="px-3 py-2.5 text-slate-600" th:text="${r.adCode} ?: '—'">—</td>
+          <td class="px-3 py-2.5 text-right tabular-nums text-slate-600" th:text="${r.count} + '回'">1回</td>
+          <td class="px-3 py-2.5 text-right tabular-nums font-medium"
+              th:classappend="${r.canceled} ? 'text-slate-400 line-through' : 'text-slate-700'"
+              th:text="${#numbers.formatInteger(r.amount, 1, 'COMMA')} + '円'">0円</td>
+          <td class="px-3 py-2.5 text-right tabular-nums"
+              th:classappend="${r.canceled} ? 'text-slate-400 line-through' : 'text-slate-600'"
+              th:text="${r.points != null} ? ${#numbers.formatInteger(r.points, 1, 'COMMA')} + 'pt' : '—'">0pt</td>
+          <td class="px-3 py-2.5 text-slate-600 whitespace-nowrap" th:text="${r.method}">クレジットカード</td>
+          <td class="px-3 py-2.5 text-center"><span th:if="${r.canceled}" class="inline-flex whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded bg-red-50 text-red-600">キャンセル済</span></td>
+          <td class="px-3 py-2.5" th:text="${r.memo}"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 日別集計 -->
+  <div id="view-daily" role="tabpanel" aria-labelledby="tab-daily"
+       class="hidden bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+    <table class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1040px;">
+      <thead class="bg-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+        <tr>
+          <th class="px-3 py-2 text-left" style="width: 160px;">日付</th>
+          <th class="px-3 py-2 text-right" style="width: 100px;">ログイン数</th>
+          <th class="px-3 py-2 text-right" style="width: 80px;">件数</th>
+          <th class="px-3 py-2 text-right" style="width: 120px;">入金ユーザー数</th>
+          <th class="px-3 py-2 text-right" style="width: 120px;">入金額</th>
+          <th class="px-3 py-2 text-right" style="width: 150px;">キャンセル</th>
+          <th class="px-3 py-2 text-right">純入金額</th>
+          <th class="px-3 py-2 text-right" style="width: 110px;">付与ポイント</th>
+        </tr>
+      </thead>
+      <tbody id="dailyBody" class="divide-y divide-slate-100"></tbody>
+      <tfoot id="dailyFoot" class="bg-slate-50"></tfoot>
+    </table>
+    <div class="px-3 py-2 text-xs text-slate-500 border-t border-slate-200">
+      日付をクリックすると、その日の明細を表示します。純入金額＝入金額−キャンセル額。入金ユーザー数・ポイントはキャンセル分を除いて集計しています。
+    </div>
+  </div>
+
+  <!-- 月別集計 -->
+  <div id="view-monthly" role="tabpanel" aria-labelledby="tab-monthly"
+       class="hidden bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+    <table class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1040px;">
+      <thead class="bg-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+        <tr>
+          <th class="px-3 py-2 text-left" style="width: 160px;">月</th>
+          <th class="px-3 py-2 text-right" style="width: 100px;">ログイン数</th>
+          <th class="px-3 py-2 text-right" style="width: 80px;">件数</th>
+          <th class="px-3 py-2 text-right" style="width: 120px;">入金ユーザー数</th>
+          <th class="px-3 py-2 text-right" style="width: 120px;">入金額</th>
+          <th class="px-3 py-2 text-right" style="width: 150px;">キャンセル</th>
+          <th class="px-3 py-2 text-right">純入金額</th>
+          <th class="px-3 py-2 text-right" style="width: 110px;">付与ポイント</th>
+        </tr>
+      </thead>
+      <tbody id="monthlyBody" class="divide-y divide-slate-100"></tbody>
+      <tfoot id="monthlyFoot" class="bg-slate-50"></tfoot>
+    </table>
+    <div class="px-3 py-2 text-xs text-slate-500 border-t border-slate-200">
+      月をクリックすると、その月の日別集計を表示します。純入金額＝入金額−キャンセル額。入金ユーザー数・ポイントはキャンセル分を除いて集計しています。
+    </div>
+  </div>
+
+  <!-- ログイン数: distinct users per day / month / overall (PaymentReportService#loginCounts). -->
+  <script type="application/json" id="loginData" th:utext="${loginJson}">{}</script>
+
+  <script th:inline="javascript">
+  (function () {
+    'use strict';
+
+    /* ===== 設定 ===================================================== */
+    // 明細テーブルの列位置（0始まり）
+    //   0:入金日時 1:ユーザー(ID) 2:広告コード 3:入金回数 4:入金額 5:ポイント 6:支払方法 7:キャンセル 8:備考
+    var COL = { date: 0, user: 1, amount: 4, point: 5, cancel: 7, memo: 8 };
+    var DETAIL_COLS = 9;
+    var SUM_COLS = 8;
+
+    // 備考の保存先（FormData を POST。CSRF トークンは管理画面共通の fetch パッチで付きます）
+    //   save : id, memo を送信   remove : id を送信
+    var MEMO_API = {
+      save: '/manager/reports/payments/memo',
+      remove: '/manager/reports/payments/memo/delete'
+    };
+    var MEMO_MAX = /*[[${memoMax}]]*/ 200;
+
+    var LOGIN_UNIT = '人';
+
+    // キャンセル判定。行の data-canceled を優先。
+    function isCanceled(tr, cancelText) {
+      if (tr.dataset.canceled != null) return tr.dataset.canceled === '1' || tr.dataset.canceled === 'true';
+      return /済|取消|取り消/.test(cancelText);
+    }
+    /* ================================================================ */
+
+    var WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+    var WEEK_COLOR = ['text-red-400', 'text-slate-400', 'text-slate-400', 'text-slate-400', 'text-slate-400', 'text-slate-400', 'text-blue-400'];
+    var TAB_ON = ['bg-slate-100', 'text-slate-800', 'font-semibold', 'border-b-2', 'border-b-slate-500'];
+    var TAB_OFF = ['text-slate-500', 'hover:bg-slate-50'];
+    var NUM = 'px-3 py-2.5 text-right tabular-nums';
+    var LINK = 'text-slate-700 font-medium underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600';
+
+    var $ = function (id) { return document.getElementById(id); };
+    var show = function (el, on) { el.classList.toggle('hidden', !on); };
+    var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+    var pad2 = function (n) { return String(n).padStart(2, '0'); };
+    var fmt = function (n) { return Number(n).toLocaleString('ja-JP'); };
+    var yen = function (n) { return fmt(n) + '円'; };
+
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    }
+    function btn(label, cls, onClick) {
+      var b = el('button', cls, label);
+      b.type = 'button';
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
+    // <br> や <span> で分かれたセルも「2026-10-1 9:56:06」のように読む
+    function cellText(td) {
+      if (!td) return '';
+      return Array.from(td.childNodes).map(function (n) { return n.textContent.trim(); }).filter(Boolean).join(' ');
+    }
+    function toNumber(s) {
+      var n = Number(String(s).replace(/[^\d.\-]/g, ''));
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    /* ---- 明細行の読み取り ---- */
+    var tbody = document.querySelector('#detailTable tbody');
+    var records = [];
+    Array.from(tbody.rows).forEach(function (tr, i) {
+      var td = tr.cells;
+      var m = cellText(td[COL.date]).match(/(\d{4})[-\/年](\d{1,2})[-\/月](\d{1,2})/);
+      if (!m) return;
+      var day = m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]);
+      records.push({
+        tr: tr,
+        day: day,
+        month: day.slice(0, 7),
+        user: cellText(td[COL.user]),
+        amount: toNumber(cellText(td[COL.amount])),
+        point: toNumber(cellText(td[COL.point])),
+        canceled: isCanceled(tr, cellText(td[COL.cancel]))
+      });
+      setupMemo(tr, td[COL.memo], tr.dataset.id || ('row' + i));
+    });
+
+    var emptyRow = document.createElement('tr');
+    emptyRow.className = 'hidden';
+    emptyRow.innerHTML = '<td colspan="' + DETAIL_COLS + '" class="px-3 py-6 text-center text-slate-400">この条件の入金はありません</td>';
+    tbody.appendChild(emptyRow);
+
+    /* ---- 備考 ---- */
+    function post(url, fields) {
+      var fd = new FormData();
+      Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
+      return fetch(url, { method: 'POST', credentials: 'same-origin', body: fd })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+    }
+    function persistMemo(id, text) {
+      return text ? post(MEMO_API.save, { id: id, memo: text }) : post(MEMO_API.remove, { id: id });
+    }
+
+    function setupMemo(tr, td, id) {
+      if (!td) return;
+      var memo = td.textContent.trim();
+      var timer = null;
+
+      function view(msg, isError) {
+        clearTimeout(timer);
+        td.textContent = '';
+        if (memo) td.appendChild(el('p', 'text-xs text-slate-600 whitespace-pre-wrap break-words leading-relaxed', memo));
+        var bar = el('div', 'flex items-center gap-3' + (memo ? ' mt-1' : ''));
+        if (memo) {
+          bar.appendChild(btn('編集', 'text-xs text-slate-500 hover:text-slate-800 hover:underline', edit));
+          bar.appendChild(btn('削除', 'text-xs text-slate-500 hover:text-red-600 hover:underline', remove));
+        } else {
+          bar.appendChild(btn('＋ メモを追加', 'text-xs text-slate-400 hover:text-slate-700', edit));
+        }
+        if (msg) {
+          bar.appendChild(el('span', 'text-xs ' + (isError ? 'text-red-600' : 'text-slate-500'), msg));
+          if (!isError) timer = setTimeout(function () { view(); }, 1500);
+        }
+        td.appendChild(bar);
+      }
+
+      function edit() {
+        clearTimeout(timer);
+        td.textContent = '';
+        var ta = el('textarea', 'tw-input text-xs');
+        ta.rows = 2;
+        ta.maxLength = MEMO_MAX;
+        ta.value = memo;
+        ta.placeholder = '備考を入力';
+        ta.setAttribute('aria-label', '備考');
+        var bar = el('div', 'flex items-center gap-2 mt-1.5');
+        var saveBtn = btn('保存', 'inline-flex items-center px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-800 text-white rounded disabled:bg-slate-300', doSave);
+        var closeBtn = btn('閉じる', 'inline-flex items-center px-2.5 py-1 text-xs border border-slate-300 bg-white text-slate-600 rounded hover:bg-slate-50', function () { view(); });
+        var err = el('span', 'text-xs text-red-600');
+        bar.append(saveBtn, closeBtn, err);
+        ta.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') view();
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) doSave();
+        });
+        td.append(ta, bar);
+        ta.focus();
+
+        function doSave() {
+          var text = ta.value.trim();
+          saveBtn.disabled = true;
+          saveBtn.textContent = '保存中…';
+          persistMemo(id, text).then(function () {
+            memo = text;
+            view(text ? '✓ 保存しました' : '✓ 削除しました');
+          }).catch(function (e) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '保存';
+            err.textContent = '✗ 保存に失敗しました (' + e.message + ')';
+          });
+        }
+      }
+
+      function remove() {
+        if (!confirm('この備考を削除します。よろしいですか?')) return;
+        persistMemo(id, '').then(function () {
+          memo = '';
+          view('✓ 削除しました');
+        }).catch(function (e) {
+          view('✗ 削除に失敗しました (' + e.message + ')', true);
+        });
+      }
+
+      view();
+    }
+
+    /* ---- ログイン数 ---- */
+    var login = { daily: {}, monthly: {}, total: null };
+    try {
+      var raw = JSON.parse(($('loginData') || {}).textContent || '{}');
+      login.daily = raw.daily || {};
+      login.monthly = raw.monthly || {};
+      login.total = raw.total != null ? raw.total : null;
+    } catch (e) { /* ログイン数なしで表示 */ }
+
+    function loginMonths() {
+      var set = new Set(Object.keys(login.monthly));
+      Object.keys(login.daily).forEach(function (d) { set.add(d.slice(0, 7)); });
+      return Array.from(set);
+    }
+    function loginOfDay(day) { return has(login.daily, day) ? Number(login.daily[day]) : null; }
+    function loginOfMonth(month) {
+      if (has(login.monthly, month)) return Number(login.monthly[month]);
+      var s = null;
+      Object.keys(login.daily).forEach(function (d) { if (d.indexOf(month) === 0) s = (s || 0) + Number(login.daily[d]); });
+      return s;
+    }
+    function loginOfAll() {
+      if (login.total != null) return Number(login.total);
+      var s = null;
+      loginMonths().forEach(function (m) { var v = loginOfMonth(m); if (v != null) s = (s || 0) + v; });
+      return s;
+    }
+    function loginText(v) { return v == null ? '—' : fmt(v) + LOGIN_UNIT; }
+
+    /* ---- 集計 ---- */
+    function newAgg() { return { count: 0, users: new Set(), gross: 0, cancelCount: 0, cancelAmount: 0, points: 0 }; }
+    function addTo(a, r) {
+      a.count++;
+      a.gross += r.amount;
+      if (r.canceled) { a.cancelCount++; a.cancelAmount += r.amount; }
+      else { a.points += r.point; if (r.user) a.users.add(r.user); }
+    }
+    function groupBy(list, key) {
+      var map = new Map();
+      list.forEach(function (r) {
+        if (!map.has(r[key])) map.set(r[key], newAgg());
+        addTo(map.get(r[key]), r);
+      });
+      return map;
+    }
+    function total(list) { var a = newAgg(); list.forEach(function (r) { addTo(a, r); }); return a; }
+    function net(a) { return a.gross - a.cancelAmount; }
+
+    /* ---- 表示用 ---- */
+    function dayLabel(day) {
+      var p = day.split('-').map(Number);
+      var w = new Date(p[0], p[1] - 1, p[2]).getDay();
+      return day + '<span class="' + WEEK_COLOR[w] + '">（' + WEEK[w] + '）</span>';
+    }
+    function monthLabel(month) {
+      var p = month.split('-').map(Number);
+      return p[0] + '年' + p[1] + '月';
+    }
+    function rowCells(a, loginCount, maxNet) {
+      var n = net(a);
+      var bar = '';
+      if (maxNet != null) {
+        var pct = maxNet > 0 ? (Math.max(0, n) / maxNet * 100).toFixed(1) : 0;
+        bar = '<div class="mt-1 h-1 rounded-full bg-slate-100' + (a.count ? '' : ' invisible') + '">' +
+              '<div class="h-1 rounded-full bg-slate-400" style="width:' + pct + '%"></div></div>';
+      }
+      var cancel = a.cancelCount ? a.cancelCount + '件 / −' + yen(a.cancelAmount) : '—';
+      return '<td class="' + NUM + ' text-slate-600">' + loginText(loginCount) + '</td>' +
+             '<td class="' + NUM + '">' + fmt(a.count) + '件</td>' +
+             '<td class="' + NUM + '">' + fmt(a.users.size) + '人</td>' +
+             '<td class="' + NUM + '">' + yen(a.gross) + '</td>' +
+             '<td class="' + NUM + (a.cancelCount ? ' text-red-600' : '') + '">' + cancel + '</td>' +
+             '<td class="' + NUM + ' font-semibold">' + yen(n) + bar + '</td>' +
+             '<td class="' + NUM + '">' + fmt(a.points) + 'pt</td>';
+    }
+    function linkCell(label) {
+      return '<td class="px-3 py-2.5 whitespace-nowrap"><button type="button" class="' + LINK + '">' + label + '</button></td>';
+    }
+    function emptySumRow(text) {
+      return '<tr><td colspan="' + SUM_COLS + '" class="px-3 py-6 text-center text-slate-400">' + text + '</td></tr>';
+    }
+    function footRow(a, loginCount) {
+      return '<tr class="font-semibold text-slate-700"><td class="px-3 py-2.5">合計</td>' + rowCells(a, loginCount, null) + '</tr>';
+    }
+
+    // 対象月の日付一覧（入金のない日も表示。当月は今日まで）
+    function daysOfMonth(month, map) {
+      var p = month.split('-').map(Number);
+      var last = new Date(p[0], p[1], 0).getDate();
+      var now = new Date();
+      if (p[0] === now.getFullYear() && p[1] === now.getMonth() + 1) last = Math.min(last, now.getDate());
+      map.forEach(function (_, day) { if (day.indexOf(month) === 0) last = Math.max(last, Number(day.slice(8))); });
+      var list = [];
+      for (var d = 1; d <= last; d++) list.push(month + '-' + pad2(d));
+      return list;
+    }
+
+    /* ---- 状態 ---- */
+    var months = Array.from(new Set(records.map(function (r) { return r.month; }).concat(loginMonths()))).sort();
+    var latestDeposit = records.reduce(function (m, r) { return r.month > m ? r.month : m; }, '');
+    var state = { view: 'detail', month: latestDeposit || months[months.length - 1] || 'all', day: null };
+
+    var monthSelect = $('monthSelect');
+    monthSelect.innerHTML = '<option value="all">すべての期間</option>' +
+      months.slice().reverse().map(function (m) { return '<option value="' + m + '">' + monthLabel(m) + '</option>'; }).join('');
+
+    function inMonth(r) { return state.month === 'all' || r.month === state.month; }
+
+    /* ---- 描画 ---- */
+    function renderSummary(scope) {
+      var a = total(scope);
+      $('sumCount').textContent = fmt(a.count);
+      $('sumUsers').textContent = fmt(a.users.size);
+      $('sumNet').textContent = fmt(net(a));
+      $('sumNote').textContent = a.cancelCount ? '（キャンセル' + a.cancelCount + '件 ' + yen(a.cancelAmount) + 'を除く）' : '';
+    }
+
+    function renderDetail() {
+      var scope = records.filter(function (r) { return inMonth(r) && (!state.day || r.day === state.day); });
+      records.forEach(function (r) { show(r.tr, scope.indexOf(r) !== -1); });
+      show(emptyRow, scope.length === 0);
+      renderSummary(scope);
+    }
+
+    function renderDaily() {
+      var scope = records.filter(inMonth);
+      var map = groupBy(scope, 'day');
+      var days = state.month === 'all' ? Array.from(map.keys()).sort() : daysOfMonth(state.month, map);
+      var maxNet = Math.max.apply(null, [0].concat(days.map(function (d) { return map.has(d) ? net(map.get(d)) : 0; })));
+      $('dailyBody').innerHTML = days.map(function (d) {
+        var a = map.get(d) || newAgg();
+        return a.count
+          ? '<tr class="cursor-pointer hover:bg-slate-50 text-slate-700" data-day="' + d + '">' + linkCell(dayLabel(d)) + rowCells(a, loginOfDay(d), maxNet) + '</tr>'
+          : '<tr class="text-slate-400"><td class="px-3 py-2.5 whitespace-nowrap">' + dayLabel(d) + '</td>' + rowCells(a, loginOfDay(d), maxNet) + '</tr>';
+      }).join('') || emptySumRow('この期間の入金はありません');
+      $('dailyFoot').innerHTML = footRow(total(scope), state.month === 'all' ? loginOfAll() : loginOfMonth(state.month));
+      renderSummary(scope);
+    }
+
+    function renderMonthly() {
+      var map = groupBy(records, 'month');
+      var maxNet = Math.max.apply(null, [0].concat(months.map(function (m) { return map.has(m) ? net(map.get(m)) : 0; })));
+      $('monthlyBody').innerHTML = months.map(function (m) {
+        return '<tr class="cursor-pointer hover:bg-slate-50 text-slate-700" data-month="' + m + '">' +
+          linkCell(monthLabel(m)) + rowCells(map.get(m) || newAgg(), loginOfMonth(m), maxNet) + '</tr>';
+      }).join('') || emptySumRow('入金データがありません');
+      $('monthlyFoot').innerHTML = footRow(total(records), loginOfAll());
+      renderSummary(records);
+    }
+
+    var tabs = Array.from(document.querySelectorAll('#nyukinReport [role="tab"]'));
+
+    function render() {
+      tabs.forEach(function (tab) {
+        var on = tab.dataset.view === state.view;
+        tab.setAttribute('aria-selected', String(on));
+        tab.tabIndex = on ? 0 : -1;
+        TAB_ON.forEach(function (c) { tab.classList.toggle(c, on); });
+        TAB_OFF.forEach(function (c) { tab.classList.toggle(c, !on); });
+        show($(tab.getAttribute('aria-controls')), on);
+      });
+
+      monthSelect.value = state.month;
+      var monthly = state.view === 'monthly';
+      show($('monthField'), !monthly);
+      show($('periodField'), monthly);
+      if (monthly) $('periodText').textContent = months.length
+        ? monthLabel(months[0]) + ' 〜 ' + monthLabel(months[months.length - 1]) : 'データなし';
+      show($('dayFilter'), state.view === 'detail' && !!state.day);
+      if (state.day) $('dayFilterText').innerHTML = dayLabel(state.day);
+
+      if (state.view === 'detail') renderDetail();
+      if (state.view === 'daily') renderDaily();
+      if (monthly) renderMonthly();
+    }
+
+    /* ---- 操作 ---- */
+    tabs.forEach(function (tab, i) {
+      tab.addEventListener('click', function () { state.view = tab.dataset.view; render(); });
+      tab.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        var next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        state.view = next.dataset.view;
+        render();
+        next.focus();
+      });
+    });
+
+    monthSelect.addEventListener('change', function () {
+      state.month = monthSelect.value;
+      state.day = null;
+      render();
+    });
+
+    $('clearDay').addEventListener('click', function () { state.day = null; render(); });
+
+    // 日別 → その日の明細
+    $('dailyBody').addEventListener('click', function (e) {
+      var tr = e.target.closest('tr[data-day]');
+      if (!tr) return;
+      state.day = tr.dataset.day;
+      state.month = state.day.slice(0, 7);
+      state.view = 'detail';
+      render();
+    });
+
+    // 月別 → その月の日別
+    $('monthlyBody').addEventListener('click', function (e) {
+      var tr = e.target.closest('tr[data-month]');
+      if (!tr) return;
+      state.month = tr.dataset.month;
+      state.day = null;
+      state.view = 'daily';
+      render();
+    });
+
+    render();
+  })();
+  </script>
+</section>
+</section>
+</body>
+</html>
