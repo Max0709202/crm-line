@@ -34,6 +34,10 @@ public class InboxController {
                         Model model) {
         boolean unreadOnly = "1".equals(unread) || "true".equalsIgnoreCase(unread);
         List<MessageService.InboxRow> rows = messageService.inboxByUser(unreadOnly);
+        // 受信/返信管理 opens the newest conversation's thread directly; its left 受信ボックス lists
+        // every user (client request 2026-10-01: this list page isn't needed). The page below is
+        // only shown while nothing has been received yet.
+        if (!rows.isEmpty()) return "redirect:/manager/users/" + rows.get(0).getUserId() + "/thread";
         // Totals are summed straight from the same `rows` the table renders, so this box and
         // the per-row 件数内訳 breakdown below always reconcile exactly (operator request
         // 2026-09-10: 件数内訳が一致するように).
