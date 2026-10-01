@@ -40,6 +40,7 @@ public class PaymentReportController {
             loginJson = "{}";
         }
         model.addAttribute("loginJson", loginJson);
+        model.addAttribute("todayLogins", reportService.todayLoginCount());
         model.addAttribute("memoMax", PaymentReportService.MEMO_MAX);
         return "report/payments";
     }

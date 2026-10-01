@@ -4,7 +4,6 @@ import com.crm.entity.CrmUser;
 import com.crm.entity.Payment;
 import com.crm.repository.CrmUserRepository;
 import com.crm.repository.PaymentRepository;
-import com.crm.repository.UserAccessLogRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,8 @@ import java.util.Set;
  *   <li>入金回数 — the payment's position among that user's payments (cancelled ones included).</li>
  *   <li>ポイント — Payment has no points column, so it is the 決済関連設定 plan with the same amount
  *       (the user's folder settings, same method first); "—" when no plan matches.</li>
- *   <li>ログイン数 — distinct users in USER_ACCESS_LOG (最終ログイン events), which keeps 90 days.</li>
+ *   <li>ログイン数 — per day, users whose 最終ログイン fell on that day ({@link LoginCountService});
+ *       a month is the sum of its days.</li>
  * </ul>
  */
 @Service
@@ -80,16 +80,16 @@ public class PaymentReportService {
 
     private final PaymentRepository paymentRepository;
     private final CrmUserRepository userRepository;
-    private final UserAccessLogRepository accessLogRepository;
+    private final LoginCountService loginCountService;
     private final PaymentSettingService paymentSettingService;
 
     public PaymentReportService(PaymentRepository paymentRepository,
                                 CrmUserRepository userRepository,
-                                UserAccessLogRepository accessLogRepository,
+                                LoginCountService loginCountService,
                                 PaymentSettingService paymentSettingService) {
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
-        this.accessLogRepository = accessLogRepository;
+        this.loginCountService = loginCountService;
         this.paymentSettingService = paymentSettingService;
     }
 
@@ -128,13 +128,16 @@ public class PaymentReportService {
         return rows;
     }
 
-    /** {"daily": {yyyy-MM-dd: n}, "monthly": {yyyy-MM: n}, "total": n} for the page's loginData block. */
+    /** {"daily": {yyyy-MM-dd: n}} for the page's loginData block; the page sums months / total. */
     public Map<String, Object> loginCounts() {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("daily", toMap(accessLogRepository.countDistinctUsersByDay()));
-        out.put("monthly", toMap(accessLogRepository.countDistinctUsersByMonth()));
-        out.put("total", accessLogRepository.countDistinctUsers());
+        out.put("daily", loginCountService.dailyCounts());
         return out;
+    }
+
+    /** Today's ログイン数, 0:00 → now. */
+    public long todayLoginCount() {
+        return loginCountService.countFor(java.time.LocalDate.now());
     }
 
     /** Saves (or with a blank memo, clears) 備考 on a payment. */
@@ -172,15 +175,6 @@ public class PaymentReportService {
             }
         }
         return null;
-    }
-
-    private static Map<String, Long> toMap(List<Object[]> rows) {
-        Map<String, Long> m = new LinkedHashMap<>();
-        for (Object[] r : rows) {
-            if (r[0] == null) continue;
-            m.put(String.valueOf(r[0]), ((Number) r[1]).longValue());
-        }
-        return m;
     }
 
     private static String blankToNull(String s) {
