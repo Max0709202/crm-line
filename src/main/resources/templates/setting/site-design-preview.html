@@ -26,7 +26,7 @@
     <span class="w" th:text="'表示幅 ' + ${deviceWidths.get(device)} + 'px（保存済みの内容）'">表示幅</span>
 </div>
 <div class="stage" th:classappend="${device != 'pc'} ? 'phone'">
-    <iframe th:src="@{/manager/settings/site-design/preview}" th:style="'width:' + ${deviceWidths.get(device)} + 'px'"
+    <iframe th:src="@{/manager/settings/site-design/preview(device=${device})}" th:style="'width:' + ${deviceWidths.get(device)} + 'px'"
             title="ログイン前ページ"></iframe>
 </div>
 </body>

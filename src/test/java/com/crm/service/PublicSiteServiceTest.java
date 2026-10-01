@@ -19,6 +19,7 @@ class PublicSiteServiceTest {
     void setUp() {
         design = mock(SiteDesignService.class);
         when(design.getSiteName()).thenReturn("テストサイト");
+        when(design.getConfiguredSiteName()).thenReturn("テストサイト");
         when(design.getContactEmail()).thenReturn("info@avu74g.jp");
         when(design.getFooterNote()).thenReturn(SiteDesignService.DEFAULT_FOOTER_NOTE);
         svc = new PublicSiteService(design);
@@ -47,6 +48,24 @@ class PublicSiteServiceTest {
         // footer links go to the 番組デザイン設定 pages
         assertThat(html).contains("href=\"/page/faq\"", "href=\"/page/age\"", "href=\"/page/tokushoho\"",
                 "href=\"/page/privacy\"", "href=\"/page/terms\"", "href=\"/page/price\"");
+    }
+
+    @Test
+    void featurePhoneDesignFillsEveryTag() {
+        when(design.getTopHtml()).thenReturn("<p>operator html</p>");   // ガラケー keeps its own design
+        String html = svc.renderTopFp("tok123");
+
+        assertThat(html).doesNotContainPattern("%(sitename|brand|top_picture|top_blur|year|csrf|contact_mailto|footer)%");
+        assertThat(html).startsWith("<?xml").doesNotContain("operator html", "class=\"sysft\"", "data:image");
+        assertThat(html).contains("<title>テストサイト</title>",
+                "&#169; " + Year.now().getValue() + " テストサイト",
+                "<img src=\"/member/images/main_fp.jpg\" width=\"240\" height=\"180\"",
+                "action=\"/member/register\"", "action=\"/member/login\"",
+                "<input type=\"hidden\" name=\"_csrf\" value=\"tok123\" />",
+                "href=\"mailto:info@avu74g.jp\" accesskey=\"8\"",
+                "href=\"/page/age\"", "href=\"/page/tokushoho\"", "href=\"/page/privacy\"",
+                "href=\"/page/terms\"", "href=\"/page/price\"");
+        assertThat(html.split("name=\"_csrf\"", -1)).hasSize(3);
     }
 
     @Test
@@ -89,6 +108,15 @@ class PublicSiteServiceTest {
         String h2 = svc.renderTop("t");
         assertThat(h2.indexOf("class=\"sysft\"")).isEqualTo(h2.lastIndexOf("class=\"sysft\""));
         assertThat(h2).contains("</footer><p>after</p>");
+    }
+
+    @Test
+    void footerNeverShowsTheBareDomain() {
+        when(design.getSiteName()).thenReturn("avu74g.jp");          // fallback when no site name is set
+        when(design.getConfiguredSiteName()).thenReturn("");
+        String footer = svc.footerHtml("#login");
+        assertThat(footer).doesNotContain(">avu74g.jp<", " avu74g.jp</p>", "class=\"sysft-brand\"")
+                .contains("<p class=\"sysft-copy\">© " + Year.now().getValue() + "</p>");
     }
 
     @Test

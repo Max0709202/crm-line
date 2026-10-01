@@ -49,6 +49,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>, JpaSpec
            "ORDER BY p.paidAt ASC")
     List<Payment> findPaidBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
+    /** 入金レポート rows: every paid payment plus the paid ones later cancelled/refunded, oldest first. */
+    @Query("SELECT p FROM Payment p WHERE p.status IN ('PAID', 'CANCELLED', 'REFUNDED') " +
+           "AND p.paidAt IS NOT NULL ORDER BY p.paidAt ASC, p.id ASC")
+    List<Payment> findForPaymentReport();
+
     /** Total paid amount for users carrying the given ad_code. */
     @Query(value = "SELECT COALESCE(SUM(p.AMOUNT), 0) FROM PAYMENT p " +
                    "JOIN CRM_USER u ON u.ID = p.USER_ID " +

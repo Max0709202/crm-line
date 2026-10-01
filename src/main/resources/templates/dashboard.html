@@ -110,18 +110,6 @@
         .dash table.d tbody tr:hover td { background: var(--hover); }
         .dash table.d tbody tr:hover td.lbl { background: var(--accent-bg); }
 
-        /* User-name link in header */
-        .dash th.user-col a { color: var(--text); text-decoration:none; font-weight:700; font-size:.72rem; }
-        .dash th.user-col a:hover { color: var(--accent); text-decoration: underline; }
-
-        /* 入金額 row */
-        .dash tr.nyukin-total td { background: var(--accent-bg) !important; font-weight:700; color: var(--accent); }
-        .dash tr.nyukin-total td.lbl { color: var(--accent); }
-        .dash td.money { color: var(--accent); font-weight:600; cursor: pointer; }
-        .dash td.money.zero { color:#cbd5e1; cursor:default; }
-        .dash td.money:not(.zero):hover { background: var(--sel) !important; }
-        .dash td.money.active { background: var(--sel) !important; }
-
         /* send / ng rows */
         .dash td.send-v { color: var(--ok); font-weight:600; }
         .dash td.ng-v   { color: var(--ng); font-weight:600; }
@@ -130,19 +118,6 @@
         .dash td .queued-note { display:block; font-weight:400; font-size:.65rem; color:#94a3b8; }
         .dash td.zero   { color:#cbd5e1; }
 
-        /* Detail panel */
-        .dash .detail { display:none; border-top:1px solid var(--border); padding:10px 12px; background: var(--accent-bg); }
-        .dash .detail.show { display:block; }
-        .dash .detail-title { font-size:.75rem; font-weight:700; color: var(--accent); margin-bottom:8px; }
-        .dash .ptbl { border-collapse:collapse; background:#fff; border:1px solid var(--border);
-            border-radius:6px; overflow:hidden; width:auto; }
-        .dash .ptbl th { font-size:.68rem; padding:5px 12px; background: var(--header-bg);
-            border-bottom:1px solid var(--border); color: var(--muted); text-align:left; }
-        .dash .ptbl td { font-size:.78rem; padding:5px 12px; border-bottom:1px solid var(--border);
-            color: var(--text); text-align:left; white-space:nowrap; }
-        .dash .ptbl tr:last-child td { border-bottom:none; }
-        .dash .ptbl td.pa { font-family:ui-monospace,Menlo,monospace; font-weight:700; color: var(--accent); text-align:right; }
-        .dash .ptbl td.pt { font-family:ui-monospace,Menlo,monospace; color: var(--muted); font-size:.72rem; }
     </style>
 </head>
 <body>
@@ -313,95 +288,6 @@
                th:href="@{/manager/carrier-pool(boundFilter='UNBOUND')}">未割当を確認</a>
         </div>
 
-        <!-- ===== 入金レポート ===== -->
-        <div class="card">
-            <div class="card-top">
-                <span class="card-title">入金レポート</span>
-
-                <!-- scope toggle: 日 / 月 -->
-                <div class="scope-tabs" role="tablist">
-                    <a role="tab"
-                       th:href="@{/manager/dashboard(nyukinDate=${stats.nyukinDate != null} ? ${stats.nyukinDate} : ${stats.sendDate}, sendDate=${stats.sendDate})}"
-                       th:classappend="${stats.nyukinScope == 'day'} ? 'active' : ''">日</a>
-                    <a role="tab"
-                       th:href="@{/manager/dashboard(nyukinMonth=${stats.nyukinMonthValue != ''} ? ${stats.nyukinMonthValue} : ${#temporals.format(#temporals.createNow(), 'yyyy-MM')}, sendDate=${stats.sendDate})}"
-                       th:classappend="${stats.nyukinScope == 'month'} ? 'active' : ''">月</a>
-                </div>
-
-                <!-- Day scope input -->
-                <form th:if="${stats.nyukinScope == 'day'}" method="get" th:action="@{/manager/dashboard}"
-                      class="inline-form">
-                    <input type="date" name="nyukinDate" th:value="${stats.nyukinDate}"/>
-                    <input type="hidden" name="sendDate" th:value="${stats.sendDate}"/>
-                    <button type="submit" class="btn-show">表示</button>
-                </form>
-
-                <!-- Month scope input -->
-                <form th:if="${stats.nyukinScope == 'month'}" method="get" th:action="@{/manager/dashboard}"
-                      class="inline-form">
-                    <input type="month" name="nyukinMonth" th:value="${stats.nyukinMonthValue}"/>
-                    <input type="hidden" name="sendDate" th:value="${stats.sendDate}"/>
-                    <button type="submit" class="btn-show">表示</button>
-                </form>
-
-                <div class="chips">
-                    <div class="chip money">
-                        <span class="cl"
-                              th:text="${stats.nyukinScope == 'month'}
-                                       ? '入金合計 (' + ${stats.nyukinMonthValue} + ')'
-                                       : '入金合計 (' + ${stats.nyukinDate} + ')'">入金合計</span>
-                        <span class="cv" th:text="'¥' + ${#numbers.formatInteger(stats.totalNyukin, 1, 'COMMA')}">¥0</span>
-                    </div>
-                </div>
-            </div>
-            <div class="tbl-scroll">
-                <table class="d">
-                    <thead>
-                    <tr>
-                        <th class="lbl">表示名</th>
-                        <th class="user-col" th:each="u : ${stats.users}">
-                            <!-- Click goes to ユーザー詳細 (user detail), not the thread workspace. -->
-                            <a th:href="@{'/manager/users/' + ${u.id}}"
-                               th:text="${u.displayName != null and !u.displayName.isEmpty()} ? ${u.displayName} : ${u.email}">name</a>
-                        </th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr class="nyukin-total">
-                        <td class="lbl">入金額</td>
-                        <td th:each="u : ${stats.users}"
-                            th:with="amt=${stats.nyukinByUserId.getOrDefault(u.id, T(java.math.BigDecimal).ZERO)},
-                                     details=${stats.nyukinDetailByUserId.get(u.id)}"
-                            th:classappend="${amt.signum() > 0} ? 'money' : 'money zero'"
-                            th:attr="data-user-id=${u.id},
-                                     data-user-name=${u.displayName != null and !u.displayName.isEmpty()} ? ${u.displayName} : ${u.email}"
-                            th:text="${amt.signum() > 0} ? ('¥' + ${#numbers.formatInteger(amt, 1, 'COMMA')}) : '-'">
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="detail" id="nyukinDetail">
-                <div class="detail-title" id="detailTitle"></div>
-                <table class="ptbl">
-                    <thead>
-                    <tr><th>No.</th><th>金額</th><th>方法</th><th>日時</th></tr>
-                    </thead>
-                    <tbody id="payerBody"></tbody>
-                </table>
-            </div>
-
-            <!-- Per-user payment details, consumed by JS on cell click.
-                 Use th:inline="javascript" so Thymeleaf escapes any '</', non-ASCII, and
-                 quote characters automatically — a future user-supplied label can't break
-                 out of the script block via "</script>". -->
-            <script th:inline="javascript">
-                /*<![CDATA[*/
-                window.__nyukinDetailData = /*[[${nyukinDetailJson}]]*/ "{}";
-                /*]]>*/
-            </script>
-        </div>
-
         <!-- ===== 送信数 (時間別 / 日別 / 月別 切替) ===== -->
         <div class="card">
             <form method="get" th:action="@{/manager/dashboard}" class="card-top">
@@ -431,8 +317,6 @@
                            style="width:6em;" th:value="${sendYearValue}"/>
                 </span>
 
-                <input type="hidden" name="nyukinDate" th:if="${stats.nyukinDate != null}" th:value="${stats.nyukinDate}"/>
-                <input type="hidden" name="nyukinMonth" th:if="${stats.nyukinMonth != null}" th:value="${stats.nyukinMonthValue}"/>
                 <button type="submit" class="btn-show">表示</button>
                 <div class="chips">
                     <div class="chip send" style="background:#ecfeff;">
@@ -590,53 +474,6 @@
     </div>
 
     <script>
-    (function () {
-        // Source: window.__nyukinDetailData (set by Thymeleaf JS-inline above).
-        let details = {};
-        try { details = JSON.parse(window.__nyukinDetailData || '{}'); } catch (e) { details = {}; }
-
-        const detail = document.getElementById('nyukinDetail');
-        const title = document.getElementById('detailTitle');
-        const body = document.getElementById('payerBody');
-        let active = null;
-
-        function close() {
-            if (active) active.classList.remove('active');
-            active = null;
-            detail.classList.remove('show');
-        }
-
-        function fmtYen(n) { return '¥' + Number(n).toLocaleString(); }
-        function fmtTime(iso) {
-            if (!iso) return '-';
-            return String(iso).replace('T', ' ').slice(0, 16);
-        }
-
-        document.querySelectorAll('td.money').forEach(function (td) {
-            if (td.classList.contains('zero')) return;
-            td.addEventListener('click', function () {
-                if (active === td) { close(); return; }
-                document.querySelectorAll('td.money').forEach(t => t.classList.remove('active'));
-                td.classList.add('active'); active = td;
-
-                const uid = td.getAttribute('data-user-id');
-                const name = td.getAttribute('data-user-name') || '';
-                const rows = details[uid] || [];
-                title.textContent = name + '・入金明細（' + rows.length + '件）';
-                body.innerHTML = '';
-                rows.forEach(function (p, i) {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = '<td>' + (i + 1) + '</td>'
-                        + '<td class="pa">' + fmtYen(p.amount) + '</td>'
-                        + '<td>' + (p.paymentMethod || '-') + '</td>'
-                        + '<td class="pt">' + fmtTime(p.paidAt) + '</td>';
-                    body.appendChild(tr);
-                });
-                detail.classList.add('show');
-            });
-        });
-    })();
-
     // ===== Shared memo =====
     (function () {
         const API = '/manager/api/shared-memos';

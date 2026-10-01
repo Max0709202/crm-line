@@ -20,7 +20,13 @@
              the section holding the current page / last-clicked item stays open via .is-open.
              Items marked 準備中 are placeholders for features not built yet. -->
         <nav class="admin-nav no-anim flex flex-col gap-1">
-            <a class="nav-link nav-top" th:href="@{/manager/dashboard}">管理トップ</a>
+            <!-- 管理トップ: the title itself still opens the dashboard; 入金レポート folds out under it. -->
+            <div class="nav-group">
+                <a class="nav-link nav-top nav-group-title" th:href="@{/manager/dashboard}">管理トップ</a>
+                <div class="nav-group-items">
+                    <a class="nav-link" th:href="@{/manager/reports/payments}">入金レポート</a>
+                </div>
+            </div>
 
             <div class="nav-group">
                 <div class="nav-group-title">会員管理</div>
