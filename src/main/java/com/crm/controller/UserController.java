@@ -168,6 +168,8 @@ public class UserController {
         model.addAttribute("lineAccountNamesByUserId", lineAccountNamesByUserId);
         // Configurable folder choices for the filter + bulk-move control.
         model.addAttribute("folders", folderSettingService.listFolders());
+        // フォルダ設定 colors, shown on the フォルダ column and filter (2026-10-01 client request).
+        model.addAttribute("folderColors", folderSettingService.colorMap());
         // Active carrier-pool addresses for the bulk-bind dropdown.
         model.addAttribute("activePoolAddresses", bindingService.listActivePool());
         // Per-user last INBOUND timestamp — the column header reads 最終送信 but per operator

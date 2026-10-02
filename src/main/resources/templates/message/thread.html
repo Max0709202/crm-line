@@ -88,11 +88,12 @@
             width:100%; padding:6px 9px; border:1px solid #cbd5e1; border-radius:5px; font-size:.8rem; outline:none;
         }
         .cmp-form input:focus, .cmp-form textarea:focus { border-color:#2563eb; }
-        .cmp-form textarea { resize:vertical; min-height:60px; max-height:140px; }
+        /* 縦幅固定 (2026-10-01 client request): 本文/個別メモ are fixed-height, not drag-resizable. */
+        .cmp-form textarea { resize:none; height:160px; }
         .cmp-form .memo-row { display:flex; gap:6px; align-items:flex-start; }
         .cmp-form .memo-row textarea {
-            flex:1; min-height:28px; max-height:50px;
-            border:1px solid #cbd5e1; border-radius:5px; padding:4px 8px; font-size:.78rem; outline:none; resize:vertical;
+            flex:1; height:96px;
+            border:1px solid #cbd5e1; border-radius:5px; padding:4px 8px; font-size:.78rem; outline:none; resize:none;
         }
         .cmp-form .memo-row textarea:focus { border-color:#2563eb; }
         .cmp-form .memo-row .btn-mini {
@@ -107,6 +108,13 @@
             background:#2563eb;
         }
         .cmp-form .btn:hover { background:#1d4ed8; }
+
+        /* Bottom-left pane: compose form (left) + 置き換えタグ panels (right), per the client's
+         * 2026-10-01 layout screenshot. Falls back to one column when the pane is narrow. */
+        .cmp-layout { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px; align-items:start; }
+        @media (max-width: 1100px) { .cmp-layout { grid-template-columns:minmax(0,1fr); } }
+        .cmp-layout .tag-col { display:flex; flex-direction:column; gap:8px; }
+        .cmp-layout .tag-col .tag-panel { margin-top:0; }
 
         /* ---- Reservation (予約送信) panel ---- */
         .sched-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 10px; }
@@ -369,10 +377,8 @@
 
     <!-- ===== Bottom-left: compose ===== -->
     <div class="pane pane-bl">
-        <header>
-            <span>新規メッセージ</span>
-        </header>
         <div class="body">
+          <div class="cmp-layout">
             <form method="post" th:action="@{'/manager/users/' + ${user.id} + '/messages'}" th:object="${form}" class="cmp-form">
                 <input type="hidden" th:field="*{replyToMessageId}"/>
 
@@ -390,8 +396,9 @@
                         <input type="datetime-local" th:field="*{scheduledAt}" data-sched-input/>
                         <button type="button" class="chip" data-sched-quick="60">+1時間</button>
                         <button type="button" class="chip" data-sched-quick="180">+3時間</button>
-                        <button type="button" class="chip" data-sched-quick="1440">明日同時刻</button>
-                        <button type="button" class="chip clear" data-sched-clear>今すぐ送信</button>
+                        <!-- 画像添付: uploads to HTML画像管理 and inserts the image's public URL into 本文. -->
+                        <button type="button" class="chip" id="btnComposeImage">画像添付</button>
+                        <input type="file" id="composeImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;"/>
                     </div>
                 </div>
 
@@ -430,6 +437,7 @@
                 </div>
             </form>
 
+            <div class="tag-col">
             <!-- 置き換えタグ — クリックで本文末尾に挿入。ユーザー専用タグはここで保存編集可。 -->
             <div class="tag-panel">
                 <h4>デフォルトの置き換えタグ <span class="text-slate-400 font-normal">(クリックで本文に挿入)</span></h4>
@@ -479,6 +487,8 @@
                             th:attr="data-user-id=${user.id}">保存</button>
                 </div>
             </div>
+            </div>
+          </div>
         </div>
     </div>
 
@@ -645,6 +655,34 @@ document.querySelectorAll('[data-sched-box]').forEach(function (box) {
     if (clear) clear.addEventListener('click', function () { input.value = ''; refresh(); });
     refresh();
 });
+
+// --- 画像添付: upload → insert the public image URL at the cursor in 本文 ---
+(function () {
+    var btn = document.getElementById('btnComposeImage');
+    var file = document.getElementById('composeImageFile');
+    if (!btn || !file) return;
+    btn.addEventListener('click', function () { file.click(); });
+    file.addEventListener('change', function () {
+        var f = file.files && file.files[0];
+        if (!f) return;
+        var fd = new FormData();
+        fd.append('file', f);
+        btn.disabled = true;
+        btn.textContent = 'アップロード中…';
+        fetch('/manager/settings/html-images/compose-upload', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                if (!res.ok || !res.j.url) throw new Error(res.j.error || 'アップロードに失敗しました');
+                insertTagToBody('\n' + res.j.url + '\n');
+            })
+            .catch(function (e) { alert('画像添付失敗: ' + e.message); })
+            .then(function () {
+                btn.disabled = false;
+                btn.textContent = '画像添付';
+                file.value = '';
+            });
+    });
+})();
 
 // --- Tag panel: click-to-insert + AJAX save ---
 function insertTagToBody(token) {

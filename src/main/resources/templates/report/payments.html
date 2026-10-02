@@ -71,38 +71,48 @@
   <!-- 明細 -->
   <div id="view-detail" role="tabpanel" aria-labelledby="tab-detail"
        class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
-    <table id="detailTable" class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1120px;">
+    <table id="detailTable" class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1240px;">
       <thead class="bg-slate-100 text-xs text-slate-600 uppercase tracking-wider">
         <tr>
-          <th class="px-3 py-2 text-left" style="width: 115px;">入金日時</th>
-          <th class="px-3 py-2 text-left">ユーザー (ID)</th>
+          <th class="px-3 py-2 text-left" style="width: 70px;">ID</th>
+          <th class="px-3 py-2 text-left">ユーザー</th>
+          <th class="px-3 py-2 text-left" style="width: 120px;">フォルダ</th>
           <th class="px-3 py-2 text-left" style="width: 105px;">広告コード</th>
-          <th class="px-3 py-2 text-right" style="width: 85px;">入金回数</th>
+          <th class="px-3 py-2 text-left" style="width: 100px;">登録日</th>
+          <th class="px-3 py-2 text-right" style="width: 105px;">累計入金回数</th>
+          <th class="px-3 py-2 text-left" style="width: 130px;">支払方法</th>
           <th class="px-3 py-2 text-right" style="width: 105px;">入金額</th>
-          <th class="px-3 py-2 text-right" style="width: 95px;">ポイント</th>
-          <th class="px-3 py-2 text-left" style="width: 145px;">支払方法</th>
+          <th class="px-3 py-2 text-left" style="width: 115px;">入金日時</th>
           <th class="px-3 py-2 text-center" style="width: 105px;">キャンセル</th>
           <th class="px-3 py-2 text-left" style="width: 240px;">備考</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
-        <tr th:each="r : ${rows}" class="hover:bg-slate-50"
-            th:attr="data-id=${r.id},data-canceled=${r.canceled} ? '1' : '0'">
-          <td class="px-3 py-2.5 whitespace-nowrap text-slate-700 leading-snug"><th:block th:text="${r.day}">2026-8-3</th:block><br><span class="text-xs text-slate-500" th:text="${r.time}">10:12:44</span></td>
-          <td class="px-3 py-2.5"><a th:href="@{'/manager/users/' + ${r.userId}}" class="text-slate-700 font-medium underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600" th:text="${r.userName}">名前</a> <span class="text-xs text-slate-500" th:text="'(' + ${r.userId} + ')'">(0)</span></td>
+        <!-- 男 = 薄いブルー / 女 = 薄いピンク (CRM_USER.GENDER); 未設定 stays white.
+             ポイント is no longer a column but is kept in data-points for the 日別 / 月別 付与ポイント. -->
+        <tr th:each="r : ${rows}"
+            th:classappend="${r.gender == 'M'} ? 'bg-blue-100' : (${r.gender == 'F'} ? 'bg-pink-100' : 'hover:bg-slate-50')"
+            th:attr="data-id=${r.id},data-user=${r.userId},data-points=${r.points},data-canceled=${r.canceled} ? '1' : '0'">
+          <td class="px-3 py-2.5 tabular-nums text-slate-600" th:text="${r.userId}">0</td>
+          <td class="px-3 py-2.5"><a th:href="@{'/manager/users/' + ${r.userId}}" class="text-slate-700 font-medium underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600" th:text="${r.userName}">名前</a></td>
+          <td class="px-3 py-2.5 whitespace-nowrap">
+            <span th:if="${r.folder != null}" class="inline-flex px-2 py-0.5 text-xs font-medium rounded text-slate-800 border border-slate-200"
+                  th:style="${r.folderColor != null} ? 'background:' + ${r.folderColor} : 'background:#f1f5f9'"
+                  th:text="${r.folder}">フォルダ</span>
+            <span th:if="${r.folder == null}" class="text-slate-400">—</span>
+          </td>
           <td class="px-3 py-2.5 text-slate-600" th:text="${r.adCode} ?: '—'">—</td>
+          <td class="px-3 py-2.5 whitespace-nowrap text-slate-600 tabular-nums" th:text="${r.registeredDay} ?: '—'">2026-01-01</td>
           <td class="px-3 py-2.5 text-right tabular-nums"
               th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-600'"
               th:text="${r.count} + '回'">1回</td>
-          <td class="px-3 py-2.5 text-right tabular-nums font-medium"
-              th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-700'"
-              th:text="${#numbers.formatInteger(r.amount, 1, 'COMMA')} + '円'">0円</td>
-          <td class="px-3 py-2.5 text-right tabular-nums"
-              th:classappend="${r.canceled} ? 'text-slate-500 line-through' : 'text-slate-600'"
-              th:text="${r.points != null} ? ${#numbers.formatInteger(r.points, 1, 'COMMA')} + 'pt' : '—'">0pt</td>
           <td class="px-3 py-2.5 whitespace-nowrap"
               th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-600'"
               th:text="${r.method}">クレジットカード</td>
+          <td class="px-3 py-2.5 text-right tabular-nums font-medium"
+              th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-700'"
+              th:text="${#numbers.formatInteger(r.amount, 1, 'COMMA')} + '円'">0円</td>
+          <td class="px-3 py-2.5 whitespace-nowrap text-slate-700 leading-snug"><th:block th:text="${r.day}">2026-8-3</th:block><br><span class="text-xs text-slate-500" th:text="${r.time}">10:12:44</span></td>
           <td class="px-3 py-2.5 text-center"><span th:if="${r.canceled}" class="inline-flex whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded bg-red-50 text-red-600">キャンセル済</span></td>
           <td class="px-3 py-2.5" th:text="${r.memo}"></td>
         </tr>
@@ -167,9 +177,10 @@
 
     /* ===== 設定 ===================================================== */
     // 明細テーブルの列位置（0始まり）
-    //   0:入金日時 1:ユーザー(ID) 2:広告コード 3:入金回数 4:入金額 5:ポイント 6:支払方法 7:キャンセル 8:備考
-    var COL = { date: 0, user: 1, amount: 4, point: 5, cancel: 7, memo: 8 };
-    var DETAIL_COLS = 9;
+    //   0:ID 1:ユーザー 2:フォルダ 3:広告コード 4:登録日 5:累計入金回数 6:支払方法 7:入金額 8:入金日時 9:キャンセル 10:備考
+    //   ポイントは列ではなく行の data-points、ユーザーは data-user (ID) から読む。
+    var COL = { date: 8, amount: 7, cancel: 9, memo: 10 };
+    var DETAIL_COLS = 11;
     var SUM_COLS = 8;
 
     // 備考の保存先（FormData を POST。CSRF トークンは管理画面共通の fetch パッチで付きます）
@@ -238,9 +249,9 @@
         tr: tr,
         day: day,
         month: day.slice(0, 7),
-        user: cellText(td[COL.user]),
+        user: tr.dataset.user || '',
         amount: toNumber(cellText(td[COL.amount])),
-        point: toNumber(cellText(td[COL.point])),
+        point: toNumber(tr.dataset.points || 0),
         canceled: isCanceled(tr, cellText(td[COL.cancel]))
       });
       setupMemo(tr, td[COL.memo], tr.dataset.id || ('row' + i));

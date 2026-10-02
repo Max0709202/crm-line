@@ -18,7 +18,7 @@
             color: #94a3b8; font-family: monospace;
         }
         .folder-row input[type="text"] {
-            flex: 1; min-width: 0;
+            flex: 0 1 50%; min-width: 0;
             padding: 5px 9px; font-size: .85rem;
             border: 1px solid #cbd5e1; border-radius: 4px; outline: none;
         }
@@ -37,6 +37,19 @@
             border-radius: 4px; cursor: pointer;
         }
         .folder-row .del-btn:hover { color: #b91c1c; border-color: #fca5a5; }
+        /* フォルダの色合い — shown on 入金レポート / ユーザー管理. Empty hidden value = 色なし. */
+        .folder-row .color-wrap { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .folder-row .color-wrap input[type="color"] {
+            width: 36px; height: 26px; padding: 0 2px; border: 1px solid #cbd5e1; border-radius: 4px;
+            background: #fff; cursor: pointer;
+        }
+        .folder-row .color-wrap.unset input[type="color"] { opacity: .35; }
+        .folder-row .color-wrap .color-label { font-size: .72rem; color: #64748b; white-space: nowrap; }
+        .folder-row .color-wrap .color-clear {
+            font-size: .7rem; padding: 2px 7px; border: 1px solid #cbd5e1; background: #fff;
+            color: #64748b; border-radius: 4px; cursor: pointer; white-space: nowrap;
+        }
+        .folder-row .color-wrap.unset .color-clear { visibility: hidden; }
         .folder-row.unset-row { background: #f8fafc; }
         .folder-row.unset-row .name-label {
             flex: 1; padding: 5px 9px; font-size: .85rem; color: #64748b;
@@ -74,7 +87,14 @@
             <div th:each="r,it : ${configuredRows}" class="folder-row"
                  th:attr="data-original-name=${r.name},data-original-count=${r.count}">
                 <span class="seq" th:text="${it.count}">1</span>
-                <input type="text" name="folderName" th:value="${r.name}" maxlength="120"/>
+                <input type="text" name="folderName" th:value="${r.name}" maxlength="10"/>
+                <span class="color-wrap" th:with="c=${folderColors.get(r.name)}"
+                      th:classappend="${c == null} ? 'unset'">
+                    <input type="color" class="color-pick" th:value="${c} ?: '#ffffff'" title="フォルダの色"/>
+                    <input type="hidden" name="folderColor" th:value="${c} ?: ''"/>
+                    <span class="color-label" th:text="${c == null} ? '色なし' : ${c}">色なし</span>
+                    <button type="button" class="color-clear" title="色を解除">解除</button>
+                </span>
                 <span class="count" th:classappend="${r.count == 0} ? 'zero'"
                       th:text="${#numbers.formatInteger(r.count, 1, 'COMMA')} + ' 件'">0 件</span>
                 <button type="button" class="del-btn" title="この行を削除">×</button>
@@ -83,7 +103,8 @@
                  reports how many users currently have FOLDER IS NULL. -->
             <div class="folder-row unset-row">
                 <span class="seq">—</span>
-                <span class="name-label">（未設定）</span>
+                <span class="name-label" style="flex:0 1 50%;">（未設定）</span>
+                <span style="flex:1;"></span>
                 <span class="count" th:classappend="${unsetCount == 0} ? 'zero'"
                       th:text="${#numbers.formatInteger(unsetCount, 1, 'COMMA')} + ' 件'">0 件</span>
                 <span style="width: 33px;"></span>
@@ -95,7 +116,7 @@
                     class="inline-flex items-center px-3 py-1.5 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded">
                 ＋ フォルダを追加
             </button>
-            <span class="text-xs text-slate-400">最大 120 文字 / 行</span>
+            <span class="text-xs text-slate-400">最大 10 文字（全角）/ 行</span>
         </div>
 
         <div class="flex items-center gap-3 mt-6">
@@ -391,7 +412,26 @@
             if (countLabel) countLabel.textContent = String(rows.length);
         }
 
+        function attachColorHandlers(row) {
+            var wrap = row.querySelector('.color-wrap');
+            if (!wrap) return;
+            var pick = wrap.querySelector('.color-pick');
+            var hidden = wrap.querySelector('input[name="folderColor"]');
+            var label = wrap.querySelector('.color-label');
+            pick.addEventListener('input', function () {
+                hidden.value = pick.value;
+                label.textContent = pick.value;
+                wrap.classList.remove('unset');
+            });
+            wrap.querySelector('.color-clear').addEventListener('click', function () {
+                hidden.value = '';
+                label.textContent = '色なし';
+                wrap.classList.add('unset');
+            });
+        }
+
         function attachRowHandlers(row) {
+            attachColorHandlers(row);
             var del = row.querySelector('.del-btn');
             if (!del) return;
             del.addEventListener('click', function () {
@@ -409,7 +449,13 @@
             row.className = 'folder-row';
             row.innerHTML =
                 '<span class="seq">?</span>' +
-                '<input type="text" name="folderName" maxlength="120" placeholder="例: 新しいフォルダ"/>' +
+                '<input type="text" name="folderName" maxlength="10" placeholder="例: 新しいフォルダ"/>' +
+                '<span class="color-wrap unset">' +
+                    '<input type="color" class="color-pick" value="#ffffff" title="フォルダの色"/>' +
+                    '<input type="hidden" name="folderColor" value=""/>' +
+                    '<span class="color-label">色なし</span>' +
+                    '<button type="button" class="color-clear" title="色を解除">解除</button>' +
+                '</span>' +
                 '<span class="count zero">— 件</span>' +
                 '<button type="button" class="del-btn" title="この行を削除">×</button>';
             var unsetRow = rowsContainer.querySelector('.folder-row.unset-row');

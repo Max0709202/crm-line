@@ -152,14 +152,22 @@ public class CrmUserService {
      * didn't fill the field. The relay only routes a subset of these (real JP
      * carrier domains); non-routable values are still kept for display purposes.
      */
-    /** Accept "M"/"F"/"男"/"男性"/"女"/"女性"/"male"/"female" and normalise to "M"/"F"/null. */
+    /** Accept "M"/"F"/"男"/"男性"/"女"/"女性"/"male"/"female" and normalise to "M"/"F"/null.
+     *  "未設定" (what the export writes for no gender) and blank map to null. */
     private static String normalizeCsvGender(String s) {
         if (s == null) return null;
         String t = s.trim().toUpperCase();
-        if (t.isEmpty()) return null;
+        if (t.isEmpty() || t.equals("未設定")) return null;
         if (t.equals("M") || t.equals("MALE") || t.equals("男") || t.equals("男性")) return "M";
         if (t.equals("F") || t.equals("FEMALE") || t.equals("女") || t.equals("女性")) return "F";
         return null;
+    }
+
+    /** Export side of the gender column: 男 / 女 / 未設定 (2026-10-01 client request). */
+    private static String csvGenderLabel(String g) {
+        if ("M".equals(g)) return "男";
+        if ("F".equals(g)) return "女";
+        return "未設定";
     }
 
     private static String deriveCarrierDomainIfBlank(String carrierDomain, String email) {
@@ -463,7 +471,7 @@ public class CrmUserService {
                         safe(u.getCarrierDomain()),
                         "", // memo \u2014 deliberately blank, see method javadoc
                         safe(u.getAdCode()),
-                        safe(u.getGender()),
+                        csvGenderLabel(u.getGender()),
                         safe(u.getPhoneNumber())
                 });
             }

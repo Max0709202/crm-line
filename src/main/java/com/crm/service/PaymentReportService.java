@@ -36,6 +36,7 @@ public class PaymentReportService {
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-M-d");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("H:mm:ss");
+    private static final DateTimeFormatter REGISTERED = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     /** Payment.PAYMENT_METHOD → 決済関連設定 method code. */
     private static final Map<String, String> SETTING_CODE = new HashMap<>();
@@ -57,6 +58,13 @@ public class PaymentReportService {
         private String day;
         private String time;
         private String adCode;
+        /** CRM_USER.GENDER ("M" / "F" / null) — tints the row 男=薄いブルー / 女=薄いピンク. */
+        private String gender;
+        private String folder;
+        /** フォルダ設定 color (#rrggbb) of {@link #folder}, null when none is set. */
+        private String folderColor;
+        /** 登録日 = CRM_USER.CREATED_AT. */
+        private String registeredDay;
         private int count;
         private BigDecimal amount;
         private Integer points;
@@ -70,6 +78,10 @@ public class PaymentReportService {
         public String getDay() { return day; }
         public String getTime() { return time; }
         public String getAdCode() { return adCode; }
+        public String getGender() { return gender; }
+        public String getFolder() { return folder; }
+        public String getFolderColor() { return folderColor; }
+        public String getRegisteredDay() { return registeredDay; }
         public int getCount() { return count; }
         public BigDecimal getAmount() { return amount; }
         public Integer getPoints() { return points; }
@@ -82,15 +94,18 @@ public class PaymentReportService {
     private final CrmUserRepository userRepository;
     private final LoginCountService loginCountService;
     private final PaymentSettingService paymentSettingService;
+    private final FolderSettingService folderSettingService;
 
     public PaymentReportService(PaymentRepository paymentRepository,
                                 CrmUserRepository userRepository,
                                 LoginCountService loginCountService,
-                                PaymentSettingService paymentSettingService) {
+                                PaymentSettingService paymentSettingService,
+                                FolderSettingService folderSettingService) {
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.loginCountService = loginCountService;
         this.paymentSettingService = paymentSettingService;
+        this.folderSettingService = folderSettingService;
     }
 
     public List<Row> rows() {
@@ -100,6 +115,7 @@ public class PaymentReportService {
         Map<Long, CrmUser> users = new HashMap<>();
         for (CrmUser u : userRepository.findAllById(userIds)) users.put(u.getId(), u);
 
+        Map<String, String> folderColors = folderSettingService.colorMap();
         Map<String, List<PaymentSettingService.Method>> settingsByFolder = new HashMap<>();
         Map<Long, Integer> countByUser = new HashMap<>();
         List<Row> rows = new ArrayList<>();
@@ -113,6 +129,10 @@ public class PaymentReportService {
             r.day = p.getPaidAt().format(DAY);
             r.time = p.getPaidAt().format(TIME);
             r.adCode = u == null ? null : blankToNull(u.getAdCode());
+            r.gender = u == null ? null : blankToNull(u.getGender());
+            r.folder = u == null ? null : blankToNull(u.getFolder());
+            r.folderColor = r.folder == null ? null : folderColors.get(r.folder);
+            r.registeredDay = u == null || u.getCreatedAt() == null ? null : u.getCreatedAt().format(REGISTERED);
             r.count = countByUser.merge(p.getUserId(), 1, Integer::sum);
             r.amount = p.getAmount() == null ? BigDecimal.ZERO : p.getAmount();
             String folder = u == null || u.getFolder() == null ? "" : u.getFolder();

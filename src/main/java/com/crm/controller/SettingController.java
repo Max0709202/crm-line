@@ -232,6 +232,7 @@ public class SettingController {
                 folderRetentionService.getRetentionDaysMap(folders));
         model.addAttribute("autoMoveRules", folderAutoMoveService.listAll());
         model.addAttribute("allFolders", folders);
+        model.addAttribute("folderColors", folderSettingService.colorMap());
         model.addAttribute("diffHistoryRetentionDays", folderRetentionService.getDiffHistoryRetentionDays());
         return "setting/folders";
     }
@@ -342,6 +343,7 @@ public class SettingController {
 
     @PostMapping("/folders")
     public String foldersSave(@RequestParam(name = "folderName", required = false) java.util.List<String> folderNames,
+                              @RequestParam(name = "folderColor", required = false) java.util.List<String> folderColors,
                               RedirectAttributes ra) {
         java.util.List<String> parsed = new java.util.ArrayList<>();
         if (folderNames != null) {
@@ -350,7 +352,14 @@ public class SettingController {
                 if (!t.isEmpty()) parsed.add(t);
             }
         }
+        java.util.List<String> tooLong = folderSettingService.tooLongNewNames(parsed);
+        if (!tooLong.isEmpty()) {
+            ra.addFlashAttribute("flashError", "フォルダ名は" + com.crm.service.FolderSettingService.NAME_MAX
+                    + "文字までです: " + String.join(" / ", tooLong));
+            return "redirect:/manager/settings/folders";
+        }
         folderSettingService.save(parsed);
+        folderSettingService.saveColors(folderNames, folderColors);
         ra.addFlashAttribute("flashSuccess", parsed.size() + " 個のフォルダを保存しました");
         return "redirect:/manager/settings/folders";
     }

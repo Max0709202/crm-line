@@ -37,7 +37,10 @@
               class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 flex flex-col gap-4"
               onsubmit="return maybeConfirmEmailChange(this);">
 
-            <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">基本情報</h2>
+            <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 flex items-baseline gap-3">
+                基本情報
+                <span class="text-xs font-normal text-slate-500">ユーザーID: <span class="font-semibold text-slate-700 tabular-nums" th:text="${user.id}">0</span></span>
+            </h2>
 
             <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -49,9 +52,20 @@
                     <input type="text" class="tw-input" th:field="*{phoneNumber}" placeholder="例: 09012345678"/>
                 </div>
             </div>
-            <div>
-                <label class="block text-xs text-slate-500 mb-1">表示名</label>
-                <input type="text" class="tw-input" th:field="*{displayName}"/>
+            <!-- 表示名 (half) + 性別 on its right (2026-10-01 client request). -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">表示名</label>
+                    <input type="text" class="tw-input" th:field="*{displayName}"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">性別</label>
+                    <select class="tw-input" th:field="*{gender}">
+                        <option value="">未設定</option>
+                        <option value="M">男</option>
+                        <option value="F">女</option>
+                    </select>
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -91,14 +105,6 @@
                         <option th:each="ac : ${adCodeChoices}" th:value="${ac.code}" th:text="${ac.name} + ' (' + ${ac.code} + ')'"></option>
                     </datalist>
                 </div>
-            </div>
-            <div>
-                <label class="block text-xs text-slate-500 mb-1">性別 <span class="text-slate-400 normal-case">(代理店ダッシュボードの男女集計に使用)</span></label>
-                <select class="tw-input" th:field="*{gender}">
-                    <option value="">未選択</option>
-                    <option value="M">男性</option>
-                    <option value="F">女性</option>
-                </select>
             </div>
 
             <!-- Ten reply-page HTML slots — operator picks one as 使用中. The public reply
