@@ -45,6 +45,7 @@
                         <label><input type="radio" name="targetTypeRadio" value="EMAIL" onchange="switchTargetPanel('EMAIL')"/> アドレス縛り</label>
                         <label><input type="radio" name="targetTypeRadio" value="FOLDER" onchange="switchTargetPanel('FOLDER')"/> フォルダ縛り</label>
                         <label><input type="radio" name="targetTypeRadio" value="LINE_NAME" onchange="switchTargetPanel('LINE_NAME')"/> LINE名前縛り</label>
+                        <label><input type="radio" name="targetTypeRadio" value="ID" onchange="switchTargetPanel('ID')"/> ID縛り</label>
                     </div>
                     <input type="hidden" name="targetType" id="targetTypeField" value="PHONE"/>
 
@@ -62,6 +63,9 @@
                     </div>
                     <div class="target-panel" data-panel="LINE_NAME">
                         <textarea class="tw-input" rows="3" placeholder="LINEの表示名を改行区切りで入力（部分一致）" id="targetRawLineName"></textarea>
+                    </div>
+                    <div class="target-panel" data-panel="ID">
+                        <textarea class="tw-input" rows="3" placeholder="ユーザーIDを改行区切りで入力（完全一致）" id="targetRawId"></textarea>
                     </div>
                     <input type="hidden" name="targetRaw" id="targetRawField"/>
                 </div>
@@ -100,6 +104,7 @@
                                 <span th:if="${sched.targetType == 'EMAIL'}">アドレス</span>
                                 <span th:if="${sched.targetType == 'FOLDER'}" th:text="'フォルダ:' + ${sched.targetValue}"></span>
                                 <span th:if="${sched.targetType == 'LINE_NAME'}">LINE名前</span>
+                                <span th:if="${sched.targetType == 'ID'}">ID</span>
                                 <span th:if="${sched.targetType == 'REGISTER'}">新規登録(自動)</span>
                             </td>
                             <td class="px-2 py-1.5 text-right" th:if="${sched != null}">
@@ -191,6 +196,18 @@
                         </div>
                         <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">LINE名で一括削除</button>
                     </form>
+                    <!-- IDで一括削除 (2026-10-02): pending steps of every schedule that targets any of these user IDs. -->
+                    <form method="post" th:action="@{/manager/settings/diff-schedule/cancel-by-user-search}"
+                          class="flex items-end gap-2 flex-wrap"
+                          onsubmit="return confirm('指定したユーザーIDの保留中のステップをすべて取消します。よろしいですか?');">
+                        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                        <input type="hidden" name="targetType" value="ID"/>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">ID</label>
+                            <input type="text" name="query" class="tw-input" style="font-size:.8rem;" placeholder="例: 54,55（完全一致）" required/>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">IDで一括削除</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -210,6 +227,7 @@
             else if (type === 'EMAIL') raw = document.getElementById('targetRawEmail').value;
             else if (type === 'FOLDER') raw = document.getElementById('targetRawFolder').value;
             else if (type === 'LINE_NAME') raw = document.getElementById('targetRawLineName').value;
+            else if (type === 'ID') raw = document.getElementById('targetRawId').value;
             if (!raw || !raw.trim()) {
                 alert('対象を指定してください');
                 return false;

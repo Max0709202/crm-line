@@ -137,6 +137,9 @@
                 ユーザー管理
                 <span id="userTotalCount" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-slate-100 text-slate-700"
                       th:text="${users.totalElements} + ' 名'">0 名</span>
+                <!-- ユーザーIDコピー (2026-10-02): copies the IDs of every user in the current result (all pages). -->
+                <button type="button" class="inline-flex items-center px-2.5 py-1 text-xs font-medium border border-slate-300 bg-white text-slate-700 rounded hover:bg-slate-50 js-copy-ids"
+                        th:disabled="${users.totalElements == 0}">ユーザーIDｺﾋﾟｰ</button>
                 <!-- Status quick-filter, inline with the heading per operator request.
                      The select drives the hidden status field on the main searchForm via JS
                      so it stays bound to the existing search GET parameters. -->
@@ -160,6 +163,8 @@
         </div>
 
         <div class="search-card">
+            <div id="searchLimitError" th:if="${searchLimitError}" th:text="${searchLimitError}"
+                 class="mb-2 px-3 py-2 rounded border border-red-300 bg-red-50 text-red-700 text-sm font-bold"></div>
             <form method="get" th:action="@{/manager/users}" th:object="${searchForm}" id="searchForm">
                 <!-- Hidden status input: driven by the header quick-filter; must stay in the form. -->
                 <input type="hidden" id="searchFormStatus" th:field="*{status}"/>
@@ -406,7 +411,7 @@
                     <thead>
                     <tr>
                         <th><input type="checkbox" class="row-check" id="checkAll" title="全選択"/></th>
-                        <th>No</th>
+                        <th>ID</th>
                         <th>電話番号</th>
                         <th>メールアドレス</th>
                         <th>表示名</th>
@@ -429,9 +434,8 @@
                     <tr th:each="u,it : ${users.content}"
                         th:classappend="${u.status == 'SUSPENDED'} ? 'row-suspended'">
                         <td><input type="checkbox" class="row-check row-item" name="ids" th:value="${u.id}"/></td>
-                        <!-- Sequential row number based on display order: page offset + 1-based row index.
-                             Page 1 row 1 = "1", page 2 row 1 = (size + 1), etc. -->
-                        <td><code class="text-xs text-slate-600" th:text="${users.number * users.size + it.count}"></code></td>
+                        <!-- ユーザーID (CRM_USER.ID) — was a sequential row number until 2026-10-02. -->
+                        <td><code class="text-xs text-slate-600" th:text="${u.id}"></code></td>
                         <td class="text-xs text-slate-600" th:text="${u.phoneNumber} ?: '-'"></td>
                         <td th:text="${u.email}"></td>
                         <td th:text="${u.displayName}"></td>
@@ -493,6 +497,8 @@
         <div class="pager" th:if="${users.totalPages > 0}" style="display:flex; align-items:center; gap:8px; padding:10px 0;">
             <span style="margin-right:auto;">
                 全 <strong th:text="${users.totalElements}"></strong> 件
+                <button type="button" class="ml-2 inline-flex items-center px-2.5 py-1 text-xs font-medium border border-slate-300 bg-white text-slate-700 rounded hover:bg-slate-50 js-copy-ids"
+                        th:disabled="${users.totalElements == 0}">ユーザーIDｺﾋﾟｰ</button>
                 （<span th:text="${users.number + 1}"></span> / <span th:text="${users.totalPages == 0 ? 1 : users.totalPages}"></span> ページ）
             </span>
             <!-- Pagination preserves the FULL current query string (all filters — email, folders,
@@ -1154,6 +1160,73 @@ function formatFolderLabel(values) {
         hidden.value = pw;
         return true;
     };
+})();
+
+// 2026-10-02: ID / 電話番号 / メールアドレス / 表示名 accept at most 1000 lines each.
+// Checked here before submit so an oversized paste never leaves the browser.
+(function () {
+    var MAX = 1000;
+    var LABELS = { ids: 'ID', phoneNumber: '電話番号', email: 'メールアドレス', displayName: '表示名' };
+    var form = document.getElementById('searchForm');
+    if (!form) return;
+    form.addEventListener('submit', function (ev) {
+        for (var name in LABELS) {
+            var ta = form.querySelector('textarea[name="' + name + '"]');
+            if (!ta) continue;
+            var n = ta.value.split(/[\r\n,]+/).filter(function (t) { return t.trim() !== ''; }).length;
+            if (n > MAX) {
+                ev.preventDefault();
+                alert(LABELS[name] + 'が ' + n.toLocaleString() + ' 件入力されています。\n' + MAX.toLocaleString() + '件以下で検索してください。');
+                ta.focus();
+                return;
+            }
+        }
+    });
+})();
+
+// ユーザーIDコピー: fetch every ID matching the current search (same query string as this
+// page, all pages) and put them on the clipboard one per line.
+(function () {
+    function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+        }
+        return legacyCopy(text);
+    }
+    function legacyCopy(text) {
+        return new Promise(function (resolve, reject) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (_) { /* ok stays false */ }
+            document.body.removeChild(ta);
+            ok ? resolve() : reject(new Error('copy failed'));
+        });
+    }
+    document.querySelectorAll('.js-copy-ids').forEach(function (btn) {
+        var label = btn.textContent;
+        btn.addEventListener('click', function () {
+            btn.disabled = true;
+            btn.textContent = '取得中…';
+            var qs = new URLSearchParams(window.location.search);
+            qs.delete('page'); qs.delete('size');
+            var q = qs.toString();
+            fetch('/manager/users/ids.txt' + (q ? '?' + q : ''), { credentials: 'same-origin' })
+                .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function (text) {
+                    var n = text.split('\n').filter(Boolean).length;
+                    return copyText(text).then(function () { return n; });
+                })
+                .then(function (n) { btn.textContent = '✓ ' + n.toLocaleString() + '件コピーしました'; })
+                .catch(function () { btn.textContent = '✗ コピーに失敗しました'; })
+                .then(function () {
+                    setTimeout(function () { btn.textContent = label; btn.disabled = false; }, 2000);
+                });
+        });
+    });
 })();
 </script>
 </section>

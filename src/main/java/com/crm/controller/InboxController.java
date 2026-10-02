@@ -36,8 +36,14 @@ public class InboxController {
         List<MessageService.InboxRow> rows = messageService.inboxByUser(unreadOnly);
         // 受信/返信管理 opens the newest conversation's thread directly; its left 受信ボックス lists
         // every user (client request 2026-10-01: this list page isn't needed). The page below is
-        // only shown while nothing has been received yet.
+        // only shown while there are no messages at all.
         if (!rows.isEmpty()) return "redirect:/manager/users/" + rows.get(0).getUserId() + "/thread";
+        // Inbox emptied (e.g. the mails were deleted in 個別メッセージ管理): still open the
+        // 受信やり取り page — on the newest conversation — instead of this old list page (2026-10-02).
+        List<com.crm.entity.Message> latest = messageService.recentMessages(0, 1).getContent();
+        if (!latest.isEmpty() && latest.get(0).getUserId() != null) {
+            return "redirect:/manager/users/" + latest.get(0).getUserId() + "/thread";
+        }
         // Totals are summed straight from the same `rows` the table renders, so this box and
         // the per-row 件数内訳 breakdown below always reconcile exactly (operator request
         // 2026-09-10: 件数内訳が一致するように).

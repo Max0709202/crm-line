@@ -119,7 +119,17 @@ public class UserController {
 
     @GetMapping
     public String list(@ModelAttribute("searchForm") UserSearchForm searchForm, Model model) {
-        Page<CrmUser> users = service.search(searchForm);
+        // More than 1000 pasted lines: skip the query and show a message instead of running it.
+        String overLimit = searchForm.overPasteLimitField();
+        Page<CrmUser> users;
+        if (overLimit != null) {
+            users = new org.springframework.data.domain.PageImpl<>(java.util.Collections.emptyList(),
+                    org.springframework.data.domain.PageRequest.of(0, Math.max(1, searchForm.getSize())), 0);
+            model.addAttribute("searchLimitError", overLimit + "は" + UserSearchForm.MAX_PASTE_TOKENS
+                    + "件以下で検索してください。");
+        } else {
+            users = service.search(searchForm);
+        }
         model.addAttribute("users", users);
 
         // Display rank: 1..N by creation order (not the DB PK).
@@ -1262,6 +1272,19 @@ public class UserController {
 
     private static int indexOfIgnoreCase(String s, String needle) {
         return s.toLowerCase().indexOf(needle.toLowerCase());
+    }
+
+    /** ユーザーIDコピー: every user ID matching the current search (all pages), one per line. */
+    @GetMapping(value = "/ids.txt", produces = "text/plain; charset=UTF-8")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<String> searchIds(@ModelAttribute("searchForm") UserSearchForm searchForm) {
+        if (searchForm.overPasteLimitField() != null) {
+            return org.springframework.http.ResponseEntity.badRequest().body("");
+        }
+        java.util.List<Long> ids = service.findIdsBySearch(searchForm, null);
+        StringBuilder sb = new StringBuilder(ids.size() * 7);
+        for (Long id : ids) sb.append(id).append('\n');
+        return org.springframework.http.ResponseEntity.ok(sb.toString());
     }
 
     @GetMapping("/export.csv")

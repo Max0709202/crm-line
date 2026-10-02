@@ -69,10 +69,11 @@
             <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
             <tr>
                 <th class="px-3 py-2 text-left" style="width:36px;"><input type="checkbox" id="bcastMsgCheckAll" title="全選択"/></th>
-                <th class="px-3 py-2 text-left" style="width:60px;">No</th>
+                <th class="px-3 py-2 text-left" style="width:60px;">ID</th>
                 <th class="px-3 py-2 text-left" style="width:90px;">種別</th>
                 <th class="px-3 py-2 text-left" style="width:120px;">番号</th>
                 <th class="px-3 py-2 text-left" th:text="${channel == 'SMS'} ? '番号' : 'メールアドレス'">メールアドレス</th>
+                <th class="px-3 py-2 text-left" style="width:80px;">LINE No.</th>
                 <th class="px-3 py-2 text-left">表示名</th>
                 <th class="px-3 py-2 text-left">キャラ名</th>
                 <th class="px-3 py-2 text-left">フォルダ</th>
@@ -85,14 +86,15 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
             <tr th:if="${messages.totalElements == 0}">
-                <td colspan="13" class="px-3 py-6 text-center text-slate-400">
+                <td colspan="14" class="px-3 py-6 text-center text-slate-400">
                     <span th:if="${addr != null and addr != ''}">該当する送信履歴はありません</span>
                     <span th:unless="${addr != null and addr != ''}">一斉送信履歴はまだありません</span>
                 </td>
             </tr>
             <tr th:each="m,it : ${messages.content}" class="hover:bg-slate-50">
                 <td class="px-3 py-2"><input type="checkbox" class="bcast-msg-row-item" name="ids" th:value="${m.id}"/></td>
-                <td class="px-3 py-2"><code class="text-xs text-slate-600" th:text="${messages.number * messages.size + it.count}"></code></td>
+                <!-- ID = ユーザーID (2026-10-02; was a sequential row number). -->
+                <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${m.userId}"></a></td>
                 <td class="px-3 py-2">
                     <span th:if="${m.direction == 'OUT' and m.broadcastId != null and diffOriginByBroadcastId != null and diffOriginByBroadcastId.get(m.broadcastId) == true}"
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700"
@@ -125,6 +127,14 @@
                     <a th:unless="${channel == 'SMS'}" class="text-blue-600 hover:underline whitespace-nowrap"
                        th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
                        th:text="${userEmails != null and userEmails.get(m.userId) != null} ? ${userEmails.get(m.userId)} : '-'">-</a>
+                </td>
+                <!-- LINE No. (2026-10-02, same as 個別メッセージ管理) -->
+                <td class="px-3 py-2 text-xs whitespace-nowrap">
+                    <a th:if="${lineLinkedUserIds.contains(m.userId)}"
+                       class="text-blue-600 hover:underline"
+                       th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                       th:text="'No.' + ${m.userId}"></a>
+                    <span th:unless="${lineLinkedUserIds.contains(m.userId)}" class="text-slate-400">-</span>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userDisplayNames != null and userDisplayNames.get(m.userId) != null and userDisplayNames.get(m.userId) != ''} ? ${userDisplayNames.get(m.userId)} : '-'"></td>

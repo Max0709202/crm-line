@@ -14,9 +14,9 @@
     <h1 class="text-2xl font-semibold text-slate-700 flex-1">入金レポート</h1>
     <!-- 本日のログイン数: users whose 最終ログイン is today, 0:00 → now (LoginCountService) -->
     <div class="flex items-baseline gap-2 text-slate-700" title="本日0:00から現在までにログインしたユーザー数（同じユーザーは1回）">
-      <span class="text-xl">本日のログイン数</span>
-      <span class="whitespace-nowrap"><span class="text-2xl font-semibold tabular-nums" th:text="${#numbers.formatInteger(todayLogins, 1, 'COMMA')}">0</span><span class="text-xl ml-0.5">人</span></span>
-      <span class="text-sm text-slate-600">（0:00〜現在）</span>
+      <span class="text-2xl">本日のログイン数</span>
+      <span class="whitespace-nowrap"><span class="text-3xl font-semibold tabular-nums" th:text="${#numbers.formatInteger(todayLogins, 1, 'COMMA')}">0</span><span class="text-2xl ml-0.5">人</span></span>
+      <span class="text-base text-slate-600">（0:00〜現在）</span>
     </div>
   </div>
 
@@ -24,46 +24,46 @@
   <div class="bg-white rounded-lg shadow-sm border border-slate-200 mb-4 overflow-hidden">
     <div class="flex overflow-x-auto items-center" role="tablist" aria-label="表示の切り替え">
       <button type="button" role="tab" id="tab-detail" data-view="detail" aria-controls="view-detail"
-              class="px-4 py-2.5 text-sm whitespace-nowrap border-r border-slate-200">明細</button>
+              class="px-4 py-2.5 text-base whitespace-nowrap border-r border-slate-200">明細</button>
       <button type="button" role="tab" id="tab-daily" data-view="daily" aria-controls="view-daily"
-              class="px-4 py-2.5 text-sm whitespace-nowrap border-r border-slate-200">日別</button>
+              class="px-4 py-2.5 text-base whitespace-nowrap border-r border-slate-200">日別</button>
       <button type="button" role="tab" id="tab-monthly" data-view="monthly" aria-controls="view-monthly"
-              class="px-4 py-2.5 text-sm whitespace-nowrap border-r border-slate-200">月別</button>
+              class="px-4 py-2.5 text-base whitespace-nowrap border-r border-slate-200">月別</button>
     </div>
   </div>
 
   <!-- 絞り込み＋合計 -->
   <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-4 flex flex-wrap items-end gap-3">
     <div id="monthField" style="width: 220px;">
-      <label for="monthSelect" class="block text-xs text-slate-600 mb-1">対象月</label>
+      <label for="monthSelect" class="block text-sm text-slate-600 mb-1">対象月</label>
       <select id="monthSelect" class="tw-input"></select>
     </div>
     <div id="periodField" class="hidden">
-      <span class="block text-xs text-slate-600 mb-1">対象期間</span>
-      <span id="periodText" class="inline-flex items-center px-3 py-2 text-sm bg-slate-100 text-slate-700 font-semibold rounded"></span>
+      <span class="block text-sm text-slate-600 mb-1">対象期間</span>
+      <span id="periodText" class="inline-flex items-center px-3 py-2 text-base bg-slate-100 text-slate-700 font-semibold rounded"></span>
     </div>
     <div id="dayFilter" class="hidden flex items-end gap-3">
       <div>
-        <span class="block text-xs text-slate-600 mb-1">日付</span>
-        <span id="dayFilterText" class="inline-flex items-center px-3 py-2 text-sm bg-slate-100 text-slate-700 font-semibold rounded"></span>
+        <span class="block text-sm text-slate-600 mb-1">日付</span>
+        <span id="dayFilterText" class="inline-flex items-center px-3 py-2 text-base bg-slate-100 text-slate-700 font-semibold rounded"></span>
       </div>
       <button type="button" id="clearDay"
-              class="inline-flex items-center px-3 py-2 border border-slate-300 bg-white text-slate-600 text-sm rounded hover:bg-slate-50">日付の絞り込みを解除</button>
+              class="inline-flex items-center px-3 py-2 border border-slate-300 bg-white text-slate-600 text-base rounded hover:bg-slate-50">日付の絞り込みを解除</button>
     </div>
 
     <div class="ml-auto flex items-baseline gap-8 pb-1.5 text-slate-700" aria-live="polite">
       <div class="flex items-baseline gap-2">
-        <span class="text-xl text-slate-600">入金回数</span>
+        <span class="text-2xl text-slate-600">入金回数</span>
         <span class="whitespace-nowrap">
-          <span id="sumCount" class="text-2xl font-semibold tabular-nums">0</span><span class="text-xl ml-0.5">件</span>
-          <span class="text-xl text-slate-400 mx-1">/</span>
-          <span id="sumUsers" class="text-2xl font-semibold tabular-nums">0</span><span class="text-xl ml-0.5">人</span>
+          <span id="sumCount" class="text-3xl font-semibold tabular-nums">0</span><span class="text-2xl ml-0.5">件</span>
+          <span class="text-2xl text-slate-400 mx-1">/</span>
+          <span id="sumUsers" class="text-3xl font-semibold tabular-nums">0</span><span class="text-2xl ml-0.5">人</span>
         </span>
       </div>
       <div class="flex items-baseline gap-2">
-        <span class="text-xl text-slate-600">合計</span>
-        <span class="whitespace-nowrap"><span id="sumNet" class="text-2xl font-semibold tabular-nums">0</span><span class="text-xl ml-0.5">円</span></span>
-        <span id="sumNote" class="text-sm text-slate-500 whitespace-nowrap"></span>
+        <span class="text-2xl text-slate-600">合計</span>
+        <span class="whitespace-nowrap"><span id="sumNet" class="text-3xl font-semibold tabular-nums">0</span><span class="text-2xl ml-0.5">円</span></span>
+        <span id="sumNote" class="text-base text-slate-500 whitespace-nowrap"></span>
       </div>
     </div>
   </div>
@@ -71,8 +71,8 @@
   <!-- 明細 -->
   <div id="view-detail" role="tabpanel" aria-labelledby="tab-detail"
        class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
-    <table id="detailTable" class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1240px;">
-      <thead class="bg-slate-100 text-xs text-slate-800 uppercase tracking-wider">
+    <table id="detailTable" class="w-full min-w-full divide-y divide-slate-200 text-base" style="min-width: 1240px;">
+      <thead class="bg-slate-100 text-sm text-slate-800 uppercase tracking-wider">
         <tr>
           <th class="px-3 py-2 text-left" style="width: 70px;">ID</th>
           <th class="px-3 py-2 text-left" style="width: 150px;">ユーザー</th>
@@ -90,13 +90,13 @@
       <tbody class="divide-y divide-slate-100">
         <!-- 男 = 薄いブルー / 女 = 薄いピンク (CRM_USER.GENDER); 未設定 stays white.
              ポイント is no longer a column but is kept in data-points for the 日別 / 月別 付与ポイント. -->
-        <tr th:each="r : ${rows}"
+        <tr th:each="r : ${rows}" class="font-semibold"
             th:classappend="${r.gender == 'M'} ? 'bg-blue-100' : (${r.gender == 'F'} ? 'bg-pink-100' : 'hover:bg-slate-50')"
             th:attr="data-id=${r.id},data-user=${r.userId},data-points=${r.points},data-canceled=${r.canceled} ? '1' : '0'">
           <td class="px-3 py-2.5 tabular-nums text-slate-900" th:text="${r.userId}">0</td>
-          <td class="px-3 py-2.5"><a th:href="@{'/manager/users/' + ${r.userId}}" class="text-xl text-slate-900 font-medium underline decoration-slate-400 underline-offset-2 hover:decoration-slate-700" th:text="${r.userName}">名前</a></td>
+          <td class="px-3 py-2.5"><a th:href="@{'/manager/users/' + ${r.userId}}" class="text-2xl text-slate-900 font-bold underline decoration-slate-400 underline-offset-2 hover:decoration-slate-700" th:text="${r.userName}">名前</a></td>
           <td class="px-3 py-2.5 whitespace-nowrap">
-            <span th:if="${r.folder != null}" class="inline-flex px-2 py-0.5 text-xs font-medium rounded text-slate-800 border border-slate-200"
+            <span th:if="${r.folder != null}" class="inline-flex px-2 py-0.5 text-sm font-semibold rounded text-slate-800 border border-slate-200"
                   th:style="${r.folderColor != null} ? 'background:' + ${r.folderColor} : 'background:#f1f5f9'"
                   th:text="${r.folder}">フォルダ</span>
             <span th:if="${r.folder == null}" class="text-slate-600">—</span>
@@ -109,11 +109,11 @@
           <td class="px-3 py-2.5 whitespace-nowrap"
               th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-900'"
               th:text="${r.method}">クレジットカード</td>
-          <td class="px-3 py-2.5 text-right tabular-nums font-medium"
+          <td class="px-3 py-2.5 text-right tabular-nums font-bold"
               th:classappend="${r.canceled} ? 'text-red-600 line-through' : 'text-slate-900'"
               th:text="${#numbers.formatInteger(r.amount, 1, 'COMMA')} + '円'">0円</td>
-          <td class="px-3 py-2.5 whitespace-nowrap text-slate-900 leading-snug"><th:block th:text="${r.day}">2026-8-3</th:block><br><span class="text-xs text-slate-700" th:text="${r.time}">10:12:44</span></td>
-          <td class="px-3 py-2.5 text-center"><span th:if="${r.canceled}" class="inline-flex whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded bg-red-50 text-red-600">キャンセル済</span></td>
+          <td class="px-3 py-2.5 whitespace-nowrap text-slate-900 leading-snug"><th:block th:text="${r.day}">2026-8-3</th:block><br><span class="text-sm text-slate-700" th:text="${r.time}">10:12:44</span></td>
+          <td class="px-3 py-2.5 text-center"><span th:if="${r.canceled}" class="inline-flex whitespace-nowrap px-2 py-0.5 text-sm font-medium rounded bg-red-50 text-red-600">キャンセル済</span></td>
           <td class="px-3 py-2.5 text-slate-900" th:text="${r.memo}"></td>
         </tr>
       </tbody>
@@ -123,8 +123,8 @@
   <!-- 日別集計 -->
   <div id="view-daily" role="tabpanel" aria-labelledby="tab-daily"
        class="hidden bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
-    <table class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1040px;">
-      <thead class="bg-slate-100 text-xs text-slate-600 uppercase tracking-wider">
+    <table class="w-full min-w-full divide-y divide-slate-200 text-base" style="min-width: 1040px;">
+      <thead class="bg-slate-100 text-sm text-slate-600 uppercase tracking-wider">
         <tr>
           <th class="px-3 py-2 text-left" style="width: 160px;">日付</th>
           <th class="px-3 py-2 text-right" style="width: 100px;">ログイン数</th>
@@ -139,7 +139,7 @@
       <tbody id="dailyBody" class="divide-y divide-slate-100"></tbody>
       <tfoot id="dailyFoot" class="bg-slate-50"></tfoot>
     </table>
-    <div class="px-3 py-2 text-xs text-slate-600 border-t border-slate-200">
+    <div class="px-3 py-2 text-sm text-slate-600 border-t border-slate-200">
       日付をクリックすると、その日の明細を表示します。純入金額＝入金額−キャンセル額。入金ユーザー数・ポイントはキャンセル分を除いて集計しています。
     </div>
   </div>
@@ -147,8 +147,8 @@
   <!-- 月別集計 -->
   <div id="view-monthly" role="tabpanel" aria-labelledby="tab-monthly"
        class="hidden bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
-    <table class="w-full min-w-full divide-y divide-slate-200 text-sm" style="min-width: 1040px;">
-      <thead class="bg-slate-100 text-xs text-slate-600 uppercase tracking-wider">
+    <table class="w-full min-w-full divide-y divide-slate-200 text-base" style="min-width: 1040px;">
+      <thead class="bg-slate-100 text-sm text-slate-600 uppercase tracking-wider">
         <tr>
           <th class="px-3 py-2 text-left" style="width: 160px;">月</th>
           <th class="px-3 py-2 text-right" style="width: 100px;">ログイン数</th>
@@ -163,7 +163,7 @@
       <tbody id="monthlyBody" class="divide-y divide-slate-100"></tbody>
       <tfoot id="monthlyFoot" class="bg-slate-50"></tfoot>
     </table>
-    <div class="px-3 py-2 text-xs text-slate-600 border-t border-slate-200">
+    <div class="px-3 py-2 text-sm text-slate-600 border-t border-slate-200">
       月をクリックすると、その月の日別集計を表示します。純入金額＝入金額−キャンセル額。入金ユーザー数・ポイントはキャンセル分を除いて集計しています。
     </div>
   </div>
@@ -281,16 +281,16 @@
       function view(msg, isError) {
         clearTimeout(timer);
         td.textContent = '';
-        if (memo) td.appendChild(el('p', 'text-xs text-slate-900 whitespace-pre-wrap break-words leading-relaxed', memo));
+        if (memo) td.appendChild(el('p', 'text-sm text-slate-900 whitespace-pre-wrap break-words leading-relaxed', memo));
         var bar = el('div', 'flex items-center gap-3' + (memo ? ' mt-1' : ''));
         if (memo) {
-          bar.appendChild(btn('編集', 'text-xs text-slate-800 hover:text-slate-900 hover:underline', edit));
-          bar.appendChild(btn('削除', 'text-xs text-slate-800 hover:text-red-600 hover:underline', remove));
+          bar.appendChild(btn('編集', 'text-sm text-slate-800 hover:text-slate-900 hover:underline', edit));
+          bar.appendChild(btn('削除', 'text-sm text-slate-800 hover:text-red-600 hover:underline', remove));
         } else {
-          bar.appendChild(btn('＋ メモを追加', 'text-xs text-slate-700 hover:text-slate-900', edit));
+          bar.appendChild(btn('＋ メモを追加', 'text-sm text-slate-700 hover:text-slate-900', edit));
         }
         if (msg) {
-          bar.appendChild(el('span', 'text-xs ' + (isError ? 'text-red-600' : 'text-slate-600'), msg));
+          bar.appendChild(el('span', 'text-sm ' + (isError ? 'text-red-600' : 'text-slate-600'), msg));
           if (!isError) timer = setTimeout(function () { view(); }, 1500);
         }
         td.appendChild(bar);
@@ -299,16 +299,16 @@
       function edit() {
         clearTimeout(timer);
         td.textContent = '';
-        var ta = el('textarea', 'tw-input text-xs');
+        var ta = el('textarea', 'tw-input text-sm');
         ta.rows = 2;
         ta.maxLength = MEMO_MAX;
         ta.value = memo;
         ta.placeholder = '備考を入力';
         ta.setAttribute('aria-label', '備考');
         var bar = el('div', 'flex items-center gap-2 mt-1.5');
-        var saveBtn = btn('保存', 'inline-flex items-center px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-800 text-white rounded disabled:bg-slate-300', doSave);
-        var closeBtn = btn('閉じる', 'inline-flex items-center px-2.5 py-1 text-xs border border-slate-300 bg-white text-slate-600 rounded hover:bg-slate-50', function () { view(); });
-        var err = el('span', 'text-xs text-red-600');
+        var saveBtn = btn('保存', 'inline-flex items-center px-2.5 py-1 text-sm bg-slate-700 hover:bg-slate-800 text-white rounded disabled:bg-slate-300', doSave);
+        var closeBtn = btn('閉じる', 'inline-flex items-center px-2.5 py-1 text-sm border border-slate-300 bg-white text-slate-600 rounded hover:bg-slate-50', function () { view(); });
+        var err = el('span', 'text-sm text-red-600');
         bar.append(saveBtn, closeBtn, err);
         ta.addEventListener('keydown', function (e) {
           if (e.key === 'Escape') view();

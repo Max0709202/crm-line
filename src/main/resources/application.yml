@@ -13,7 +13,8 @@ server:
   # no-ops (confirmed via bytecode inspection: ServerProperties$Tomcat only exposes
   # maxHttpFormPostSize; maxHttpHeaderSize is declared on ServerProperties itself).
   # Raised alongside nginx's large_client_header_buffers in crm-dev.conf.
-  max-http-header-size: 65536
+  # 2026-10-02: 64KB → 128KB so a 1000-line email/phone paste (~50KB URL) fits.
+  max-http-header-size: 131072
   tomcat:
     # Form POSTs can include base64-embedded images in the reply-page HTML memo
     # (operators paste full landing-page HTML with inline data: images).

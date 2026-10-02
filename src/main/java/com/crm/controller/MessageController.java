@@ -44,6 +44,7 @@ public class MessageController {
     private final com.crm.service.DomainSettingService domainSettingService;
     private final com.crm.repository.LineAccountRepository lineAccountRepository;
     private final com.crm.service.ReplyHtmlSlotService replyHtmlSlotService;
+    private final com.crm.service.ThreadLayoutService threadLayoutService;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -59,7 +60,8 @@ public class MessageController {
                              com.crm.repository.LineUserRepository lineUserRepository,
                              com.crm.service.DomainSettingService domainSettingService,
                              com.crm.repository.LineAccountRepository lineAccountRepository,
-                             com.crm.service.ReplyHtmlSlotService replyHtmlSlotService) {
+                             com.crm.service.ReplyHtmlSlotService replyHtmlSlotService,
+                             com.crm.service.ThreadLayoutService threadLayoutService) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -75,6 +77,7 @@ public class MessageController {
         this.domainSettingService = domainSettingService;
         this.lineAccountRepository = lineAccountRepository;
         this.replyHtmlSlotService = replyHtmlSlotService;
+        this.threadLayoutService = threadLayoutService;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -149,7 +152,7 @@ public class MessageController {
     @GetMapping("/manager/users/{userId}/thread")
     public String thread(@PathVariable Long userId,
                          @RequestParam(name = "replyTo", required = false) Long replyTo,
-                         Model model, RedirectAttributes ra) {
+                         Model model, RedirectAttributes ra, HttpSession session) {
         Optional<CrmUser> user = userService.findById(userId);
         if (!user.isPresent()) {
             ra.addFlashAttribute("flashError", "ユーザーが見つかりません");
@@ -272,7 +275,25 @@ public class MessageController {
             }
             model.addAttribute("form", form);
         }
+        // 画面レイアウト保存 — this admin's saved 4-pane sizes ("wT,wB,hL,hR"), null = default 50/50.
+        model.addAttribute("threadLayout", threadLayoutService.get(currentAdminId(session)));
         return "message/thread";
+    }
+
+    /** 画面レイアウト保存: stores the 受信ボックス 4-pane sash positions (%) for the logged-in admin. */
+    @PostMapping("/manager/thread-layout")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<String> saveThreadLayout(@RequestParam double wT, @RequestParam double wB,
+                                                                            @RequestParam double hL, @RequestParam double hR,
+                                                                            HttpSession session) {
+        boolean ok = threadLayoutService.save(currentAdminId(session), wT, wB, hL, hR);
+        return ok ? org.springframework.http.ResponseEntity.ok("ok")
+                  : org.springframework.http.ResponseEntity.badRequest().body("invalid layout");
+    }
+
+    private static Long currentAdminId(HttpSession session) {
+        Object id = session == null ? null : session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
+        return id instanceof Number ? ((Number) id).longValue() : null;
     }
 
     /** Submit a new outbound message for a specific user. */

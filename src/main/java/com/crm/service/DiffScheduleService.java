@@ -160,6 +160,11 @@ public class DiffScheduleService {
             form.setEmail(targetRaw);
         } else if (DiffSchedule.TARGET_FOLDER.equals(targetType)) {
             form.setFolder(targetRaw);
+        } else if (DiffSchedule.TARGET_ID.equals(targetType)) {
+            // ID縛り: exact user IDs (newline / comma separated); IDs with no matching user drop out.
+            // No valid ID → no targets (an empty ids filter would otherwise match every user).
+            form.setIds(targetRaw);
+            if (form.idList().isEmpty()) return java.util.Collections.emptyList();
         } else {
             throw new IllegalArgumentException("unknown target type: " + targetType);
         }

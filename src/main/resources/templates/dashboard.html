@@ -437,7 +437,7 @@
                 <table class="min-w-full divide-y divide-slate-200" style="font-size:.8rem;">
                     <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                     <tr>
-                        <th class="px-3 py-2 text-left" style="width:50px;">No</th>
+                        <th class="px-3 py-2 text-left" style="width:50px;">ID</th>
                         <th class="px-3 py-2 text-left" style="width:90px;">種別</th>
                         <th class="px-3 py-2 text-left" style="width:120px;">番号</th>
                         <th class="px-3 py-2 text-left">メールアドレス</th>
@@ -457,7 +457,8 @@
                         <td colspan="13" class="px-3 py-6 text-center text-slate-400">メッセージはまだありません</td>
                     </tr>
                     <tr th:each="m,it : ${stats.recentMessages}">
-                        <td class="px-3 py-1.5"><code class="text-xs text-slate-600" th:text="${it.count}"></code></td>
+                        <!-- ID = ユーザーID (2026-10-02; was a sequential row number). -->
+                        <td class="px-3 py-1.5"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${m.userId}"></a></td>
                         <td class="px-3 py-1.5">
                             <span th:if="${m.direction == 'OUT' and m.channel == 'SMS'}"
                                   class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">SMS送信</span>

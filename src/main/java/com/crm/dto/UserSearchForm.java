@@ -58,6 +58,18 @@ public class UserSearchForm {
     public java.util.List<String> displayNameTokens() { return splitTokens(displayName); }
     public java.util.List<String> phoneNumberTokens() { return splitTokens(phoneNumber); }
 
+    /** Max lines accepted per pasted search box (ID / 電話番号 / メールアドレス / 表示名) — client request 2026-10-02. */
+    public static final int MAX_PASTE_TOKENS = 1000;
+
+    /** Label of the first search box holding more than {@link #MAX_PASTE_TOKENS} lines, or null if all are within the limit. */
+    public String overPasteLimitField() {
+        if (splitTokens(ids).size() > MAX_PASTE_TOKENS) return "ID";
+        if (phoneNumberTokens().size() > MAX_PASTE_TOKENS) return "電話番号";
+        if (emailTokens().size() > MAX_PASTE_TOKENS) return "メールアドレス";
+        if (displayNameTokens().size() > MAX_PASTE_TOKENS) return "表示名";
+        return null;
+    }
+
     /** Parses {@link #ids} into Longs, silently skipping malformed tokens. Empty list if blank. */
     public java.util.List<Long> idList() {
         java.util.List<Long> out = new java.util.ArrayList<>();

@@ -39,6 +39,7 @@ public class BroadcastController {
     private final com.crm.service.AuditLogService auditLog;
     private final com.crm.service.ReplyPageSettingService replyPageSettingService;
     private final com.crm.service.LineAccountService lineAccountService;
+    private final com.crm.repository.LineUserRepository lineUserRepository;
 
     public BroadcastController(BroadcastService broadcastService,
                                MessageTemplateService templateService,
@@ -50,7 +51,8 @@ public class BroadcastController {
                                com.crm.service.MessageService messageService,
                                com.crm.service.AuditLogService auditLog,
                                com.crm.service.ReplyPageSettingService replyPageSettingService,
-                               com.crm.service.LineAccountService lineAccountService) {
+                               com.crm.service.LineAccountService lineAccountService,
+                               com.crm.repository.LineUserRepository lineUserRepository) {
         this.broadcastService = broadcastService;
         this.templateService = templateService;
         this.userService = userService;
@@ -62,6 +64,7 @@ public class BroadcastController {
         this.auditLog = auditLog;
         this.replyPageSettingService = replyPageSettingService;
         this.lineAccountService = lineAccountService;
+        this.lineUserRepository = lineUserRepository;
     }
 
     /** Email-domain choices for the broadcast filter (replaces old carrierCode dropdown). */
@@ -140,6 +143,10 @@ public class BroadcastController {
         model.addAttribute("userDisplayNames", userDisplayNames);
         model.addAttribute("userFolders", userFolders);
         model.addAttribute("lineAccountNames", lineAccountNames);
+        // LINE No. column (2026-10-02, same as 個別メッセージ管理): users on this page linked to a LINE account.
+        model.addAttribute("lineLinkedUserIds", uids.isEmpty()
+                ? java.util.Collections.emptySet()
+                : new java.util.HashSet<>(lineUserRepository.findLinkedCrmUserIds(uids)));
         model.addAttribute("diffOriginByBroadcastId", diffOriginByBroadcastId);
         model.addAttribute("addr", addrTrim == null ? "" : addrTrim);
         model.addAttribute("channel", channelFilter == null ? "" : channelFilter);

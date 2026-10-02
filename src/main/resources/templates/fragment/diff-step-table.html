@@ -18,7 +18,7 @@
                     pool at send time), so there's nothing real to show before that.
     lineAccountNames — Map<Long, String> LINE account id → name, for キャラ名 (LINE steps only;
                     id -1 = 紐づきアカ, resolved per recipient at send time)
-    indexOffset   — int, added to each row's 1-based position for continuous No across pages
+    indexOffset   — int, unused since the No column became ユーザーID (2026-10-02); kept so callers don't change
     checkboxForm  — id of the external <form> the row checkboxes submit into (select-delete),
                     or null/empty to omit the checkbox column entirely (public-facing screens)
 -->
@@ -29,14 +29,14 @@
         <th th:if="${checkboxForm != null and !checkboxForm.isEmpty()}" class="px-2 py-2 text-left" style="width:32px;">
             <input type="checkbox" class="diff-tbl-check-all" title="全選択"/>
         </th>
-        <!-- Column order per 2026-10-02 client request: ステップ → 種別 (moved to the front),
-             FROM dropped, 縛り対象 + キャラ名 added. 差分名 links to that diff's ステップ編集. -->
-        <th class="px-2 py-2 text-left" style="width:44px;">No</th>
+        <!-- Column order per 2026-10-02 client request (2nd revision):
+             ID 種別 対象 条件 ステップ 表示名 キャラ名 件名 本文 ステータス セット日時 実行/取消日時 結果.
+             ID = target user ID; ステップ = step number, with the 差分名 (link to ステップ編集) under it. -->
+        <th class="px-2 py-2 text-left" style="width:44px;">ID</th>
         <th class="px-2 py-2 text-left">種別</th>
         <th class="px-2 py-2 text-left">対象</th>
         <th class="px-2 py-2 text-left">条件</th>
-        <th class="px-2 py-2 text-left">差分名</th>
-        <th class="px-2 py-2 text-left">縛り対象</th>
+        <th class="px-2 py-2 text-left">ステップ</th>
         <th class="px-2 py-2 text-left">表示名</th>
         <th class="px-2 py-2 text-left">キャラ名</th>
         <th class="px-2 py-2 text-left">件名</th>
@@ -49,13 +49,17 @@
     </thead>
     <tbody class="divide-y divide-slate-100">
     <tr th:if="${steps == null or steps.empty}">
-        <td colspan="15" class="px-3 py-6 text-center text-slate-400">該当する差分スケジュールはありません</td>
+        <td colspan="14" class="px-3 py-6 text-center text-slate-400">該当する差分スケジュールはありません</td>
     </tr>
     <tr th:each="s, iter : ${steps}" class="hover:bg-slate-50" th:with="sched=${schedulesById.get(s.diffScheduleId)}">
         <td th:if="${checkboxForm != null and !checkboxForm.isEmpty()}" class="px-2 py-1.5">
             <input type="checkbox" class="diff-tbl-row-item" name="ids" th:value="${s.id}" th:attr="form=${checkboxForm}"/>
         </td>
-        <td class="px-2 py-1.5 text-xs font-mono text-slate-500" th:text="${indexOffset + iter.index + 1}"></td>
+        <!-- ユーザーID: the single target user, or the first ID + 他N名 for multi-user schedules (full list on hover). -->
+        <td class="px-2 py-1.5 text-xs font-mono text-slate-600 whitespace-nowrap"
+            th:with="uids=${sched != null and sched.targetUserIds != null} ? ${#strings.arraySplit(sched.targetUserIds, ',')} : null"
+            th:title="${sched != null} ? ${sched.targetUserIds} : null"
+            th:text="${uids == null or uids.length == 0} ? '-' : (${uids.length == 1} ? ${uids[0]} : ${uids[0]} + ' 他' + ${uids.length - 1} + '名')"></td>
         <td class="px-2 py-1.5 text-xs whitespace-nowrap">
             <span th:if="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'}"
                   class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
@@ -75,20 +79,22 @@
             <span th:if="${sched.targetType == 'EMAIL'}">アドレス縛り</span>
             <span th:if="${sched.targetType == 'FOLDER'}">フォルダ縛り</span>
             <span th:if="${sched.targetType == 'LINE_NAME'}">LINE名前縛り</span>
+            <span th:if="${sched.targetType == 'ID'}">ID縛り</span>
             <span th:if="${sched.targetType == 'REGISTER'}">新規登録(自動)</span>
+            <div th:if="${sched.targetType != 'REGISTER' and sched.targetValue != null and !#strings.isEmpty(sched.targetValue)}"
+                 class="text-slate-500 truncate" style="max-width:180px;"
+                 th:text="${sched.targetValue}" th:title="${sched.targetValue}"></div>
         </td>
         <td class="px-2 py-1.5 text-xs text-slate-400" th:if="${sched == null}">-</td>
-        <td class="px-2 py-1.5 text-slate-700">
+        <td class="px-2 py-1.5 text-slate-700 whitespace-nowrap">
+            <div class="text-xs font-semibold" th:text="${s.stepOrder != null} ? 'ステップ' + ${s.stepOrder + 1} : '-'"></div>
             <a th:if="${sched != null and sched.diffDefinitionId != null}"
-               class="text-blue-600 hover:underline" title="ステップ編集を開く"
+               class="text-xs text-blue-600 hover:underline" title="ステップ編集を開く"
                th:href="@{'/manager/settings/diff-schedule/definitions/' + ${sched.diffDefinitionId} + '/steps'}"
                th:text="${sched.diffNameSnapshot}"></a>
-            <span th:unless="${sched != null and sched.diffDefinitionId != null}"
-                  th:text="${sched != null ? sched.diffNameSnapshot : '-'}"></span>
+            <span th:unless="${sched != null and sched.diffDefinitionId != null}" class="text-xs text-slate-500"
+                  th:text="${sched != null ? sched.diffNameSnapshot : ''}"></span>
         </td>
-        <td class="px-2 py-1.5 text-xs text-slate-600 truncate" style="max-width:180px;"
-            th:with="tv=${sched != null and sched.targetType != 'REGISTER' and sched.targetValue != null and !#strings.isEmpty(sched.targetValue)} ? ${sched.targetValue} : '-'"
-            th:text="${tv}" th:title="${tv}"></td>
         <td class="px-2 py-1.5 text-xs text-slate-600"
             th:text="${userInfoById != null and sched != null and userInfoById.get(sched.id) != null} ? ${userInfoById.get(sched.id).get('displayName')} : '-'"></td>
         <td class="px-2 py-1.5 text-xs text-slate-600 whitespace-nowrap"
