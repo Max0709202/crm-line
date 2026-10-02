@@ -358,8 +358,10 @@ public class SettingController {
                     + "文字までです: " + String.join(" / ", tooLong));
             return "redirect:/manager/settings/folders";
         }
+        java.util.List<String> previous = folderSettingService.listFolders();
         folderSettingService.save(parsed);
         folderSettingService.saveColors(folderNames, folderColors);
+        folderSettingService.dropRemovedColors(previous, parsed);
         ra.addFlashAttribute("flashSuccess", parsed.size() + " 個のフォルダを保存しました");
         return "redirect:/manager/settings/folders";
     }

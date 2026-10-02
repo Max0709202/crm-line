@@ -670,7 +670,11 @@ document.querySelectorAll('[data-sched-box]').forEach(function (box) {
         btn.disabled = true;
         btn.textContent = 'アップロード中…';
         fetch('/manager/settings/html-images/compose-upload', { method: 'POST', credentials: 'same-origin', body: fd })
-            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            // A non-JSON answer (e.g. login page after session timeout) becomes a readable error.
+            .then(function (r) {
+                return r.json().catch(function () { return { error: 'HTTP ' + r.status }; })
+                    .then(function (j) { return { ok: r.ok, j: j }; });
+            })
             .then(function (res) {
                 if (!res.ok || !res.j.url) throw new Error(res.j.error || 'アップロードに失敗しました');
                 insertTagToBody('\n' + res.j.url + '\n');

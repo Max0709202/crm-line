@@ -29,6 +29,8 @@ public class FolderSettingService {
     public static final int NAME_MAX = 10;
     /** Per-folder display color (#rrggbb) lives in CRM_SETTING under {@code folder.color.<name>}. */
     public static final String COLOR_KEY_PREFIX = "folder.color.";
+    /** CRM_SETTING.SETTING_KEY column length. */
+    private static final int SETTING_KEY_MAX = 128;
     private static final java.util.regex.Pattern HEX_COLOR = java.util.regex.Pattern.compile("^#[0-9a-fA-F]{6}$");
 
     private final CrmSettingRepository repo;
@@ -111,6 +113,7 @@ public class FolderSettingService {
             if (name.isEmpty()) continue;
             String c = colors != null && i < colors.size() && colors.get(i) != null ? colors.get(i).trim() : "";
             String key = COLOR_KEY_PREFIX + name;
+            if (key.length() > SETTING_KEY_MAX) continue; // grandfathered over-long name: no color
             java.util.Optional<CrmSetting> cur = repo.findBySettingKey(key);
             if (!HEX_COLOR.matcher(c).matches()) {
                 cur.ifPresent(repo::delete);
@@ -125,6 +128,17 @@ public class FolderSettingService {
             s.setSettingValue(c.toLowerCase(java.util.Locale.ROOT));
             s.setUpdatedAt(LocalDateTime.now());
             repo.save(s);
+        }
+    }
+
+    /** Drops the color of each folder in {@code previous} that's no longer in {@code current}
+     *  (renamed / removed), so re-creating that name later doesn't resurrect a stale color. */
+    @Transactional
+    public void dropRemovedColors(List<String> previous, List<String> current) {
+        java.util.Set<String> keep = new java.util.HashSet<>(current);
+        for (String name : previous) {
+            if (keep.contains(name)) continue;
+            repo.findBySettingKey(COLOR_KEY_PREFIX + name).ifPresent(repo::delete);
         }
     }
 }

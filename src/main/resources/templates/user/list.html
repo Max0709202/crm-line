@@ -265,6 +265,9 @@
                                         <label th:each="f : ${folders}" class="ms-dd-opt">
                                             <input type="checkbox" name="folders" th:value="${f}"
                                                    th:checked="${#lists.contains(searchForm.folders, f)}"/>
+                                            <!-- Color swatch is an <i>, not a <span>: the summary label reads the first span. -->
+                                            <i th:if="${folderColors.get(f) != null}"
+                                               th:style="'display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid #cbd5e1;flex:0 0 auto;background:' + ${folderColors.get(f)}"></i>
                                             <span th:text="${f}"></span>
                                         </label>
                                     </div>
