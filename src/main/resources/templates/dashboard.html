@@ -93,6 +93,12 @@
         .dash .chip.ng   .cv  { color: var(--ng); }
 
         .dash .tbl-scroll { overflow-x:auto; }
+        /* 直近のメッセージ 本文 — same look as 個別メッセージ管理 (.col-body in message/list.html). */
+        .dash .recent-body { min-width:320px; max-width:480px; }
+        .dash .recent-body .body-text {
+            max-height:16em; overflow-y:auto; line-height:1.45; font-size:.78rem; color:#475569;
+            white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
+        }
         .dash table.d { border-collapse:collapse; width:max-content; min-width:100%; }
         .dash table.d thead tr { background: var(--header-bg); }
         .dash table.d th { font-size:.68rem; font-weight:700; color:var(--muted);
@@ -427,44 +433,95 @@
                 <span class="text-xs text-slate-500 ml-2">送受信 混在 (最新10件)</span>
             </div>
             <div class="tbl-scroll">
+                <!-- Columns mirror 個別メッセージ管理 (message/list.html) per 2026-10-02 client request. -->
                 <table class="min-w-full divide-y divide-slate-200" style="font-size:.8rem;">
                     <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                     <tr>
-                        <th class="px-3 py-2 text-left" style="width:100px;">種別</th>
-                        <th class="px-3 py-2 text-left" style="width:220px;">ユーザー</th>
+                        <th class="px-3 py-2 text-left" style="width:50px;">No</th>
+                        <th class="px-3 py-2 text-left" style="width:90px;">種別</th>
+                        <th class="px-3 py-2 text-left" style="width:120px;">番号</th>
+                        <th class="px-3 py-2 text-left">メールアドレス</th>
+                        <th class="px-3 py-2 text-left" style="width:80px;">LINE No.</th>
+                        <th class="px-3 py-2 text-left">表示名</th>
+                        <th class="px-3 py-2 text-left">キャラ名</th>
+                        <th class="px-3 py-2 text-left">フォルダ</th>
                         <th class="px-3 py-2 text-left">件名</th>
-                        <th class="px-3 py-2 text-left" style="width:140px;">日時</th>
+                        <th class="px-3 py-2 text-left recent-body">本文</th>
+                        <th class="px-3 py-2 text-left" style="width:110px;">ステータス</th>
+                        <th class="px-3 py-2 text-left" style="width:130px;">予約日時</th>
+                        <th class="px-3 py-2 text-left" style="width:130px;">送信/受信日時</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                     <tr th:if="${stats.recentMessages == null or stats.recentMessages.empty}">
-                        <td colspan="4" class="px-3 py-6 text-center text-slate-400">メッセージはまだありません</td>
+                        <td colspan="13" class="px-3 py-6 text-center text-slate-400">メッセージはまだありません</td>
                     </tr>
-                    <tr th:each="m : ${stats.recentMessages}">
+                    <tr th:each="m,it : ${stats.recentMessages}">
+                        <td class="px-3 py-1.5"><code class="text-xs text-slate-600" th:text="${it.count}"></code></td>
                         <td class="px-3 py-1.5">
-                            <span th:if="${m.direction == 'OUT' and m.channel == 'SMS'}" class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">SMS送信</span>
-                            <span th:if="${m.direction == 'OUT' and m.channel != 'SMS'}" class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">送信</span>
-                            <span th:if="${m.direction == 'IN' and m.channel == 'EMAIL'}" class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">メール返信</span>
-                            <span th:if="${m.direction == 'IN' and m.channel == 'WEB_REPLY'}" class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700">Web返信</span>
+                            <span th:if="${m.direction == 'OUT' and m.channel == 'SMS'}"
+                                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">SMS送信</span>
+                            <span th:if="${m.direction == 'OUT' and m.channel == 'LINE'}"
+                                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  style="background:#d9f7e6; color:#046c3a;">LINE送信</span>
+                            <span th:if="${m.direction == 'OUT' and m.channel != 'SMS' and m.channel != 'LINE'}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">送信</span>
+                            <span th:if="${m.direction == 'IN' and m.channel == 'EMAIL'}"
+                                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700">メール返信</span>
+                            <span th:if="${m.direction == 'IN' and m.channel == 'WEB_REPLY'}"
+                                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700">Web返信</span>
+                            <span th:if="${m.direction == 'IN' and m.channel == 'SMS'}"
+                                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">SMS返信</span>
+                            <span th:if="${m.direction == 'IN' and m.channel == 'LINE'}"
+                                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  style="background:#d9f7e6; color:#046c3a;">LINE返信</span>
+                        </td>
+                        <td class="px-3 py-1.5 text-xs text-slate-700 whitespace-nowrap"
+                            th:text="${userPhones.get(m.userId) != null} ? ${userPhones.get(m.userId)} : '-'"></td>
+                        <td class="px-3 py-1.5 text-xs">
+                            <a th:if="${userEmails.get(m.userId) != null}"
+                               class="text-blue-600 hover:underline whitespace-nowrap"
+                               th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                               th:text="${userEmails.get(m.userId)}"></a>
+                            <a th:if="${userEmails.get(m.userId) == null and m.userId != null and !lineLinkedUserIds.contains(m.userId)}"
+                               class="text-blue-600 hover:underline whitespace-nowrap"
+                               th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                               th:text="'No.' + ${m.userId}"></a>
+                            <span th:if="${userEmails.get(m.userId) == null and (m.userId == null or lineLinkedUserIds.contains(m.userId))}"
+                                  class="text-slate-400">-</span>
+                        </td>
+                        <td class="px-3 py-1.5 text-xs whitespace-nowrap">
+                            <a th:if="${lineLinkedUserIds.contains(m.userId)}"
+                               class="text-blue-600 hover:underline"
+                               th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                               th:text="'No.' + ${m.userId}"></a>
+                            <span th:unless="${lineLinkedUserIds.contains(m.userId)}" class="text-slate-400">-</span>
+                        </td>
+                        <td class="px-3 py-1.5 text-xs text-slate-700 whitespace-nowrap"
+                            th:text="${userDisplayNames.get(m.userId) != null} ? ${userDisplayNames.get(m.userId)} : '-'"></td>
+                        <td class="px-3 py-1.5 text-xs text-slate-700 whitespace-nowrap"
+                            th:text="${m.lineAccountId != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : '-'"></td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500"
+                            th:text="${userFolders.get(m.userId) != null} ? ${userFolders.get(m.userId)} : '-'"></td>
+                        <td class="px-3 py-1.5 text-xs text-slate-700 truncate" style="max-width:200px;" th:text="${m.subject} ?: '(件名なし)'"></td>
+                        <td class="px-3 py-1.5 recent-body">
+                            <div class="body-text" th:text="${m.bodyText}"></div>
                         </td>
                         <td class="px-3 py-1.5">
-                            <a class="text-blue-600 hover:underline"
-                               th:href="@{'/manager/users/' + ${m.userId} + '/thread'}" target="_blank"
-                               th:text="${userLabels.get(m.userId)} ?: ('ID=' + ${m.userId})">name</a>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  th:classappend="${m.status == 'SENT' or m.status == 'DELIVERED'} ? 'bg-emerald-100 text-emerald-700'
+                                                   : (${m.status == 'QUEUED'} ? 'bg-sky-100 text-sky-700'
+                                                   : (${m.status == 'FAILED'} ? 'bg-red-100 text-red-700'
+                                                   : (${m.status == 'CANCELLED'} ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 text-slate-600')))"
+                                  th:text="${m.status}"></span>
                         </td>
-                        <td class="px-3 py-1.5 text-slate-700 truncate">
-                            <!-- SMS has no subject field — show the body under a "本文" label instead
-                                 of leaving the column blank or misleadingly labelled "件名". -->
-                            <span th:if="${m.channel == 'SMS'}">
-                                <span class="text-slate-400 text-xs">本文:</span>
-                                <span th:text="${m.bodyText}"></span>
-                            </span>
-                            <span th:if="${m.channel != 'SMS'}">
-                                <span class="text-slate-400 text-xs">件名:</span>
-                                <span th:text="${m.subject}"></span>
-                            </span>
+                        <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">
+                            <span th:if="${m.scheduledAt != null}" th:text="${#temporals.format(m.scheduledAt, 'yyyy-MM-dd HH:mm')}"></span>
+                            <span th:unless="${m.scheduledAt != null}" class="text-slate-300">-</span>
                         </td>
-                        <td class="px-3 py-1.5 text-slate-500 text-xs" th:text="${m.sentAt != null} ? ${#temporals.format(m.sentAt, 'MM-dd HH:mm')} : (${m.createdAt != null} ? ${#temporals.format(m.createdAt, 'MM-dd HH:mm')} : '-')"></td>
+                        <td class="px-3 py-1.5 text-xs text-slate-500 whitespace-nowrap">
+                            <span th:if="${m.sentAt != null}" th:text="${#temporals.format(m.sentAt, 'yyyy-MM-dd HH:mm')}"></span>
+                            <span th:unless="${m.sentAt != null}" th:text="${#temporals.format(m.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+                        </td>
                     </tr>
                     </tbody>
                 </table>

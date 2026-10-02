@@ -56,11 +56,17 @@
             <div class="px-3 pb-3">
                 <div class="flex gap-2 mb-2">
                     <button type="button" class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded hover:bg-slate-100"
+                            onclick="copyTargetColumn('targetIds')">ユーザーIDをコピー</button>
+                    <button type="button" class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded hover:bg-slate-100"
                             onclick="copyTargetColumn('targetPhones')">番号をコピー</button>
                     <button type="button" class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded hover:bg-slate-100"
                             onclick="copyTargetColumn('targetEmails')">アドレスをコピー</button>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <div class="text-xs text-slate-500 mb-1">ユーザーID</div>
+                        <textarea id="targetIds" readonly rows="8" class="tw-input text-xs" style="font-family:monospace;" th:text="${targetIdsText}"></textarea>
+                    </div>
                     <div>
                         <div class="text-xs text-slate-500 mb-1">番号</div>
                         <textarea id="targetPhones" readonly rows="8" class="tw-input text-xs" style="font-family:monospace;" th:text="${targetPhonesText}"></textarea>

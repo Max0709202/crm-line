@@ -387,21 +387,6 @@
                 </div>
                 <textarea id="body" th:field="*{body}" placeholder="本文"></textarea>
 
-                <div class="sched-box" data-sched-box>
-                    <div class="sched-head">
-                        <span>予約送信</span>
-                        <span class="sched-status" data-sched-status>即時送信</span>
-                    </div>
-                    <div class="sched-row">
-                        <input type="datetime-local" th:field="*{scheduledAt}" data-sched-input/>
-                        <button type="button" class="chip" data-sched-quick="60">+1時間</button>
-                        <button type="button" class="chip" data-sched-quick="180">+3時間</button>
-                        <!-- 画像添付: uploads to HTML画像管理 and inserts the image's public URL into 本文. -->
-                        <button type="button" class="chip" id="btnComposeImage">画像添付</button>
-                        <input type="file" id="composeImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;"/>
-                    </div>
-                </div>
-
                 <div class="row">
                     <span th:if="${user.phoneNumber != null and !#strings.isEmpty(user.phoneNumber)}"
                           class="text-xs text-slate-500" th:text="${user.phoneNumber}"></span>
@@ -424,6 +409,21 @@
                             th:formaction="@{'/manager/users/' + ${user.id} + '/messages/line'}"
                             class="btn" style="background:#06C755;">LINE返信</button>
                     <button type="submit" class="btn ml-auto">返信</button>
+                </div>
+
+                <div class="sched-box" data-sched-box>
+                    <div class="sched-head">
+                        <span>予約送信</span>
+                        <span class="sched-status" data-sched-status>即時送信</span>
+                    </div>
+                    <div class="sched-row">
+                        <input type="datetime-local" th:field="*{scheduledAt}" data-sched-input/>
+                        <button type="button" class="chip" data-sched-quick="60">+1時間</button>
+                        <button type="button" class="chip" data-sched-quick="180">+3時間</button>
+                        <!-- 画像添付: uploads to HTML画像管理 and inserts the image's public URL into 本文. -->
+                        <button type="button" class="chip" id="btnComposeImage">画像添付</button>
+                        <input type="file" id="composeImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;"/>
+                    </div>
                 </div>
 
                 <!-- 個別メモ (admin-only, saved via separate AJAX endpoint) -->

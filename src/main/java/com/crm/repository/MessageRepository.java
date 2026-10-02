@@ -145,8 +145,9 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
     /**
      * Integrated history for /manager/messages/broadcast: every OUT message dispatched by
      * a broadcast PLUS every IN reply pointing back to one of those OUT messages. Result is
-     * paginated and ordered by createdAt DESC. Optional address filter matches either
-     * fromAddress or toAddress (LIKE, lower-cased — pass a pre-built pattern or null).
+     * paginated and ordered by createdAt DESC. Optional filter matches fromAddress, toAddress
+     * or the user's 表示名 (LIKE, lower-cased — pass a pre-built pattern or null).
+     * fromAddress stays in the match: on an IN reply it's the customer's own address.
      */
     @org.springframework.data.jpa.repository.Query(
             "SELECT m FROM Message m WHERE (" +
@@ -154,7 +155,8 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
             "    OR m.replyToMessageId IN (SELECT m2.id FROM Message m2 WHERE m2.broadcastId IS NOT NULL)" +
             ") AND (:addrLike IS NULL " +
             "       OR LOWER(m.toAddress) LIKE :addrLike " +
-            "       OR LOWER(m.fromAddress) LIKE :addrLike)" +
+            "       OR LOWER(m.fromAddress) LIKE :addrLike" +
+            "       OR m.userId IN (SELECT u.id FROM CrmUser u WHERE LOWER(u.displayName) LIKE :addrLike))" +
             "   AND (:channel IS NULL OR m.channel = :channel)")
     Page<Message> findBroadcastRelated(@org.springframework.data.repository.query.Param("addrLike") String addrLike,
                                        @org.springframework.data.repository.query.Param("channel") String channel,

@@ -77,6 +77,7 @@
                 <th class="px-3 py-2 text-left" style="width: 90px;">種別</th>
                 <th class="px-3 py-2 text-left" style="width: 120px;">番号</th>
                 <th class="px-3 py-2 text-left">メールアドレス</th>
+                <th class="px-3 py-2 text-left" style="width: 80px;">LINE No.</th>
                 <th class="px-3 py-2 text-left">表示名</th>
                 <th class="px-3 py-2 text-left">キャラ名</th>
                 <th class="px-3 py-2 text-left">フォルダ</th>
@@ -89,7 +90,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
             <tr th:if="${messages.totalElements == 0}">
-                <td colspan="13" class="px-3 py-6 text-center text-slate-400">該当するメッセージはありません</td>
+                <td colspan="14" class="px-3 py-6 text-center text-slate-400">該当するメッセージはありません</td>
             </tr>
             <tr th:each="m,it : ${messages.content}" class="hover:bg-slate-50">
                 <td class="px-3 py-2"><input type="checkbox" class="msg-row-item" name="ids" th:value="${m.id}"/></td>
@@ -117,10 +118,27 @@
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userPhones != null and userPhones.get(m.userId) != null} ? ${userPhones.get(m.userId)} : '-'"></td>
+                <!-- LINE-linked users have no email, so their "No.{id}" used to show here; it now has
+                     its own LINE No. column (2026-10-02 client request). Non-LINE users without an
+                     email (SMS-only) keep the No. fallback so the row still links to the user. -->
                 <td class="px-3 py-2 text-xs">
-                    <a class="text-blue-600 hover:underline whitespace-nowrap"
+                    <a th:if="${userEmails != null and userEmails.get(m.userId) != null}"
+                       class="text-blue-600 hover:underline whitespace-nowrap"
                        th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
-                       th:text="${userEmails != null and userEmails.get(m.userId) != null} ? ${userEmails.get(m.userId)} : ('No.' + ${m.userId})"></a>
+                       th:text="${userEmails.get(m.userId)}"></a>
+                    <a th:if="${(userEmails == null or userEmails.get(m.userId) == null) and !lineLinkedUserIds.contains(m.userId)}"
+                       class="text-blue-600 hover:underline whitespace-nowrap"
+                       th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                       th:text="'No.' + ${m.userId}"></a>
+                    <span th:if="${(userEmails == null or userEmails.get(m.userId) == null) and lineLinkedUserIds.contains(m.userId)}"
+                          class="text-slate-400">-</span>
+                </td>
+                <td class="px-3 py-2 text-xs whitespace-nowrap">
+                    <a th:if="${lineLinkedUserIds.contains(m.userId)}"
+                       class="text-blue-600 hover:underline"
+                       th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                       th:text="'No.' + ${m.userId}"></a>
+                    <span th:unless="${lineLinkedUserIds.contains(m.userId)}" class="text-slate-400">-</span>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userDisplayNames != null and userDisplayNames.get(m.userId) != null} ? ${userDisplayNames.get(m.userId)} : '-'"></td>

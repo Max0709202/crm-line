@@ -76,7 +76,7 @@ public class BroadcastController {
     /**
      * Integrated 一斉送信返信履歴 view: every OUT message dispatched by a broadcast,
      * together with every IN reply pointing back to one of those OUTs, merged in
-     * reverse-chronological order. Optional ?addr= filters by toAddress / fromAddress.
+     * reverse-chronological order. Optional ?addr= filters by toAddress / fromAddress / 表示名.
      * 100 rows per page (operator request).
      */
     @GetMapping
@@ -417,6 +417,9 @@ public class BroadcastController {
         java.util.List<com.crm.entity.CrmUser> targetUsers = targetUserIds.isEmpty()
                 ? java.util.Collections.emptyList() : userService.findAllByIds(targetUserIds);
         model.addAttribute("targetUsers", targetUsers);
+        model.addAttribute("targetIdsText", targetUsers.stream()
+                .map(u -> String.valueOf(u.getId()))
+                .collect(java.util.stream.Collectors.joining("\n")));
         model.addAttribute("targetPhonesText", targetUsers.stream()
                 .map(u -> u.getPhoneNumber() == null ? "-" : u.getPhoneNumber())
                 .collect(java.util.stream.Collectors.joining("\n")));

@@ -766,6 +766,16 @@ public class UserController {
         }
         model.addAttribute("schedulesById", schedulesById);
         model.addAttribute("userInfoById", buildUserInfoById(schedulesById.values()));
+        // キャラ名 column of the shared diff-step table (the -1 紐づきアカ sentinel is labelled in the template).
+        java.util.Set<Long> lineAccountIds = new java.util.HashSet<>();
+        for (com.crm.entity.DiffScheduleStep s : steps) {
+            if (s.getLineAccountId() != null && s.getLineAccountId() > 0) lineAccountIds.add(s.getLineAccountId());
+        }
+        java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
+        for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(lineAccountIds)) {
+            lineAccountNames.put(a.getId(), a.getName());
+        }
+        model.addAttribute("lineAccountNames", lineAccountNames);
         return "user/diff-schedules";
     }
 

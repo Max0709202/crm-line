@@ -111,6 +111,10 @@ public class MessageController {
         model.addAttribute("userDisplayNames", userDisplayNames);
         model.addAttribute("userAdCodes", userAdCodes);
         model.addAttribute("userFolders", userFolders);
+        // LINE No. column: users on this page who are linked to a LINE account.
+        model.addAttribute("lineLinkedUserIds", uids.isEmpty()
+                ? java.util.Collections.emptySet()
+                : new java.util.HashSet<>(lineUserRepository.findLinkedCrmUserIds(uids)));
         // キャラ名 column: LINE account (character) each LINE message was sent / received on.
         java.util.Set<Long> lineAccountIds = new java.util.HashSet<>();
         for (Message m : messages.getContent()) if (m.getLineAccountId() != null) lineAccountIds.add(m.getLineAccountId());

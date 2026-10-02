@@ -319,6 +319,16 @@ public class DiffScheduleController {
         model.addAttribute("results", results);
         model.addAttribute("schedulesById", schedulesById);
         model.addAttribute("userInfoById", buildUserInfoById(schedulesById.values()));
+        // キャラ名 column: LINE account name per step (the -1 紐づきアカ sentinel is labelled in the template).
+        java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
+        for (DiffScheduleStep step : results.getContent()) {
+            Long aid = step.getLineAccountId();
+            if (aid != null && aid > 0 && !lineAccountNames.containsKey(aid)) {
+                lineAccountNames.put(aid, lineAccountService.findById(aid)
+                        .map(com.crm.entity.LineAccount::getName).orElse(null));
+            }
+        }
+        model.addAttribute("lineAccountNames", lineAccountNames);
         model.addAttribute("status", status);
         model.addAttribute("targetType", targetType);
         model.addAttribute("diffDefinitionId", diffDefinitionId);

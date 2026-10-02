@@ -34,7 +34,7 @@
     </div>
 
     <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto" th:if="${steps != null and !steps.empty}">
-        <table th:replace="~{fragment/diff-step-table :: table(${steps}, ${schedulesById}, ${userInfoById}, ${indexOffset}, 'diffDelForm')}"></table>
+        <table th:replace="~{fragment/diff-step-table :: table(${steps}, ${schedulesById}, ${userInfoById}, ${lineAccountNames}, ${indexOffset}, 'diffDelForm')}"></table>
     </div>
 
     <nav class="mt-4" th:if="${totalPages > 1}">

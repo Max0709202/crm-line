@@ -16,24 +16,29 @@
                     everywhere: a diff MESSAGE step's FROM address isn't resolved until it
                     actually sends (BroadcastService picks it per-recipient from the carrier
                     pool at send time), so there's nothing real to show before that.
+    lineAccountNames — Map<Long, String> LINE account id → name, for キャラ名 (LINE steps only;
+                    id -1 = 紐づきアカ, resolved per recipient at send time)
     indexOffset   — int, added to each row's 1-based position for continuous No across pages
     checkboxForm  — id of the external <form> the row checkboxes submit into (select-delete),
                     or null/empty to omit the checkbox column entirely (public-facing screens)
 -->
-<table th:fragment="table(steps, schedulesById, userInfoById, indexOffset, checkboxForm)"
+<table th:fragment="table(steps, schedulesById, userInfoById, lineAccountNames, indexOffset, checkboxForm)"
        class="min-w-full divide-y divide-slate-200 text-sm">
     <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
     <tr>
         <th th:if="${checkboxForm != null and !checkboxForm.isEmpty()}" class="px-2 py-2 text-left" style="width:32px;">
             <input type="checkbox" class="diff-tbl-check-all" title="全選択"/>
         </th>
+        <!-- Column order per 2026-10-02 client request: ステップ → 種別 (moved to the front),
+             FROM dropped, 縛り対象 + キャラ名 added. 差分名 links to that diff's ステップ編集. -->
         <th class="px-2 py-2 text-left" style="width:44px;">No</th>
+        <th class="px-2 py-2 text-left">種別</th>
         <th class="px-2 py-2 text-left">対象</th>
         <th class="px-2 py-2 text-left">条件</th>
         <th class="px-2 py-2 text-left">差分名</th>
-        <th class="px-2 py-2 text-left">ステップ</th>
-        <th class="px-2 py-2 text-left">FROM</th>
+        <th class="px-2 py-2 text-left">縛り対象</th>
         <th class="px-2 py-2 text-left">表示名</th>
+        <th class="px-2 py-2 text-left">キャラ名</th>
         <th class="px-2 py-2 text-left">件名</th>
         <th class="px-2 py-2 text-left diff-tbl-body">本文</th>
         <th class="px-2 py-2 text-left">ステータス</th>
@@ -44,13 +49,21 @@
     </thead>
     <tbody class="divide-y divide-slate-100">
     <tr th:if="${steps == null or steps.empty}">
-        <td colspan="14" class="px-3 py-6 text-center text-slate-400">該当する差分スケジュールはありません</td>
+        <td colspan="15" class="px-3 py-6 text-center text-slate-400">該当する差分スケジュールはありません</td>
     </tr>
     <tr th:each="s, iter : ${steps}" class="hover:bg-slate-50" th:with="sched=${schedulesById.get(s.diffScheduleId)}">
         <td th:if="${checkboxForm != null and !checkboxForm.isEmpty()}" class="px-2 py-1.5">
             <input type="checkbox" class="diff-tbl-row-item" name="ids" th:value="${s.id}" th:attr="form=${checkboxForm}"/>
         </td>
         <td class="px-2 py-1.5 text-xs font-mono text-slate-500" th:text="${indexOffset + iter.index + 1}"></td>
+        <td class="px-2 py-1.5 text-xs whitespace-nowrap">
+            <span th:if="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'}"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                  th:classappend="${s.channel == 'SMS'} ? 'bg-yellow-100 text-yellow-800' : (${s.channel == 'LINE'} ? '' : 'bg-blue-100 text-blue-700')"
+                  th:style="${s.channel == 'LINE'} ? 'background:#d9f7e6;color:#046c3a;' : null"
+                  th:text="(${s.channel == 'SMS'} ? 'SMS' : (${s.channel == 'LINE'} ? 'LINE' : 'メール')) + (${s.stepType == 'MESSAGE_IMAGE'} ? '・画像付き' : '')"></span>
+            <span th:if="${s.stepType == 'HTML_SWITCH'}" th:text="'HTML切替→スロット' + ${s.memoSlotSnapshot}"></span>
+        </td>
         <td class="px-2 py-1.5 text-xs" th:if="${sched != null}">
             <a class="font-mono text-blue-600 hover:underline"
                th:href="@{/manager/users(ids=${sched.targetUserIds})}"
@@ -60,21 +73,26 @@
         <td class="px-2 py-1.5 text-xs text-slate-600" th:if="${sched != null}">
             <span th:if="${sched.targetType == 'PHONE'}">番号縛り</span>
             <span th:if="${sched.targetType == 'EMAIL'}">アドレス縛り</span>
-            <span th:if="${sched.targetType == 'FOLDER'}" th:text="'フォルダ: ' + ${sched.targetValue}"></span>
+            <span th:if="${sched.targetType == 'FOLDER'}">フォルダ縛り</span>
             <span th:if="${sched.targetType == 'LINE_NAME'}">LINE名前縛り</span>
             <span th:if="${sched.targetType == 'REGISTER'}">新規登録(自動)</span>
         </td>
         <td class="px-2 py-1.5 text-xs text-slate-400" th:if="${sched == null}">-</td>
-        <td class="px-2 py-1.5 text-slate-700" th:text="${sched != null ? sched.diffNameSnapshot : '-'}"></td>
-        <td class="px-2 py-1.5 text-xs">
-            <span th:if="${s.stepType == 'MESSAGE'}" th:text="'送信(' + ${s.channel} + ')'"
-                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                  th:classappend="${s.channel == 'SMS'} ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-700'"></span>
-            <span th:if="${s.stepType == 'HTML_SWITCH'}" th:text="'HTML切替→スロット' + ${s.memoSlotSnapshot}"></span>
+        <td class="px-2 py-1.5 text-slate-700">
+            <a th:if="${sched != null and sched.diffDefinitionId != null}"
+               class="text-blue-600 hover:underline" title="ステップ編集を開く"
+               th:href="@{'/manager/settings/diff-schedule/definitions/' + ${sched.diffDefinitionId} + '/steps'}"
+               th:text="${sched.diffNameSnapshot}"></a>
+            <span th:unless="${sched != null and sched.diffDefinitionId != null}"
+                  th:text="${sched != null ? sched.diffNameSnapshot : '-'}"></span>
         </td>
-        <td class="px-2 py-1.5 text-xs text-slate-400">-</td>
+        <td class="px-2 py-1.5 text-xs text-slate-600 truncate" style="max-width:180px;"
+            th:with="tv=${sched != null and sched.targetType != 'REGISTER' and sched.targetValue != null and !#strings.isEmpty(sched.targetValue)} ? ${sched.targetValue} : '-'"
+            th:text="${tv}" th:title="${tv}"></td>
         <td class="px-2 py-1.5 text-xs text-slate-600"
             th:text="${userInfoById != null and sched != null and userInfoById.get(sched.id) != null} ? ${userInfoById.get(sched.id).get('displayName')} : '-'"></td>
+        <td class="px-2 py-1.5 text-xs text-slate-600 whitespace-nowrap"
+            th:text="${s.channel != 'LINE' or s.lineAccountId == null} ? '-' : (${s.lineAccountId == -1} ? '紐づきアカ' : (${lineAccountNames != null and lineAccountNames.get(s.lineAccountId) != null} ? ${lineAccountNames.get(s.lineAccountId)} : '-'))"></td>
         <td class="px-2 py-1.5 text-xs text-slate-600" th:text="${s.subjectSnapshot} ?: '-'"></td>
         <td class="px-2 py-1.5 diff-tbl-body">
             <div class="diff-tbl-body-text" th:text="${s.bodySnapshot} ?: '-'"></div>

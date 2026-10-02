@@ -28,15 +28,21 @@ public class DashboardController {
     private final CrmUserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final com.crm.service.LineAccountService lineAccountService;
+    private final com.crm.repository.LineUserRepository lineUserRepository;
+    private final com.crm.repository.LineAccountRepository lineAccountRepository;
 
     public DashboardController(DashboardService dashboardService,
                                CrmUserRepository userRepository,
                                ObjectMapper objectMapper,
-                               com.crm.service.LineAccountService lineAccountService) {
+                               com.crm.service.LineAccountService lineAccountService,
+                               com.crm.repository.LineUserRepository lineUserRepository,
+                               com.crm.repository.LineAccountRepository lineAccountRepository) {
         this.dashboardService = dashboardService;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
         this.lineAccountService = lineAccountService;
+        this.lineUserRepository = lineUserRepository;
+        this.lineAccountRepository = lineAccountRepository;
     }
 
     @GetMapping({"", "/", "/dashboard"})
@@ -153,18 +159,44 @@ public class DashboardController {
             model.addAttribute("lineTotalForScope", stats.getTotalLineSent());
         }
 
-        // userId → display label for the bottom "直近のメッセージ" table
-        Map<Long, String> userLabels = new HashMap<>();
+        // Bottom "直近のメッセージ" table — same columns as 個別メッセージ管理 (/manager/messages),
+        // so the same per-user lookups as MessageController#list.
+        Map<Long, String> userEmails       = new HashMap<>();
+        Map<Long, String> userPhones       = new HashMap<>();
+        Map<Long, String> userDisplayNames = new HashMap<>();
+        Map<Long, String> userFolders      = new HashMap<>();
+        java.util.Set<Long> lineLinkedUserIds = new java.util.HashSet<>();
+        Map<Long, String> lineAccountNames = new HashMap<>();
         if (stats.getRecentMessages() != null && !stats.getRecentMessages().isEmpty()) {
             List<Long> ids = stats.getRecentMessages().stream()
-                    .map(m -> m.getUserId()).distinct().collect(Collectors.toList());
-            for (CrmUser u : userRepository.findAllById(ids)) {
-                String label = (u.getDisplayName() != null && !u.getDisplayName().isEmpty())
-                        ? u.getDisplayName() : u.getEmail();
-                userLabels.put(u.getId(), label);
+                    .map(m -> m.getUserId()).filter(java.util.Objects::nonNull)
+                    .distinct().collect(Collectors.toList());
+            if (!ids.isEmpty()) {
+                for (CrmUser u : userRepository.findAllById(ids)) {
+                    userEmails.put(u.getId(), u.getEmail());
+                    if (u.getPhoneNumber() != null) userPhones.put(u.getId(), u.getPhoneNumber());
+                    if (u.getDisplayName() != null && !u.getDisplayName().isEmpty()) {
+                        userDisplayNames.put(u.getId(), u.getDisplayName());
+                    }
+                    if (u.getFolder() != null) userFolders.put(u.getId(), u.getFolder());
+                }
+                lineLinkedUserIds.addAll(lineUserRepository.findLinkedCrmUserIds(ids));
+            }
+            List<Long> accountIds = stats.getRecentMessages().stream()
+                    .map(m -> m.getLineAccountId()).filter(java.util.Objects::nonNull)
+                    .distinct().collect(Collectors.toList());
+            if (!accountIds.isEmpty()) {
+                for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(accountIds)) {
+                    lineAccountNames.put(a.getId(), a.getName());
+                }
             }
         }
-        model.addAttribute("userLabels", userLabels);
+        model.addAttribute("userEmails", userEmails);
+        model.addAttribute("userPhones", userPhones);
+        model.addAttribute("userDisplayNames", userDisplayNames);
+        model.addAttribute("userFolders", userFolders);
+        model.addAttribute("lineLinkedUserIds", lineLinkedUserIds);
+        model.addAttribute("lineAccountNames", lineAccountNames);
         return "dashboard";
     }
 

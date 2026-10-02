@@ -63,7 +63,7 @@
     <form id="diffHistoryDeleteForm" method="post" th:action="@{/manager/settings/diff-schedule/history/delete}"></form>
 
     <div class="bg-white rounded-lg shadow-sm border border-slate-100 overflow-x-auto">
-        <table th:replace="~{fragment/diff-step-table :: table(${results.content}, ${schedulesById}, ${userInfoById}, ${results.number * results.size}, 'diffHistoryDeleteForm')}"></table>
+        <table th:replace="~{fragment/diff-step-table :: table(${results.content}, ${schedulesById}, ${userInfoById}, ${lineAccountNames}, ${results.number * results.size}, 'diffHistoryDeleteForm')}"></table>
     </div>
 
     <nav class="mt-4" th:if="${results.totalPages > 1}">
