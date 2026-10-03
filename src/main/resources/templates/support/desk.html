@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+<title>サポート窓口</title>
+<style>
+  main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; }
+  .sdw { color: #334155; background: #f8fafc; font-size: 13px; line-height: 1.5; height: 100vh; }
+  .sdw [hidden] { display: none !important; }
+  .sdw button, .sdw input, .sdw textarea, .sdw select { font: inherit; color: inherit; }
+  .sdw .card { background: #fff; border: 1px solid #f1f5f9; border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, .05); }
+  .sdw .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 14px;
+    font-size: 13px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+    text-decoration: none; transition: background-color .12s, border-color .12s;
+  }
+  .sdw .btn-primary { color: #fff; background: #2563eb; }
+  .sdw .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+  .sdw .btn-outline { color: #475569; background: #fff; border-color: #cbd5e1; }
+  .sdw .btn-outline:hover:not(:disabled) { background: #f8fafc; }
+  .sdw .btn-danger { color: #fff; background: #dc2626; }
+  .sdw .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+  .sdw .btn:disabled { color: #fff; background: #cbd5e1; border-color: transparent; cursor: not-allowed; }
+  .sdw .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .sdw .input {
+    width: 100%; box-sizing: border-box; padding: 6px 10px; font-size: 13px; color: #1e293b;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+  }
+  .sdw .input:focus, .sdw .btn:focus-visible, .sdw .chk:focus-visible { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .2); }
+  .sdw .chk { width: 14px; height: 14px; margin: 0; accent-color: #2563eb; cursor: pointer; }
+
+  .sdw .ch { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; white-space: nowrap; border-radius: 4px; }
+  .sdw .ch::before { content: ""; width: 12px; height: 12px; background: currentColor; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
+  .sdw .ch-mail { color: #1d4ed8; background: #eff6ff; --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Crect x='1.5' y='3' width='13' height='10' rx='1.5'/%3E%3Cpath d='m2 4 6 5 6-5'/%3E%3C/svg%3E"); }
+  .sdw .ch-web  { color: #6d28d9; background: #f5f3ff; --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Crect x='1.5' y='2' width='13' height='12' rx='1.5'/%3E%3Cpath d='M1.5 5.5h13M4.5 8.5h7M4.5 11h4'/%3E%3C/svg%3E"); }
+
+  .sdw .st { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; white-space: nowrap; }
+  .sdw .st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+  .sdw .st-open { font-weight: 700; color: #b45309; }
+  .sdw .st-open::before { background: #f59e0b; }
+  .sdw .st-done { color: #64748b; }
+  .sdw .st-done::before { background: #cbd5e1; }
+
+  .sdw .sd { display: flex; flex-direction: column; height: 100vh; padding: 12px 16px 16px; box-sizing: border-box; gap: 12px; }
+  .sdw .sd-head { display: flex; align-items: center; gap: 14px; flex: none; }
+  .sdw .sd-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: #1e293b; }
+  .sdw .sd-addr { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; }
+  .sdw .sd-addr b { font-weight: 600; color: #1e293b; }
+  .sdw .sd-addr.is-unset b { color: #dc2626; }
+  .sdw .sd-head .btn { margin-left: auto; }
+
+  .sdw .sd-tabs { flex: none; display: flex; align-items: stretch; overflow: hidden; }
+  .sdw .sd-tab {
+    appearance: none; display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px; font-size: 13px; color: #475569;
+    background: none; border: 0; border-right: 1px solid #f1f5f9; border-bottom: 2px solid transparent; cursor: pointer;
+  }
+  .sdw .sd-tab:hover { background: #f8fafc; }
+  .sdw .sd-tab[aria-selected="true"] { color: #1d4ed8; font-weight: 700; background: #eff6ff; border-bottom-color: #3b82f6; }
+  .sdw .sd-tab .n { font-size: 11.5px; font-weight: 400; color: #94a3b8; }
+  .sdw .sd-tab .ch { pointer-events: none; }
+  .sdw .sd-tabs-right { display: flex; align-items: center; gap: 14px; margin-left: auto; padding: 0 14px; }
+  .sdw .sd-pending { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #475569; cursor: pointer; white-space: nowrap; }
+  .sdw .sd-pending .cnt { padding: 0 6px; font-size: 11px; font-weight: 700; line-height: 17px; color: #fff; background: #f59e0b; border-radius: 9px; }
+
+  .sdw .sd-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(460px, 1fr) minmax(480px, 1.1fr) 310px; gap: 12px; }
+  .sdw .sd-main > .card { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  .sdw .card-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
+  .sdw .card-title { font-size: 14px; font-weight: 700; color: #1e293b; white-space: nowrap; }
+  .sdw .card-sub { font-size: 11.5px; color: #94a3b8; white-space: nowrap; }
+
+  .sdw .log-search { position: relative; margin-left: auto; width: 210px; }
+  .sdw .log-search .input { padding-left: 28px; font-size: 12.5px; }
+  .sdw .log-search::before {
+    content: ""; position: absolute; left: 9px; top: 50%; width: 13px; height: 13px; transform: translateY(-50%);
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='m10.5 10.5 3 3'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  .sdw .log-scroll { flex: 1; min-height: 0; overflow: auto; }
+  .sdw .log-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+  .sdw .log-table th {
+    position: sticky; top: 0; z-index: 1; padding: 7px 10px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-align: left;
+    color: #64748b; white-space: nowrap; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+  }
+  .sdw .log-table td { padding: 7px 10px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; }
+  .sdw .log-table .c-chk { width: 1%; padding-left: 14px; padding-right: 4px; }
+  .sdw .log-table .c-ch { width: 1%; }
+  .sdw .log-table .c-time { width: 1%; white-space: nowrap; }
+  .sdw .c-time .t { display: block; color: #475569; font-variant-numeric: tabular-nums; }
+  .sdw .c-time .st { margin-top: 1px; }
+  .sdw .log-row { cursor: pointer; }
+  .sdw .log-row:hover td { background: #f8fafc; }
+  .sdw .log-row.is-checked td { background: #f1f5f9; }
+  .sdw .log-row.is-current td { background: #eff6ff; }
+  .sdw .log-row.is-current td:first-child { box-shadow: inset 3px 0 0 #3b82f6; }
+  .sdw .who { max-width: 150px; }
+  .sdw .who b, .sdw .subj b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sdw .who b { font-weight: 600; color: #1e293b; }
+  .sdw .who small, .sdw .subj small { display: block; overflow: hidden; font-size: 11px; color: #94a3b8; text-overflow: ellipsis; white-space: nowrap; }
+  .sdw .subj { max-width: 1px; width: 100%; }
+  .sdw .subj b { font-weight: 500; color: #334155; }
+  .sdw .log-row.is-open .subj b { font-weight: 700; color: #1e293b; }
+  .sdw .log-empty td { padding: 40px 10px; text-align: center; color: #94a3b8; cursor: default; }
+
+  .sdw .card-foot {
+    flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 9px 14px;
+    background: #f8fafc; border-top: 1px solid #f1f5f9;
+  }
+  .sdw .sel-count { font-size: 12px; font-weight: 600; color: #1d4ed8; white-space: nowrap; }
+  .sdw .pager { display: flex; align-items: center; gap: 3px; margin-left: auto; }
+  .sdw .pager .range { margin-right: 6px; font-size: 12px; color: #64748b; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .sdw .pg {
+    min-width: 28px; height: 28px; padding: 0 8px; font-size: 12px; color: #475569; background: #fff;
+    border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; font-variant-numeric: tabular-nums;
+  }
+  .sdw .pg:hover:not(:disabled):not([aria-current]) { background: #f1f5f9; }
+  .sdw .pg[aria-current="page"] { color: #fff; font-weight: 700; background: #2563eb; border-color: #2563eb; cursor: default; }
+  .sdw .pg:disabled { color: #cbd5e1; cursor: default; }
+
+  .sdw .work-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #94a3b8; font-size: 13px; text-align: center; }
+  .sdw .work-empty b { font-size: 14px; color: #64748b; }
+  .sdw .work-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .sdw .inq-head { flex: none; padding: 12px 16px 10px; border-bottom: 1px solid #f1f5f9; }
+  .sdw .inq-title { display: flex; align-items: center; gap: 8px; }
+  .sdw .inq-title h2 { flex: 1; min-width: 0; margin: 0; overflow: hidden; font-size: 15.5px; font-weight: 700; color: #1e293b; text-overflow: ellipsis; white-space: nowrap; }
+  .sdw .inq-meta { display: flex; flex-wrap: wrap; gap: 3px 16px; margin-top: 7px; font-size: 12px; color: #64748b; }
+  .sdw .inq-meta b { font-weight: 600; color: #334155; }
+  .sdw .inq-meta a { color: #2563eb; text-decoration: none; }
+  .sdw .inq-meta a:hover { text-decoration: underline; }
+  .sdw .inq-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 8px 0 0; overflow: hidden; background: #ede9fe; border: 1px solid #ede9fe; border-radius: 6px; }
+  .sdw .inq-form > div { padding: 4px 9px; background: #faf9ff; }
+  .sdw .inq-form dt { font-size: 10.5px; color: #8b7fc4; }
+  .sdw .inq-form dd { margin: 0; font-size: 12.5px; font-weight: 600; color: #334155; }
+  .sdw .inq-thread { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; background: #fbfcfd; }
+  .sdw .msg { margin-bottom: 10px; padding: 9px 12px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+  .sdw .msg.is-reply { margin-left: 28px; background: #f5f9ff; border-color: #dbeafe; box-shadow: inset 3px 0 0 #93c5fd; }
+  .sdw .msg-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11.5px; color: #94a3b8; }
+  .sdw .msg-meta b { font-weight: 700; color: #475569; }
+  .sdw .msg-meta time { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .sdw .msg-subj { margin-bottom: 3px; font-size: 13px; font-weight: 700; color: #1e293b; }
+  .sdw .msg-body { font-size: 12.5px; line-height: 1.7; color: #334155; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  .sdw .bulk-head { flex: none; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: #eff6ff; }
+  .sdw .bulk-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: #1d4ed8; }
+  .sdw .bulk-head p { margin: 2px 0 8px; font-size: 12px; color: #475569; }
+  .sdw .bulk-list { display: flex; flex-wrap: wrap; gap: 5px; max-height: 92px; overflow: auto; }
+  .sdw .rcpt { display: inline-flex; align-items: center; gap: 5px; padding: 2px 4px 2px 6px; font-size: 12px; background: #fff; border: 1px solid #bfdbfe; border-radius: 6px; }
+  .sdw .rcpt button { width: 18px; height: 18px; padding: 0; font-size: 13px; line-height: 1; color: #94a3b8; background: none; border: 0; border-radius: 50%; cursor: pointer; }
+  .sdw .rcpt button:hover { color: #dc2626; background: #fee2e2; }
+  .sdw .work-view.is-bulk .reply { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 0; }
+  .sdw .work-view.is-bulk #replyBody { flex: 1; height: auto; }
+
+  .sdw .reply { flex: none; padding: 12px 16px 14px; border-top: 1px solid #e2e8f0; background: #fff; }
+  .sdw .reply-to { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: #64748b; }
+  .sdw .reply-to b { font-weight: 600; color: #1e293b; }
+  .sdw .reply .input + .input { margin-top: 6px; }
+  .sdw #replyBody { height: 120px; min-height: 80px; resize: vertical; line-height: 1.65; }
+
+  .sdw .tags { margin-top: 8px; padding: 8px 10px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px; }
+  .sdw .tags-row { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 8px; align-items: start; }
+  .sdw .tags-row + .tags-row { margin-top: 7px; padding-top: 7px; border-top: 1px dashed #e2e8f0; }
+  .sdw .tags-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; }
+  .sdw .tags-label { padding-top: 1px; font-size: 11px; font-weight: 700; line-height: 1.35; color: #475569; }
+  .sdw .tags-label small { display: block; font-size: 10px; font-weight: 400; color: #94a3b8; }
+  .sdw .tag {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; font-size: 11.5px; color: #475569;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  }
+  .sdw .tag:hover { border-color: #93c5fd; background: #eff6ff; }
+  .sdw .tag code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; color: #1d4ed8; }
+  .sdw .tag-val { display: inline-flex; align-items: center; gap: 0; }
+  .sdw .tag-val .tag { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .sdw .tag-val input {
+    width: 96px; padding: 2px 7px; font-size: 11.5px; color: #1e293b; background: #fff;
+    border: 1px solid #e2e8f0; border-left: 0; border-radius: 0 6px 6px 0;
+  }
+  .sdw .tag-val input:focus { outline: none; border-color: #93c5fd; }
+
+  .sdw .reply-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .sdw .reply-foot .count { font-size: 11.5px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+  .sdw .reply-foot label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; cursor: pointer; }
+  .sdw .reply-foot .btn-primary { margin-left: auto; padding: 7px 22px; }
+
+  .sdw .tpl-hint { margin: 0 2px 8px; font-size: 11px; color: #94a3b8; }
+  .sdw .tpl-scroll { flex: 1; min-height: 0; overflow: auto; padding: 10px 10px 4px; background: #fbfcfd; }
+  .sdw .tpl {
+    position: relative; margin-bottom: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .sdw .tpl:hover { border-color: #93c5fd; box-shadow: 0 1px 3px rgba(37, 99, 235, .08); }
+  .sdw .tpl-main { display: block; width: 100%; padding: 8px 34px 9px 10px; text-align: left; background: none; border: 0; border-radius: 8px; cursor: pointer; }
+  .sdw .tpl-main:focus-visible { outline: 2px solid #3b82f6; outline-offset: -2px; }
+  .sdw .tpl-top { display: flex; align-items: center; gap: 7px; }
+  .sdw .tpl-no {
+    flex: none; min-width: 20px; padding: 0 4px; font-size: 10.5px; font-weight: 700; line-height: 18px; text-align: center;
+    color: #2563eb; background: #eff6ff; border-radius: 4px; font-variant-numeric: tabular-nums;
+  }
+  .sdw .tpl-title { overflow: hidden; font-size: 13px; font-weight: 700; color: #1e293b; text-overflow: ellipsis; white-space: nowrap; }
+  .sdw .tpl-title.is-blank { font-weight: 400; color: #94a3b8; }
+  .sdw .tpl-prev {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 4px;
+    font-size: 11.5px; line-height: 1.55; color: #64748b; overflow-wrap: anywhere;
+  }
+  .sdw .tpl-prev.is-blank { color: #cbd5e1; }
+  .sdw .tpl-edit-btn {
+    position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; padding: 0; color: #94a3b8;
+    background: none; border: 0; border-radius: 5px; cursor: pointer;
+  }
+  .sdw .tpl-edit-btn::before {
+    content: ""; display: block; width: 14px; height: 14px; margin: auto; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M10.5 2.5l3 3L6 13H3v-3z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M10.5 2.5l3 3L6 13H3v-3z'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  .sdw .tpl-edit-btn:hover { color: #2563eb; background: #eff6ff; }
+  .sdw .tpl.is-inserted { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .15); }
+  .sdw .tpl-flash {
+    position: absolute; right: 34px; top: 7px; padding: 0 8px; font-size: 11px; font-weight: 700; line-height: 18px; color: #fff;
+    background: #16a34a; border-radius: 9px; opacity: 0; transition: opacity .15s; pointer-events: none;
+  }
+  .sdw .tpl.is-inserted .tpl-flash { opacity: 1; }
+  .sdw .tpl-form { padding: 9px 10px 10px; }
+  .sdw .tpl-form .input { font-size: 12.5px; }
+  .sdw .tpl-form textarea.input { height: 130px; margin-top: 6px; resize: vertical; line-height: 1.6; }
+  .sdw .tpl-form-btns { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+  .sdw .tpl-form-btns .del { margin-left: auto; padding: 0; font-size: 11.5px; color: #94a3b8; background: none; border: 0; cursor: pointer; }
+  .sdw .tpl-form-btns .del:hover { color: #dc2626; text-decoration: underline; }
+  .sdw .tpl.is-editing { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .15); }
+  .sdw .tpl-add {
+    display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin: 2px 0 8px; padding: 9px;
+    font-size: 12.5px; font-weight: 700; color: #2563eb; background: #fff; border: 1.5px dashed #93c5fd; border-radius: 8px; cursor: pointer;
+  }
+  .sdw .tpl-add:hover { background: #eff6ff; }
+
+  .sdw .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 50; max-width: 90vw; padding: 9px 18px; font-size: 12.5px; color: #fff;
+    background: rgba(30, 41, 59, .94); border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, .2);
+    transform: translateX(-50%); transition: opacity .2s, transform .2s;
+  }
+  .sdw .toast.is-hide { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
+
+  @media (max-width: 1400px) {
+    .sdw .sd-main { grid-template-columns: minmax(380px, 1fr) minmax(400px, 1.05fr) 270px; }
+    .sdw .who { max-width: 118px; }
+    .sdw .sd-tab { padding: 10px 14px; }
+    .sdw .tags-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  }
+  @media (max-height: 860px) {
+    .sdw #replyBody { height: 88px; }
+    .sdw .tags { padding: 6px 8px; }
+    .sdw .tags-label small { display: none; }
+    .sdw .tags-row + .tags-row { margin-top: 5px; padding-top: 5px; }
+    .sdw .reply { padding-top: 10px; padding-bottom: 10px; }
+    .sdw .reply-foot { margin-top: 8px; }
+  }
+</style>
+</head>
+<body>
+<section layout:fragment="content">
+<div class="sdw">
+<div class="sd">
+
+  <header class="sd-head">
+    <h1>サポート窓口</h1>
+    <span class="sd-addr" th:classappend="${supportAddress == null} ? 'is-unset'">受付アドレス
+      <b th:text="${supportAddress} ?: '未設定（ドメイン設定の返信URLを設定してください）'">support@example.jp</b></span>
+    <button type="button" class="btn btn-outline btn-sm" onclick="location.reload()">更新</button>
+  </header>
+
+  <nav class="card sd-tabs" role="tablist" aria-label="受付経路">
+    <button type="button" class="sd-tab" role="tab" data-ch="all">すべて <span class="n" id="cntAll"></span></button>
+    <button type="button" class="sd-tab" role="tab" data-ch="mail"><span class="ch ch-mail">メールアドレス</span>ユーザーから本ドメインへ直接 <span class="n" id="cntMail"></span></button>
+    <button type="button" class="sd-tab" role="tab" data-ch="web"><span class="ch ch-web">WEBフォーム</span>サイト内の問い合わせフォーム <span class="n" id="cntWeb"></span></button>
+    <div class="sd-tabs-right">
+      <label class="sd-pending"><input type="checkbox" class="chk" id="onlyOpen"/>未対応のみ <span class="cnt" id="cntOpen"></span></label>
+    </div>
+  </nav>
+
+  <div class="sd-main">
+
+    <section class="card" aria-label="サポートログ">
+      <div class="card-head">
+        <span class="card-title">サポートログ</span>
+        <span class="card-sub">新しい順・1ページ50件</span>
+        <div class="log-search"><input type="search" class="input" id="logSearch" placeholder="名前・メール・件名・本文"/></div>
+      </div>
+      <div class="log-scroll" id="logScroll">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th class="c-chk"><input type="checkbox" class="chk" id="checkAll" title="このページを全選択"/></th>
+              <th class="c-ch">経路</th>
+              <th>差出人</th>
+              <th>件名</th>
+              <th class="c-time">受信日時・状態</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+      <div class="card-foot">
+        <span class="sel-count" id="selCount"></span>
+        <button type="button" class="btn btn-primary btn-sm" id="btnBulkReply" disabled>選択一斉返信</button>
+        <button type="button" class="btn btn-danger btn-sm" id="btnBulkDelete" disabled>選択削除</button>
+        <div class="pager"><span class="range" id="logRange"></span><span id="logPages"></span></div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="問い合わせと返信">
+      <div class="work-empty" id="workEmpty">
+        <b>問い合わせを選んでください</b>
+        左のサポートログをクリックすると内容と返信欄が表示されます。<br>
+        チェックを入れて「選択一斉返信」で、まとめて返信できます。
+      </div>
+
+      <div class="work-view" id="workView" hidden>
+        <div class="inq-head" id="inqHead"></div>
+        <div class="inq-thread" id="inqThread"></div>
+
+        <div class="bulk-head" id="bulkHead" hidden>
+          <h2 id="bulkTitle"></h2>
+          <p>同じ内容を、選んだ問い合わせへまとめて返信します。<code>%name%</code> などのタグは宛先ごとに差し替えて送信されます。</p>
+          <div class="bulk-list" id="bulkList"></div>
+        </div>
+
+        <form class="reply" id="replyForm" method="post" action="/manager/support/reply">
+          <div class="reply-to" id="replyTo"></div>
+          <input type="text" class="input" id="replySubject" name="subject" maxlength="500" placeholder="件名（空欄なら「Re: 元の件名」）"/>
+          <textarea class="input" id="replyBody" name="body" placeholder="本文（右の定型文・下のタグをクリックで挿入）"></textarea>
+
+          <div class="tags">
+            <div class="tags-row">
+              <span class="tags-label">デフォルトの置き換えタグ<small>メッセージ送信時に自動的に差し替えられます。編集不可。</small></span>
+              <div class="tags-chips">
+              <button type="button" class="tag" data-token="%name%"><code>%name%</code>表示名</button>
+              <button type="button" class="tag" data-token="%email%"><code>%email%</code>メールアドレス</button>
+              <button type="button" class="tag" data-token="%date_jp%"><code>%date_jp%</code>当日の日付（例: 2026年4月19日）</button>
+              </div>
+            </div>
+            <div class="tags-row">
+              <span class="tags-label">置き換えタグ<small>右の欄に入れた値に差し替えられます。</small></span>
+              <div class="tags-chips">
+              <span class="tag-val"><button type="button" class="tag" data-token="%amount%"><code>%amount%</code></button><input type="text" data-tag="amount" maxlength="255" placeholder="例: 1,200円"/></span>
+              <span class="tag-val"><button type="button" class="tag" data-token="%product%"><code>%product%</code></button><input type="text" data-tag="product" maxlength="255" placeholder="例: ご注文商品"/></span>
+              <span class="tag-val"><button type="button" class="tag" data-token="%full_address%"><code>%full_address%</code></button><input type="text" data-tag="fullAddress" maxlength="500" placeholder="例: 東京都…"/></span>
+              <span class="tag-val"><button type="button" class="tag" data-token="%date_jp%"><code>%date_jp%</code></button><input type="text" data-tag="dateJp" maxlength="100" placeholder="空欄なら送信日"/></span>
+              <button type="button" class="btn btn-outline btn-sm" id="btnTagSave">値を保存</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="reply-foot">
+            <span class="count" id="replyCount">0文字</span>
+            <label><input type="checkbox" class="chk" id="markDone" checked/>送信後に「対応済」にする</label>
+            <button type="submit" class="btn btn-primary" id="btnSend">返信する</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <aside class="card" aria-label="定型文">
+      <div class="card-head">
+        <span class="card-title">定型文</span>
+        <span class="card-sub" id="tplCount"></span>
+        <button type="button" class="btn btn-outline btn-sm" id="tplAddTop" style="margin-left:auto">＋ 追加</button>
+      </div>
+      <div class="tpl-scroll" id="tplScroll">
+        <div class="tpl-hint">クリックで本文に挿入／✎ で編集・保存</div>
+        <div id="tplList"></div>
+        <button type="button" class="tpl-add" id="tplAdd">＋ 定型文を追加</button>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<div class="toast is-hide" id="toast" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="sdInquiries" th:utext="${inquiriesJson}">[]</script>
+<script type="application/json" id="sdTemplates" th:utext="${templatesJson}">[]</script>
+<script type="application/json" id="sdTagVals" th:utext="${tagValsJson}">{}</script>
+
+<script th:inline="javascript">
+(function () {
+    'use strict';
+
+    var PAGE_SIZE = 50;
+    var DEFAULT_TEMPLATES = /*[[${defaultTemplates}]]*/ 10;
+    var STAFF_NAME = /*[[${staffName}]]*/ '';
+    var SUPPORT_ADDRESS = /*[[${supportAddress}]]*/ '';
+    var API = {
+        reply: '/manager/support/reply',
+        bulkDelete: '/manager/support/bulk-delete',
+        status: '/manager/support/status',
+        templateSave: '/manager/support/templates',
+        templateDelete: '/manager/support/templates/delete',
+        tagSave: '/manager/support/tags'
+    };
+
+    var $ = function (id) { return document.getElementById(id); };
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function parse(iso) { var p = iso.split(/[-T:]/).map(Number); return new Date(p[0], p[1] - 1, p[2], p[3] || 0, p[4] || 0); }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function short(iso) { var d = parse(iso); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()); }
+    function full(iso) { var d = parse(iso); return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()); }
+    function todayJp() { var d = new Date(); return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日'; }
+    function post(url, fields) {
+        var fd = new FormData();
+        Object.keys(fields).forEach(function (k) {
+            [].concat(fields[k]).forEach(function (v) { if (v != null) fd.append(k, v); });
+        });
+        return fetch(url, { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) {
+                if (r.redirected && /\/manager\/login/.test(r.url)) throw new Error('ログインの有効期限が切れました。再読み込みしてください');
+                return r.json().catch(function () { return {}; }).then(function (j) {
+                    if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status));
+                    return j;
+                });
+            });
+    }
+    var toastTimer = null;
+    function toast(msg) {
+        var t = $('toast');
+        t.textContent = msg;
+        t.classList.remove('is-hide');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { t.classList.add('is-hide'); }, 2800);
+    }
+
+    var inquiries = JSON.parse($('sdInquiries').textContent || '[]');
+    var byId = {};
+    inquiries.forEach(function (q) { q.replies = q.replies || []; byId[q.id] = q; });
+    var templates = JSON.parse($('sdTemplates').textContent || '[]');
+    var tagVals = JSON.parse($('sdTagVals').textContent || '{}');
+
+    var CH = { mail: { label: 'EC宛メール', cls: 'ch-mail', short: 'メール' }, web: { label: 'WEBフォーム', cls: 'ch-web', short: 'WEB' } };
+
+    var state = { ch: 'all', onlyOpen: false, q: '', page: 1, checked: new Set(), current: null, mode: 'empty', bulk: [] };
+    var drafts = {};
+
+    function filtered() {
+        var q = state.q.trim().toLowerCase();
+        return inquiries.filter(function (x) {
+            if (state.ch !== 'all' && x.channel !== state.ch) return false;
+            if (state.onlyOpen && x.status !== 'open') return false;
+            if (q && (x.name + ' ' + x.email + ' ' + x.subject + ' ' + x.body).toLowerCase().indexOf(q) === -1) return false;
+            return true;
+        }).sort(function (a, b) { return a.receivedAt < b.receivedAt ? 1 : (a.receivedAt > b.receivedAt ? -1 : Number(b.id) - Number(a.id)); });
+    }
+    function pageNumbers(cur, total) {
+        var set = {};
+        [1, total, cur - 1, cur, cur + 1].forEach(function (p) { if (p >= 1 && p <= total) set[p] = 1; });
+        var list = Object.keys(set).map(Number).sort(function (a, b) { return a - b; }), out = [];
+        list.forEach(function (p, i) { if (i && p - list[i - 1] > 1) out.push(0); out.push(p); });
+        return out;
+    }
+    var pageRows = [];
+
+    function renderLog() {
+        var inCh = function (x) { return state.ch === 'all' || x.channel === state.ch; };
+        $('cntAll').textContent = '(' + inquiries.length + ')';
+        $('cntMail').textContent = '(' + inquiries.filter(function (x) { return x.channel === 'mail'; }).length + ')';
+        $('cntWeb').textContent = '(' + inquiries.filter(function (x) { return x.channel === 'web'; }).length + ')';
+        var open = inquiries.filter(function (x) { return inCh(x) && x.status === 'open'; }).length;
+        $('cntOpen').textContent = open;
+        $('cntOpen').hidden = open === 0;
+        document.querySelectorAll('.sdw .sd-tab').forEach(function (t) {
+            t.setAttribute('aria-selected', String(t.getAttribute('data-ch') === state.ch));
+        });
+
+        var list = filtered();
+        var pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        if (state.page > pages) state.page = pages;
+        var start = (state.page - 1) * PAGE_SIZE, end = Math.min(list.length, start + PAGE_SIZE);
+        pageRows = list.slice(start, end);
+
+        $('logBody').innerHTML = pageRows.map(function (x) {
+            var ch = CH[x.channel] || CH.mail;
+            var cls = 'log-row' + (x.status === 'open' ? ' is-open' : '') + (x.id === state.current && state.mode === 'single' ? ' is-current' : '') + (state.checked.has(x.id) ? ' is-checked' : '');
+            return '<tr class="' + cls + '" data-id="' + esc(x.id) + '">' +
+                '<td class="c-chk"><input type="checkbox" class="chk row-chk" aria-label="選択"' + (state.checked.has(x.id) ? ' checked' : '') + '/></td>' +
+                '<td class="c-ch"><span class="ch ' + ch.cls + '">' + ch.short + '</span></td>' +
+                '<td><div class="who"><b>' + esc(x.name) + '</b><small>' + esc(x.email) + '</small></div></td>' +
+                '<td class="subj"><b>' + esc(x.subject) + '</b><small>' + esc(x.body.replace(/\s+/g, ' ')) + '</small></td>' +
+                '<td class="c-time"><span class="t">' + short(x.receivedAt) + '</span><span class="st ' + (x.status === 'open' ? 'st-open">未対応' : 'st-done">対応済') + '</span></td>' +
+                '</tr>';
+        }).join('') || '<tr class="log-empty"><td colspan="5">' + (inquiries.length ? '該当するサポートログはありません' : 'サポートログはまだありません') + '</td></tr>';
+
+        $('logRange').textContent = list.length ? (start + 1) + '–' + end + ' / ' + list.length + '件' : '0件';
+        var h = '<button type="button" class="pg" data-page="' + (state.page - 1) + '"' + (state.page === 1 ? ' disabled' : '') + ' aria-label="前のページ">‹</button>';
+        pageNumbers(state.page, pages).forEach(function (p) {
+            h += p === 0 ? '<span class="range">…</span>' : '<button type="button" class="pg" data-page="' + p + '"' + (p === state.page ? ' aria-current="page"' : '') + '>' + p + '</button>';
+        });
+        h += '<button type="button" class="pg" data-page="' + (state.page + 1) + '"' + (state.page === pages ? ' disabled' : '') + ' aria-label="次のページ">›</button>';
+        $('logPages').innerHTML = h;
+        renderSelection();
+    }
+
+    function renderSelection() {
+        var n = state.checked.size;
+        $('selCount').textContent = n ? n + '件選択中' : '';
+        $('btnBulkReply').disabled = n === 0;
+        $('btnBulkDelete').disabled = n === 0;
+        var onPage = pageRows.filter(function (x) { return state.checked.has(x.id); }).length;
+        $('checkAll').checked = pageRows.length > 0 && onPage === pageRows.length;
+        $('checkAll').indeterminate = onPage > 0 && onPage < pageRows.length;
+        document.querySelectorAll('#logBody .log-row').forEach(function (tr) {
+            tr.classList.toggle('is-checked', state.checked.has(tr.getAttribute('data-id')));
+        });
+    }
+
+    function resetList() { state.page = 1; state.checked.clear(); renderLog(); $('logScroll').scrollTop = 0; }
+
+    document.querySelectorAll('.sdw .sd-tab').forEach(function (t) {
+        t.addEventListener('click', function () { state.ch = t.getAttribute('data-ch'); resetList(); });
+    });
+    $('onlyOpen').addEventListener('change', function (e) { state.onlyOpen = e.target.checked; resetList(); });
+    $('logSearch').addEventListener('input', function (e) { state.q = e.target.value; resetList(); });
+    $('logPages').addEventListener('click', function (e) {
+        var b = e.target.closest('.pg[data-page]');
+        if (!b || b.disabled || b.hasAttribute('aria-current')) return;
+        state.page = parseInt(b.getAttribute('data-page'), 10);
+        state.checked.clear();
+        renderLog();
+        $('logScroll').scrollTop = 0;
+    });
+    $('checkAll').addEventListener('change', function (e) {
+        pageRows.forEach(function (x) { if (e.target.checked) state.checked.add(x.id); else state.checked.delete(x.id); });
+        renderLog();
+    });
+    $('logBody').addEventListener('click', function (e) {
+        var tr = e.target.closest('.log-row');
+        if (!tr) return;
+        var id = tr.getAttribute('data-id');
+        if (e.target.closest('.c-chk')) {
+            if (!e.target.classList.contains('row-chk')) { var c = tr.querySelector('.row-chk'); c.checked = !c.checked; }
+            if (tr.querySelector('.row-chk').checked) state.checked.add(id); else state.checked.delete(id);
+            renderSelection();
+            return;
+        }
+        openInquiry(id);
+    });
+
+    $('btnBulkDelete').addEventListener('click', function () {
+        var ids = Array.from(state.checked);
+        if (!ids.length || !confirm(ids.length + ' 件のサポートログを削除します。よろしいですか?')) return;
+        var pw = prompt('管理者パスワードを入力してください');
+        if (!pw) return;
+        post(API.bulkDelete, { ids: ids, confirmPassword: pw }).then(function () {
+            inquiries = inquiries.filter(function (x) { return ids.indexOf(x.id) === -1; });
+            ids.forEach(function (id) { delete byId[id]; delete drafts[id]; });
+            if (ids.indexOf(state.current) !== -1) setMode('empty');
+            state.bulk = state.bulk.filter(function (id) { return ids.indexOf(id) === -1; });
+            if (state.mode === 'bulk' && !state.bulk.length) setMode('empty');
+            state.checked.clear();
+            renderLog(); renderWork();
+            toast(ids.length + '件を削除しました');
+        }).catch(function (err) { toast('削除に失敗しました (' + err.message + ')'); });
+    });
+
+    $('btnBulkReply').addEventListener('click', function () {
+        var ids = pageRows.filter(function (x) { return state.checked.has(x.id); }).map(function (x) { return x.id; });
+        if (!ids.length) return;
+        stashDraft();
+        state.bulk = ids;
+        setMode('bulk');
+        restoreDraft();
+        renderLog(); renderWork();
+        $('replyBody').focus();
+    });
+
+    function draftKey() { return state.mode === 'bulk' ? '__bulk' : state.current; }
+    function stashDraft() {
+        var k = draftKey();
+        if (k && state.mode !== 'empty') drafts[k] = { subject: $('replySubject').value, body: $('replyBody').value };
+    }
+    function restoreDraft() {
+        var d = drafts[draftKey()] || { subject: '', body: '' };
+        $('replySubject').value = d.subject;
+        $('replyBody').value = d.body;
+        caret = null;
+        updateCount();
+        loadTagVals();
+    }
+    function setMode(m) { state.mode = m; }
+
+    function openInquiry(id) {
+        if (state.mode !== 'empty') stashDraft();
+        state.current = id;
+        setMode('single');
+        restoreDraft();
+        renderLog(); renderWork();
+    }
+
+    function renderWork() {
+        var empty = state.mode === 'empty' || (state.mode === 'single' && !byId[state.current]);
+        $('workEmpty').hidden = !empty;
+        $('workView').hidden = empty;
+        if (empty) return;
+        var single = state.mode === 'single';
+        $('inqHead').hidden = !single;
+        $('inqThread').hidden = !single;
+        $('bulkHead').hidden = single;
+        $('workView').classList.toggle('is-bulk', !single);
+
+        if (single) {
+            var x = byId[state.current];
+            var ch = CH[x.channel] || CH.mail;
+            var member = x.memberId ? '<a href="/manager/users/' + esc(x.memberId) + '" target="_blank" rel="noopener">ユーザーID ' + esc(x.memberId) + '</a>' : '<span>非会員</span>';
+            var meta = x.channel === 'mail'
+                ? '<span>差出人 <b>' + esc(x.name) + '</b> &lt;' + esc(x.email) + '&gt;</span><span>宛先 <b>' + esc(x.to || SUPPORT_ADDRESS || '') + '</b></span><span>受信 <b>' + full(x.receivedAt) + '</b></span>' + member
+                : '<span>差出人 <b>' + esc(x.name) + '</b>（' + esc(x.email) + '）</span><span>受信 <b>' + full(x.receivedAt) + '</b></span>' + member;
+            var form = x.channel === 'web'
+                ? '<dl class="inq-form"><div><dt>お問い合わせ種別</dt><dd>' + esc(x.formType || '—') + '</dd></div><div><dt>注文番号</dt><dd>' + esc(x.orderNo || '—') + '</dd></div><div><dt>送信元</dt><dd>' + esc(x.formPage || '—') + '</dd></div></dl>'
+                : '';
+            var statusBtn = x.status === 'open'
+                ? '<span class="st st-open">未対応</span><button type="button" class="btn btn-outline btn-sm" data-act="done">対応済にする</button>'
+                : '<span class="st st-done">対応済</span><button type="button" class="btn btn-outline btn-sm" data-act="reopen">未対応に戻す</button>';
+            $('inqHead').innerHTML =
+                '<div class="inq-title"><span class="ch ' + ch.cls + '">' + ch.label + '</span><h2 title="' + esc(x.subject) + '">' + esc(x.subject) + '</h2>' + statusBtn + '</div>' +
+                '<div class="inq-meta">' + meta + '</div>' + form;
+            $('inqThread').innerHTML =
+                '<article class="msg"><div class="msg-meta"><b>' + esc(x.name) + '</b>' + (x.memberId ? 'ユーザー' : '非会員') + '<time>' + full(x.receivedAt) + ' 受信</time></div>' +
+                '<div class="msg-subj">' + esc(x.subject) + '</div><div class="msg-body">' + esc(x.body) + '</div></article>' +
+                x.replies.map(function (r) {
+                    return '<article class="msg is-reply"><div class="msg-meta"><b>' + esc(r.staff || '管理者') + '</b>メールで返信<time>' + full(r.at) + ' 送信</time></div>' +
+                        (r.subject ? '<div class="msg-subj">' + esc(r.subject) + '</div>' : '') + '<div class="msg-body">' + esc(r.body) + '</div></article>';
+                }).join('');
+            $('replyTo').innerHTML = '宛先 <b>' + esc(x.name) + '</b> ' + esc(x.email) + '<span>（' + (x.channel === 'web' ? 'WEBフォームのお問い合わせにメールで返信' : 'メールで返信') + '）</span>';
+            $('btnSend').textContent = '返信する';
+        } else {
+            $('bulkTitle').textContent = '選択一斉返信（' + state.bulk.length + '件）';
+            $('bulkList').innerHTML = state.bulk.map(function (id) {
+                var x = byId[id];
+                var ch = CH[x.channel] || CH.mail;
+                return '<span class="rcpt"><span class="ch ' + ch.cls + '">' + ch.short + '</span>' + esc(x.name) +
+                    '<button type="button" data-remove="' + esc(id) + '" aria-label="' + esc(x.name) + ' を宛先から外す">×</button></span>';
+            }).join('');
+            $('replyTo').innerHTML = '宛先 <b>' + state.bulk.length + '件</b>（それぞれのメールアドレスへ個別に送信）<button type="button" class="btn btn-outline btn-sm" id="btnBulkCancel" style="margin-left:auto">一斉返信をやめる</button>';
+            $('btnSend').textContent = state.bulk.length + '件に一斉返信';
+        }
+    }
+
+    $('inqHead').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-act]');
+        if (!b) return;
+        var x = byId[state.current];
+        var next = b.getAttribute('data-act') === 'done' ? 'done' : 'open';
+        post(API.status, { id: x.id, status: next }).then(function () {
+            x.status = next; renderLog(); renderWork();
+            toast(next === 'done' ? '対応済にしました' : '未対応に戻しました');
+        }).catch(function (err) { toast('変更に失敗しました (' + err.message + ')'); });
+    });
+    $('bulkList').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-remove]');
+        if (!b) return;
+        var id = b.getAttribute('data-remove');
+        state.bulk = state.bulk.filter(function (v) { return v !== id; });
+        state.checked.delete(id);
+        if (!state.bulk.length) setMode('empty');
+        renderLog(); renderWork();
+    });
+    $('replyTo').addEventListener('click', function (e) {
+        if (!e.target.closest('#btnBulkCancel')) return;
+        stashDraft();
+        setMode(state.current && byId[state.current] ? 'single' : 'empty');
+        if (state.mode === 'single') restoreDraft();
+        renderLog(); renderWork();
+    });
+
+    function fillTags(text, x) {
+        var v = tagVals[x.id] || {};
+        return text.replace(/%name%/g, x.name).replace(/%email%/g, x.email)
+            .replace(/%amount%/g, v.amount || '%amount%').replace(/%product%/g, v.product || '%product%')
+            .replace(/%full_address%/g, v.fullAddress || '%full_address%')
+            .replace(/%date_jp%/g, v.dateJp || todayJp());
+    }
+    var sending = false;
+    $('replyForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (sending) return;
+        var body = $('replyBody').value.trim();
+        if (!body) { toast('本文を入力してください'); $('replyBody').focus(); return; }
+        var ids = state.mode === 'bulk' ? state.bulk.slice() : [state.current];
+        if (state.mode === 'bulk' && !confirm(ids.length + ' 件に一斉返信します。よろしいですか?')) return;
+        var subject = $('replySubject').value.trim();
+        var markDone = $('markDone').checked;
+        sending = true;
+        $('btnSend').disabled = true;
+        post(API.reply, { ids: ids, subject: subject, body: body, markDone: markDone ? '1' : '0' })
+            .then(function (res) {
+                var sent = res.sent || [];
+                var failed = res.failed || {};
+                sent.forEach(function (id) {
+                    var x = byId[id];
+                    if (!x) return;
+                    var subj = subject || ('Re: ' + x.subject);
+                    x.replies.push({ at: res.at, staff: STAFF_NAME, subject: fillTags(subj, x), body: fillTags(body, x) });
+                    if (markDone) x.status = 'done';
+                });
+                var nFail = Object.keys(failed).length;
+                if (sent.length) {
+                    delete drafts[draftKey()];
+                    $('replySubject').value = ''; $('replyBody').value = ''; updateCount();
+                    if (state.mode === 'bulk' && !nFail) {
+                        state.checked.clear(); state.bulk = [];
+                        setMode(state.current && byId[state.current] ? 'single' : 'empty');
+                    }
+                }
+                renderLog(); renderWork();
+                if (nFail) toast((sent.length ? sent.length + '件送信、' : '') + nFail + '件は送信に失敗しました（' + failed[Object.keys(failed)[0]] + '）');
+                else toast(sent.length > 1 ? sent.length + '件に一斉返信しました' : '返信しました');
+            })
+            .catch(function (err) { toast('送信に失敗しました (' + err.message + ')'); })
+            .then(function () { sending = false; $('btnSend').disabled = false; });
+    });
+
+    var caret = null;
+    var bodyEl = $('replyBody');
+    ['click', 'keyup', 'select', 'input'].forEach(function (ev) {
+        bodyEl.addEventListener(ev, function () { caret = bodyEl.selectionStart; });
+    });
+    function updateCount() { $('replyCount').textContent = bodyEl.value.length.toLocaleString('ja-JP') + '文字'; }
+    bodyEl.addEventListener('input', updateCount);
+
+    function insertText(text, asBlock) {
+        if (state.mode === 'empty') { toast('先に左のサポートログから問い合わせを選んでください'); return false; }
+        var v = bodyEl.value;
+        var pos = caret == null ? v.length : Math.min(caret, v.length);
+        var before = v.slice(0, pos);
+        var glue = asBlock && before && !/\n$/.test(before) ? '\n' : '';
+        bodyEl.value = before + glue + text + v.slice(pos);
+        caret = (before + glue + text).length;
+        bodyEl.focus();
+        bodyEl.setSelectionRange(caret, caret);
+        updateCount();
+        return true;
+    }
+    document.querySelector('.sdw .tags').addEventListener('click', function (e) {
+        var t = e.target.closest('.tag[data-token]');
+        if (t) insertText(t.getAttribute('data-token'), false);
+    });
+
+    function loadTagVals() {
+        var key = state.mode === 'bulk' ? state.bulk[0] : state.current;
+        var v = tagVals[key] || {};
+        document.querySelectorAll('.sdw .tag-val input').forEach(function (i) { i.value = v[i.getAttribute('data-tag')] || ''; });
+    }
+    $('btnTagSave').addEventListener('click', function () {
+        if (state.mode === 'empty') return;
+        var v = {};
+        document.querySelectorAll('.sdw .tag-val input').forEach(function (i) { v[i.getAttribute('data-tag')] = i.value.trim(); });
+        var ids = state.mode === 'bulk' ? state.bulk.slice() : [state.current];
+        post(API.tagSave, { ids: ids, amount: v.amount, product: v.product, fullAddress: v.fullAddress, dateJp: v.dateJp })
+            .then(function () {
+                ids.forEach(function (id) { tagVals[id] = v; });
+                toast('置き換えタグの値を保存しました');
+            })
+            .catch(function (err) { toast('保存に失敗しました (' + err.message + ')'); });
+    });
+
+    var editing = null;
+    function renderTemplates() {
+        $('tplCount').textContent = templates.length + '件';
+        $('tplList').innerHTML = templates.map(function (t, i) {
+            var no = pad(i + 1);
+            if (editing === t.id) {
+                return '<div class="tpl is-editing" data-id="' + esc(t.id) + '"><div class="tpl-form">' +
+                    '<input type="text" class="input tpl-in-title" maxlength="40" placeholder="定型タイトル（例: 決済について）" value="' + esc(t.title) + '"/>' +
+                    '<textarea class="input tpl-in-body" placeholder="本文（%name% などのタグも使えます）">' + esc(t.body) + '</textarea>' +
+                    '<div class="tpl-form-btns"><button type="button" class="btn btn-primary btn-sm" data-act="save">保存</button>' +
+                    '<button type="button" class="btn btn-outline btn-sm" data-act="close">閉じる</button>' +
+                    (i >= DEFAULT_TEMPLATES ? '<button type="button" class="del" data-act="delete">この定型文を削除</button>' : '') +
+                    '</div></div></div>';
+            }
+            return '<div class="tpl" data-id="' + esc(t.id) + '">' +
+                '<button type="button" class="tpl-main" title="' + (t.body ? 'クリックで本文に挿入' : 'クリックして定型文を作成') + '">' +
+                '<span class="tpl-top"><span class="tpl-no">' + no + '</span><span class="tpl-title' + (t.title ? '' : ' is-blank') + '">' + esc(t.title || 'タイトル未設定') + '</span></span>' +
+                '<span class="tpl-prev' + (t.body ? '' : ' is-blank') + '">' + esc(t.body ? t.body.replace(/\s+/g, ' ') : '本文が未入力です') + '</span></button>' +
+                '<button type="button" class="tpl-edit-btn" data-act="edit" aria-label="「' + esc(t.title || 'タイトル未設定') + '」を編集" title="編集"></button>' +
+                '<span class="tpl-flash">✓ 挿入</span></div>';
+        }).join('');
+    }
+    function persistTemplate(t, title, body) {
+        return post(API.templateSave, { id: /^new-/.test(t.id) ? '' : t.id, title: title, body: body })
+            .then(function (res) {
+                if (res && res.id) {
+                    if (editing === t.id) editing = String(res.id);
+                    t.id = String(res.id);
+                }
+                t.title = title; t.body = body;
+            });
+    }
+    $('tplList').addEventListener('click', function (e) {
+        var box = e.target.closest('.tpl');
+        if (!box) return;
+        var t = templates.filter(function (x) { return x.id === box.getAttribute('data-id'); })[0];
+        if (!t) return;
+        var actEl = e.target.closest('[data-act]');
+        var act = actEl ? actEl.getAttribute('data-act') : null;
+
+        if (act === 'edit' || (!act && e.target.closest('.tpl-main') && !t.body)) {
+            editing = t.id; renderTemplates();
+            var b = document.querySelector('.sdw .tpl.is-editing .tpl-in-title');
+            if (b) b.focus();
+            return;
+        }
+        if (act === 'close') {
+            if (/^new-/.test(t.id)) templates = templates.filter(function (x) { return x !== t; });
+            editing = null; renderTemplates(); return;
+        }
+        if (act === 'save') {
+            var title = box.querySelector('.tpl-in-title').value.trim();
+            var body = box.querySelector('.tpl-in-body').value;
+            persistTemplate(t, title, body).then(function () { editing = null; renderTemplates(); toast('定型文を保存しました'); })
+                .catch(function (err) { toast('保存に失敗しました (' + err.message + ')'); });
+            return;
+        }
+        if (act === 'delete') {
+            if (!confirm('「' + (t.title || 'タイトル未設定') + '」を削除します。よろしいですか?')) return;
+            var removeIt = function () {
+                templates = templates.filter(function (x) { return x !== t; });
+                editing = null;
+                renderTemplates();
+            };
+            if (/^new-/.test(t.id)) removeIt();
+            else post(API.templateDelete, { id: t.id }).then(removeIt).catch(function (err) { toast('削除に失敗しました (' + err.message + ')'); });
+            return;
+        }
+        if (e.target.closest('.tpl-main') && insertText(t.body, true)) {
+            box.classList.add('is-inserted');
+            setTimeout(function () { box.classList.remove('is-inserted'); }, 1200);
+        }
+    });
+    function addTemplate() {
+        var t = { id: 'new-' + Date.now(), title: '', body: '' };
+        templates.push(t);
+        editing = t.id;
+        renderTemplates();
+        var box = document.querySelector('.sdw .tpl.is-editing');
+        box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        box.querySelector('.tpl-in-title').focus();
+    }
+    $('tplAdd').addEventListener('click', addTemplate);
+    $('tplAddTop').addEventListener('click', addTemplate);
+
+    renderLog();
+    renderWork();
+    renderTemplates();
+})();
+</script>
+</div>
+</section>
+</body>
+</html>

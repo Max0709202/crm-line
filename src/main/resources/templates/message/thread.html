@@ -4,18 +4,14 @@
       layout:decorate="~{layout/default}">
 <head>
     <title>メッセージスレッド</title>
+    <!--/* 受信ボックス 4画面 (2026-10-03 client layout). Keep notes in parser-level comments only:
+           the client asked that nothing extra is visible in the page source. */-->
     <style>
-        /* Make the layout's main area un-padded so the 4-pane fills the available height. */
         main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; display: flex; flex-direction: column; }
 
-        /* 4 panes, each sized by 4 independent sashes (2026-10-02): top / bottom vertical and
-           left / right horizontal. Panes and sashes are absolutely positioned by the script
-           below; the CSS defaults are the equal 50/50 × 50/50 split. */
-        .wsx { position:relative; height:100vh; box-sizing:border-box; background:#f1f5f9; }
+        .wsx { position:relative; height:100vh; box-sizing:border-box; background:#f1f5f9; color:#334155; }
         .wsx .pane { position:absolute; box-sizing:border-box; background:#fff; overflow:hidden; display:flex; flex-direction:column; min-width:0; min-height:0;
-                     border:1px solid #e2e8f0; }
-        .wsx .pane > header { padding:6px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0;
-                              font-size:.78rem; font-weight:700; color:#334155; display:flex; align-items:center; gap:8px; }
+                     border:1px solid #e2e8f0; border-radius:6px; }
         .wsx .pane > .body { flex:1; overflow-y:auto; overflow-x:hidden; padding:6px 10px; min-height:0; }
 
         .wsx .v-sash, .wsx .h-sash { position:absolute; z-index:20; background:#cbd5e1; }
@@ -25,76 +21,23 @@
         .wsx.dragging { user-select:none; }
         .wsx.dragging iframe { pointer-events:none; }
 
-        /* pane positioning (defaults until the script applies the saved layout) */
         .pane-tl { left:0; top:0; width:calc(50% - 3px); height:calc(50% - 3px); }
         .pane-tr { left:calc(50% + 3px); top:0; width:calc(50% - 3px); height:calc(50% - 3px); }
         .pane-bl { left:0; top:calc(50% + 3px); width:calc(50% - 3px); height:calc(50% - 3px); }
         .pane-br { left:calc(50% + 3px); top:calc(50% + 3px); width:calc(50% - 3px); height:calc(50% - 3px); }
-        .btn-layout-save { font-size:.7rem; padding:2px 9px; border:1px solid #2563eb; background:#2563eb; color:#fff;
-                           border-radius:4px; cursor:pointer; white-space:nowrap; font-weight:700; }
-        .btn-layout-save:hover { background:#1d4ed8; }
-        .btn-layout-save:disabled { background:#94a3b8; border-color:#94a3b8; cursor:default; }
 
-        .ibx-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:5px; cursor:pointer;
-                   border:1px solid transparent; font-size:.78rem; }
-        .ibx-row:hover { background:#f1f5f9; border-color:#e2e8f0; }
-        .ibx-row.current { background:#eff6ff; border-color:#93c5fd; }
-        /* 未返信 — visually loud so an unreplied inbox stands out at a glance. Wins over hover
-         * and 'current' so opening a thread does NOT mask the unreplied state. */
-        .ibx-row.unreplied { background:#fef2f2; border-color:#fecaca; }
-        .ibx-row.unreplied:hover { background:#fee2e2; border-color:#fca5a5; }
-        .ibx-row.unreplied.current { background:#fee2e2; border-color:#f87171; }
-        .ibx-row .nm { font-weight:700; color:#1e293b; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .ibx-row .dt { font-size:.66rem; color:#64748b; white-space:nowrap; }
-        .ibx-row .uc { font-size:.64rem; font-weight:700; padding:1px 6px; border-radius:3px; background:#fecaca; color:#b91c1c; }
-        /* Per-row delete (受信から外す). Red so it's unmistakable; small so it doesn't bully the row. */
-        .ibx-row .del {
-            font-size:.7rem; line-height:1; padding:3px 7px; border-radius:4px;
+        .wsx .sched-del {
+            font-size:.66rem; line-height:1; padding:2px 6px; border-radius:4px;
             background:#dc2626; color:#fff; border:none; cursor:pointer; font-weight:700;
         }
-        .ibx-row .del:hover { background:#b91c1c; }
-        .ibx-row .del:disabled { background:#cbd5e1; cursor:wait; }
+        .wsx .sched-del:hover { background:#b91c1c; }
+        .wsx .sched-del:disabled { background:#cbd5e1; cursor:wait; }
 
-        /* 予約送信 delete button — same red-delete language as .ibx-row .del, inline next to
-           the "予約: yyyy-MM-dd HH:mm" badge on a still-QUEUED history row. */
-        .sched-del {
-            font-size:.66rem; line-height:1; padding:2px 6px; border-radius:4px;
-            background:#dc2626; color:#fff; border:none; cursor:pointer; font-weight:700; margin-left:6px;
-        }
-        .sched-del:hover { background:#b91c1c; }
-
-        .hist-item { padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:.8rem; line-height:1.5; }
-        .hist-item.out { background:#dbeafe; color:#1e3a8a; margin-left:20px; }
-        .hist-item.in  { background:#e2e8f0; color:#1e293b; margin-right:20px; }
-        /* WEB_REPLY (user replied via the reply page) painted with the same emerald hue family
-         * as the "Web N" badge in the right-upper header (.bg-emerald-100 / .text-emerald-700),
-         * so the count badge and the message body are visibly the same channel at a glance. */
-        .hist-item.in.web { background:#d1fae5; color:#065f46; }
-        /* SMS reply — yellow, distinct from email (.in, slate) and web-form reply (.in.web, emerald),
-         * per operator request so the three reply channels are visually distinguishable at a glance. */
-        .hist-item.in.sms { background:#fef9c3; color:#854d0e; }
-        .hist-item.out.sms { background:#fef3c7; color:#78350f; }
-        /* LINE — brand green (#06C755-derived tint), deliberately distinct from the emerald
-         * used for .in.web above so the two channels don't read as the same one in the feed. */
-        .hist-item.in.line { background:#d9f7e6; color:#046c3a; }
-        .hist-item.out.line { background:#bdf0d3; color:#046c3a; }
-        .hist-item .meta { font-size:.66rem; color:#475569; margin-top:3px; }
-        /* 差分予約 — pending diff-schedule send, styled as an individual history card
-           like a normal 予約送信 row but in the violet accent used for diff features
-           elsewhere (差分スケジュール履歴 etc.), so it reads as "not yet sent". */
-        .hist-item.out.diff { background:#ede9fe; color:#5b21b6; }
-        .hist-item.out.diff .meta { color:#6d28d9; }
-
-        /* cmp-form: natural-flow column. Previously had height:100% + textarea flex:1 which
-         * stretched the form to fill the pane and parked the tag panels far below — creating
-         * a perceived large gap between 個別メモ and デフォルトの置き換えタグ. With natural
-         * flow, everything stacks compactly and gap:4px is uniform. */
         .cmp-form { display:flex; flex-direction:column; gap:4px; }
         .cmp-form input, .cmp-form textarea {
             width:100%; padding:6px 9px; border:1px solid #cbd5e1; border-radius:5px; font-size:.8rem; outline:none;
         }
         .cmp-form input:focus, .cmp-form textarea:focus { border-color:#2563eb; }
-        /* 縦幅固定 (2026-10-01 client request): 本文/個別メモ are fixed-height, not drag-resizable. */
         .cmp-form textarea { resize:none; height:160px; }
         .cmp-form .memo-row { display:flex; gap:6px; align-items:flex-start; }
         .cmp-form .memo-row textarea {
@@ -104,25 +47,22 @@
         .cmp-form .memo-row textarea:focus { border-color:#2563eb; }
         .cmp-form .memo-row .btn-mini {
             padding:5px 10px; font-size:.72rem; font-weight:700; border:none;
-            background:#16a34a; color:#fff; border-radius:5px; cursor:pointer; white-space:nowrap;
+            background:#475569; color:#fff; border-radius:5px; cursor:pointer; white-space:nowrap;
         }
-        .cmp-form .memo-row .btn-mini:hover { background:#15803d; }
-        .cmp-form .memo-row .btn-mini.saved { background:#94a3b8; }
+        .cmp-form .memo-row .btn-mini:hover { background:#334155; }
+        .cmp-form .memo-row .btn-mini.saved { background:#15803d; }
         .cmp-form .row { display:flex; gap:8px; align-items:center; }
         .cmp-form .btn {
             padding:6px 16px; border:none; border-radius:5px; font-weight:700; font-size:.8rem; color:#fff; cursor:pointer;
-            background:#2563eb;
+            background:#475569;
         }
-        .cmp-form .btn:hover { background:#1d4ed8; }
+        .cmp-form .btn:hover { background:#334155; }
 
-        /* Bottom-left pane: compose form (left) + 置き換えタグ panels (right), per the client's
-         * 2026-10-01 layout screenshot. Falls back to one column when the pane is narrow. */
         .cmp-layout { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px; align-items:start; }
         @media (max-width: 1100px) { .cmp-layout { grid-template-columns:minmax(0,1fr); } }
         .cmp-layout .tag-col { display:flex; flex-direction:column; gap:8px; }
         .cmp-layout .tag-col .tag-panel { margin-top:0; }
 
-        /* ---- Reservation (予約送信) panel ---- */
         .sched-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 10px; }
         .sched-box .sched-head { display:flex; align-items:center; gap:8px; font-size:.72rem; font-weight:700; color:#475569; margin-bottom:6px; }
         .sched-box .sched-status { font-size:.7rem; color:#16a34a; font-weight:700; }
@@ -133,13 +73,11 @@
             border:1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; white-space:nowrap;
         }
         .sched-box .chip:hover { background:#eff6ff; border-color:#2563eb; color:#1d4ed8; }
-        .sched-box .chip.clear { color:#16a34a; border-color:#bbf7d0; background:#f0fdf4; }
         .sched-box input[type="datetime-local"] {
             padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:.78rem; outline:none; flex:1; min-width:180px;
         }
         .sched-box input[type="datetime-local"]:focus { border-color:#2563eb; }
 
-        /* ---- Tag panel ---- */
         .tag-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:4px 8px; margin-top:2px; }
         .tag-panel h4 { font-size:.72rem; font-weight:700; color:#475569; margin:0 0 2px 0; display:flex; align-items:center; gap:6px; }
         .tag-panel .tag-row { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
@@ -154,236 +92,643 @@
         }
         .tag-panel input.tag-val:focus { border-color:#2563eb; }
         .tag-panel .btn-tag-save {
-            font-size:.7rem; padding:3px 12px; border-radius:4px; border:none; background:#16a34a; color:#fff; cursor:pointer; font-weight:700;
+            font-size:.7rem; padding:3px 12px; border-radius:4px; border:none; background:#475569; color:#fff; cursor:pointer; font-weight:700;
         }
-        .tag-panel .btn-tag-save:hover { background:#15803d; }
-        .tag-panel .btn-tag-save.saved { background:#94a3b8; }
+        .tag-panel .btn-tag-save:hover { background:#334155; }
+        .tag-panel .btn-tag-save.saved { background:#15803d; }
 
-        .tpl-item { padding:7px 9px; border-radius:5px; border:1px solid #e2e8f0; background:#f8fafc;
-                    margin-bottom:6px; font-size:.78rem; display:flex; align-items:center; gap:8px;
-                    border-left-width: 4px;
-                    /* Confine to the pane — even for long Japanese subjects with no break points,
-                       the row must not widen the panel and trigger a horizontal scrollbar. The
-                       .name and .subj children below add their own width:100% so the ellipsis
-                       inside the inner column-flex actually engages. */
-                    width:100%; box-sizing:border-box; min-width:0; overflow:hidden; }
-        .tpl-item:hover { background:#eff6ff; border-color:#2563eb; }
-        /* Per-template accent colors. The configured color name maps to a Tailwind-200/-400
-         * pair: light fill, slightly darker left-border. Lets the operator spot a specific
-         * template at a glance even with 50 entries stacked. */
-        .tpl-item.color-slate   { border-left-color:#94a3b8; background:#f1f5f9; }
-        .tpl-item.color-blue    { border-left-color:#60a5fa; background:#dbeafe; }
-        .tpl-item.color-sky     { border-left-color:#38bdf8; background:#e0f2fe; }
-        .tpl-item.color-cyan    { border-left-color:#22d3ee; background:#cffafe; }
-        .tpl-item.color-emerald { border-left-color:#34d399; background:#d1fae5; }
-        .tpl-item.color-lime    { border-left-color:#a3e635; background:#ecfccb; }
-        .tpl-item.color-amber   { border-left-color:#fbbf24; background:#fef3c7; }
-        .tpl-item.color-rose    { border-left-color:#fb7185; background:#ffe4e6; }
-        .tpl-item.color-pink    { border-left-color:#f472b6; background:#fce7f3; }
-        .tpl-item.color-violet  { border-left-color:#a78bfa; background:#ede9fe; }
-        .tpl-item .txt { flex:1; min-width:0; cursor:pointer; display:flex; gap:10px; align-items:center; }
-        .tpl-item .name {
-            font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-            min-width:0; width:100%; max-width:100%;
+        .wsx .pane-tl > .inbox-head { flex:none; display:flex; align-items:center; flex-wrap:wrap; gap:6px 14px; padding:6px 10px 6px 12px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+        .wsx .inbox-title { font-size:13px; font-weight:700; color:#334155; white-space:nowrap; }
+        .wsx .inbox-filters { display:inline-flex; padding:2px; background:#e2e8f0; border-radius:6px; }
+        .wsx .inbox-filter {
+            appearance:none; display:inline-flex; align-items:center; gap:6px; padding:3px 10px;
+            font:inherit; font-size:12px; font-weight:500; color:#64748b; white-space:nowrap;
+            background:transparent; border:0; border-radius:4px; cursor:pointer;
         }
-        .tpl-item .subj {
-            font-size:.7rem; color:#475569; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-            /* In .txt (flex-direction:column), cross-axis width defaults to content — long
-               Japanese subjects then push past the parent. Forcing width:100% makes the
-               ellipsis actually take effect. */
-            width:100%; max-width:100%; min-width:0;
+        .wsx .inbox-filter:hover { color:#334155; }
+        .wsx .inbox-filter[aria-pressed="true"] { background:#fff; color:#1e293b; font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.12); }
+        .wsx .inbox-count {
+            min-width:18px; padding:0 5px; font-size:11px; line-height:17px; text-align:center;
+            font-variant-numeric:tabular-nums; color:#475569; background:#cbd5e1; border-radius:9px;
         }
-        .tpl-item a.icon {
-            font-size:.7rem; padding:2px 7px; border:1px solid #cbd5e1; border-radius:3px; color:#475569;
-            background:#fff; text-decoration:none; white-space:nowrap;
+        .wsx .inbox-count.is-alert { color:#fff; background:#f59e0b; }
+        .wsx .inbox-tools { display:flex; align-items:center; gap:4px; margin-left:auto; }
+        .wsx .pane-tl .btn-layout-save {
+            appearance:none; padding:4px 8px; font:inherit; font-size:11px; font-weight:400; color:#94a3b8;
+            background:none; border:0; border-radius:4px; cursor:pointer; white-space:nowrap;
         }
-        .tpl-item a.icon:hover { background:#f1f5f9; color:#1e293b; }
+        .wsx .pane-tl .btn-layout-save:hover { color:#475569; background:#f1f5f9; }
+        .wsx .pane-tl .btn-layout-save:disabled { cursor:default; }
+        .wsx .pane-tl .btn-refresh {
+            appearance:none; padding:4px 14px; font:inherit; font-size:12px; font-weight:600; color:#fff;
+            background:#475569; border:0; border-radius:4px; cursor:pointer;
+        }
+        .wsx .pane-tl .btn-refresh:hover { background:#334155; }
 
-        .btn-refresh { font-size:.7rem; padding:2px 9px; border:1px solid #cbd5e1; background:#fff; border-radius:4px;
-                       color:#475569; cursor:pointer; }
-        .btn-refresh:hover { background:#f1f5f9; }
+        .wsx .pane-tl > .body { flex:1 1 auto; padding:0; overflow:auto; min-height:0; }
+        .wsx .inbox-table { width:100%; min-width:720px; border-collapse:separate; border-spacing:0; font-size:12px; color:#475569; }
+        .wsx .inbox-table th {
+            position:sticky; top:0; z-index:1; padding:6px 10px; text-align:left; white-space:nowrap;
+            font-size:11px; font-weight:600; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0;
+        }
+        .wsx .inbox-table td { padding:7px 10px; white-space:nowrap; vertical-align:middle; border-bottom:1px solid #edf1f5; }
+        .wsx .inbox-table .is-num { text-align:right; }
+        .wsx .inbox-table .col-check { width:1%; padding:0 0 0 12px; }
+        .wsx .inbox-table .col-star { width:1%; padding:0 2px; text-align:center; }
+        .wsx .inbox-row { --bg:#fff; --bg-hover:#f8fafc; --bg-strong:#eef2f6; cursor:pointer; }
+        .wsx .inbox-row[data-gender="male"]   { --bg:#eaf2fd; --bg-hover:#dfeafb; --bg-strong:#d2e2f9; }
+        .wsx .inbox-row[data-gender="female"] { --bg:#fcedf4; --bg-hover:#f9e2ec; --bg-strong:#f5d3e3; }
+        .wsx .inbox-row td { background:var(--bg); transition:background-color .12s; }
+        .wsx .inbox-row:hover td { background:var(--bg-hover); }
+        .wsx .inbox-row.is-selected td, .wsx .inbox-row.is-current td { background:var(--bg-strong); }
+        .wsx .inbox-row.is-current td:first-child { box-shadow:inset 3px 0 0 #475569; }
+        .wsx .inbox-check-wrap { display:flex; align-items:center; height:32px; cursor:pointer; }
+        .wsx .inbox-check-wrap input { width:14px; height:14px; margin:0; accent-color:#475569; cursor:pointer; }
+        .wsx .inbox-star {
+            appearance:none; display:inline-flex; align-items:center; justify-content:center;
+            width:24px; height:24px; padding:0; background:none; border:0; border-radius:4px; cursor:pointer;
+        }
+        .wsx .inbox-star svg { width:16px; height:16px; fill:none; stroke:#cbd5e1; stroke-width:1.6; stroke-linejoin:round; transition:transform .15s, fill .15s, stroke .15s; }
+        .wsx .inbox-star:hover svg { stroke:#f5b301; }
+        .wsx .inbox-star[aria-pressed="true"] svg { fill:#f5b301; stroke:#f5b301; }
+        .wsx .inbox-star:active svg { transform:scale(.82); }
+        .wsx .inbox-th-star { width:13px; height:13px; fill:#cbd5e1; vertical-align:-2px; }
+        .wsx .inbox-folder { display:inline-block; padding:1px 7px; font-size:11px; color:#475569; background:rgba(241,245,249,.9); border:1px solid #e2e8f0; border-radius:4px; }
+        .wsx .inbox-route { display:inline-block; min-width:44px; padding:1px 6px; font-size:10.5px; font-weight:700; text-align:center; border-radius:4px; }
+        .wsx .inbox-route.is-web    { color:#64748b; background:#fff; box-shadow:inset 0 0 0 1px #cbd5e1; }
+        .wsx .inbox-route.is-line   { color:#fff; background:#06C755; }
+        .wsx .inbox-route.is-direct { color:#fff; background:#64748b; }
+        .wsx .inbox-route.is-sms    { color:#854d0e; background:#fef08a; }
+        .wsx .inbox-route.is-bc     { color:#475569; background:#e2e8f0; }
+        .wsx .inbox-member::before {
+            content:""; display:inline-block; width:7px; height:7px; margin-right:6px; vertical-align:1px;
+            border-radius:50%; background:transparent;
+        }
+        .wsx .inbox-row[data-pending="1"] .inbox-member::before { background:#f59e0b; }
+        .wsx .inbox-member a { font-size:13px; color:#1e293b; text-decoration:none; }
+        .wsx .inbox-member a:hover { text-decoration:underline; }
+        .wsx .inbox-row[data-pending="1"] .inbox-member a { font-weight:700; }
+        .wsx .inbox-staff::before, .wsx .inbox-table th.th-staff::before {
+            content:""; display:inline-block; width:16px; height:16px; margin-right:6px; vertical-align:-4px; border-radius:50%;
+            background:rgba(100,116,139,.14) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23475569' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8h7.5M8.5 4.8 11.7 8l-3.2 3.2'/%3E%3C/svg%3E") center / 11px no-repeat;
+        }
+        .wsx .inbox-table th.th-staff::before { width:14px; height:14px; vertical-align:-3px; background-size:10px; }
+        .wsx .inbox-staff { color:#334155; }
+        .wsx .inbox-point { text-align:right; font-variant-numeric:tabular-nums; color:#334155; }
+        .wsx .inbox-date { font-variant-numeric:tabular-nums; color:#334155; }
+        .wsx .inbox-date .d { margin-right:4px; color:#94a3b8; }
+        .wsx .inbox-empty td { padding:28px 10px; text-align:center; color:#94a3b8; background:#fff; cursor:default; }
+        .wsx .pane-tl > .inbox-foot {
+            flex:none; display:flex; align-items:center; flex-wrap:wrap; gap:6px 16px;
+            padding:6px 10px 6px 12px; font-size:12px; background:#f8fafc; border-top:1px solid #e2e8f0;
+        }
+        .wsx .inbox-legend { display:flex; gap:12px; font-size:11px; color:#94a3b8; }
+        .wsx .inbox-legend i { display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:-1px; border-radius:3px; box-shadow:inset 0 0 0 1px rgba(15,23,42,.08); }
+        .wsx .inbox-legend .sw-male   { background:#d2e2f9; }
+        .wsx .inbox-legend .sw-female { background:#f5d3e3; }
+        .wsx .inbox-foot-right { display:flex; align-items:center; gap:12px; margin-left:auto; }
+        .wsx .inbox-bulk { display:flex; align-items:center; gap:8px; margin:0; }
+        .wsx .inbox-selected { color:#475569; font-weight:600; white-space:nowrap; }
+        .wsx .inbox-btn-delete {
+            appearance:none; padding:5px 14px; font:inherit; font-size:12px; font-weight:600; color:#fff;
+            background:#dc2626; border:0; border-radius:4px; cursor:pointer; white-space:nowrap;
+        }
+        .wsx .inbox-btn-delete:hover:not(:disabled) { background:#b91c1c; }
+        .wsx .inbox-btn-delete:disabled { opacity:.4; cursor:not-allowed; }
+        .wsx .inbox-divider { width:1px; height:18px; background:#e2e8f0; }
+        .wsx .inbox-range { color:#64748b; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .wsx .inbox-pages { display:flex; align-items:center; gap:3px; }
+        .wsx .inbox-page {
+            appearance:none; min-width:26px; height:26px; padding:0 7px; font:inherit; font-size:12px; color:#475569;
+            font-variant-numeric:tabular-nums; white-space:nowrap; background:#fff; border:1px solid #e2e8f0; border-radius:4px; cursor:pointer;
+        }
+        .wsx .inbox-page:hover:not(:disabled):not([aria-current]) { background:#f1f5f9; }
+        .wsx .inbox-page[aria-current="page"] { color:#fff; font-weight:600; background:#475569; border-color:#475569; cursor:default; }
+        .wsx .inbox-page:disabled { color:#cbd5e1; cursor:default; }
+        .wsx .inbox-gap { padding:0 2px; color:#94a3b8; }
+
+        .wsx .pane-bl { container-type:inline-size; container-name:reply-pane; }
+
+        .wsx .pane-br { container-type:inline-size; container-name:tpl-pane; }
+        .wsx .pane-br .tpl-btn {
+            display:inline-flex; align-items:center; gap:3px; padding:3px 10px; font-size:12px; font-weight:600;
+            text-decoration:none; white-space:nowrap; border-radius:4px;
+        }
+        .wsx .pane-br .tpl-btn-new  { color:#fff; background:#475569; border:1px solid #475569; }
+        .wsx .pane-br .tpl-btn-new:hover  { background:#334155; }
+        .wsx .pane-br .tpl-btn-list { color:#475569; background:#fff; border:1px solid #cbd5e1; }
+        .wsx .pane-br .tpl-btn-list:hover { background:#f1f5f9; }
+        .wsx .pane-br > .tpl-bar { flex:none; display:flex; align-items:stretch; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+        .wsx .tpl-tabs { display:flex; flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:thin; }
+        .wsx .tpl-bar-actions { flex:none; display:flex; align-items:center; gap:6px; padding:0 8px 0 10px; border-left:1px solid #e2e8f0; }
+        .wsx .tpl-tab {
+            appearance:none; flex:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:-1px; padding:6px 10px;
+            font:inherit; font-size:12px; color:#64748b; white-space:nowrap; background:none; border:0; border-bottom:2px solid transparent; cursor:pointer;
+        }
+        .wsx .tpl-tab:hover { color:#334155; background:#f1f5f9; }
+        .wsx .tpl-tab[aria-selected="true"] { color:#1e293b; font-weight:600; background:#fff; border-bottom-color:#475569; }
+        .wsx .tpl-tab-count {
+            min-width:16px; padding:0 4px; font-size:10.5px; font-weight:500; line-height:15px; text-align:center;
+            color:#64748b; background:#e2e8f0; border-radius:8px;
+        }
+        .wsx .pane-br.is-searching .tpl-tab { opacity:.45; }
+        .wsx .pane-br > .tpl-search { flex:none; padding:8px 10px 6px; border-bottom:1px solid #edf1f5; }
+        .wsx .tpl-search-box { position:relative; }
+        .wsx .tpl-search-box input {
+            width:100%; box-sizing:border-box; padding:5px 26px 5px 28px; font:inherit; font-size:12px; color:#334155;
+            background:#f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='m10.5 10.5 3 3'/%3E%3C/svg%3E") 8px center / 13px no-repeat;
+            border:1px solid #e2e8f0; border-radius:6px;
+        }
+        .wsx .tpl-search-box input::-webkit-search-cancel-button { display:none; -webkit-appearance:none; }
+        .wsx .tpl-search-box input:focus { outline:none; background-color:#fff; border-color:#94a3b8; box-shadow:0 0 0 3px rgba(100,116,139,.15); }
+        .wsx .tpl-search-clear {
+            position:absolute; top:50%; right:4px; width:20px; height:20px; padding:0; font-size:14px; line-height:1;
+            color:#94a3b8; background:none; border:0; border-radius:50%; cursor:pointer; transform:translateY(-50%);
+        }
+        .wsx .tpl-search-clear:hover { color:#334155; background:#e2e8f0; }
+        .wsx .tpl-search-clear[hidden] { display:none; }
+        .wsx .tpl-hint { margin-top:4px; font-size:10.5px; color:#94a3b8; }
+        .wsx .pane-br > .body { flex:1 1 auto; min-height:0; padding:0; overflow:auto; }
+        .wsx .tpl-list { margin:0; padding:0; list-style:none; }
+        .wsx .tpl-list[hidden] { display:none; }
+        .wsx .pane-br.is-searching .tpl-list::before {
+            content:attr(data-title); position:sticky; top:0; z-index:1; display:block; padding:4px 12px;
+            font-size:10.5px; font-weight:700; color:#94a3b8; background:#f8fafc; border-bottom:1px solid #edf1f5;
+        }
+        .wsx .tpl-item { position:relative; border-bottom:1px solid #edf1f5; }
+        .wsx .tpl-item[hidden] { display:none; }
+        .wsx .tpl-item.color-slate   { box-shadow:inset 4px 0 0 #94a3b8; }
+        .wsx .tpl-item.color-blue    { box-shadow:inset 4px 0 0 #60a5fa; }
+        .wsx .tpl-item.color-sky     { box-shadow:inset 4px 0 0 #38bdf8; }
+        .wsx .tpl-item.color-cyan    { box-shadow:inset 4px 0 0 #22d3ee; }
+        .wsx .tpl-item.color-emerald { box-shadow:inset 4px 0 0 #34d399; }
+        .wsx .tpl-item.color-lime    { box-shadow:inset 4px 0 0 #a3e635; }
+        .wsx .tpl-item.color-amber   { box-shadow:inset 4px 0 0 #fbbf24; }
+        .wsx .tpl-item.color-rose    { box-shadow:inset 4px 0 0 #fb7185; }
+        .wsx .tpl-item.color-pink    { box-shadow:inset 4px 0 0 #f472b6; }
+        .wsx .tpl-item.color-violet  { box-shadow:inset 4px 0 0 #a78bfa; }
+        .wsx .tpl-insert {
+            appearance:none; display:block; width:100%; padding:8px 12px 9px; font:inherit; color:inherit;
+            text-align:left; background:none; border:0; cursor:pointer;
+        }
+        .wsx .tpl-item:hover .tpl-insert { background:#f8fafc; }
+        .wsx .tpl-insert:focus-visible { outline:2px solid #94a3b8; outline-offset:-2px; }
+        .wsx .tpl-name {
+            display:block; padding-right:74px; font-size:12.5px; font-weight:700; color:#1e293b;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
+        .wsx .tpl-subject { display:block; margin-top:1px; font-size:11px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .wsx .tpl-subject::before { content:"件名："; color:#94a3b8; }
+        .wsx .tpl-body {
+            display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin-top:3px;
+            font-size:11.5px; line-height:1.55; color:#475569; white-space:normal; overflow-wrap:anywhere;
+        }
+        .wsx .tpl-item.is-open .tpl-body {
+            display:block; -webkit-line-clamp:unset; white-space:pre-wrap; padding:6px 8px; background:#f8fafc; border:1px solid #edf1f5; border-radius:6px;
+        }
+        .wsx .tpl-tag { padding:0 3px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10.5px; color:#475569; background:#e2e8f0; border-radius:3px; }
+        .wsx .tpl-actions { position:absolute; top:5px; right:6px; display:flex; gap:2px; opacity:.6; transition:opacity .12s; }
+        .wsx .tpl-item:hover .tpl-actions, .wsx .tpl-item:focus-within .tpl-actions, .wsx .tpl-item.is-open .tpl-actions { opacity:1; }
+        .wsx .tpl-peek, .wsx .tpl-edit {
+            appearance:none; padding:2px 6px; font:inherit; font-size:11px; color:#64748b; text-decoration:none;
+            background:none; border:0; border-radius:4px; cursor:pointer;
+        }
+        .wsx .tpl-peek:hover, .wsx .tpl-edit:hover { color:#1e293b; background:#e2e8f0; }
+        .wsx .tpl-done {
+            position:absolute; top:6px; right:8px; padding:1px 8px; font-size:11px; font-weight:600; color:#fff;
+            background:#15803d; border-radius:10px; opacity:0; transform:translateY(3px); transition:opacity .15s, transform .15s; pointer-events:none;
+        }
+        .wsx .tpl-item.is-inserted .tpl-done { opacity:1; transform:none; }
+        .wsx .tpl-item.is-inserted .tpl-insert { background:#f0fdf4; }
+        .wsx .tpl-item.is-inserted .tpl-actions { opacity:0; }
+        .wsx .tpl-empty { padding:26px 12px; font-size:12px; line-height:1.7; text-align:center; color:#94a3b8; }
+        .wsx .tpl-empty[hidden] { display:none; }
+        .wsx .tpl-nohit { padding:26px 12px; font-size:12px; text-align:center; color:#94a3b8; }
+        .wsx .tpl-nohit[hidden] { display:none; }
+        @container tpl-pane (min-width: 560px) {
+            .wsx .pane-br > .tpl-search { display:flex; align-items:center; gap:12px; }
+            .wsx .tpl-search-box { flex:0 1 340px; }
+            .wsx .tpl-hint { margin-top:0; }
+            .wsx .tpl-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1px; background:#edf1f5; border-bottom:1px solid #edf1f5; }
+            .wsx .tpl-list[hidden] { display:none; }
+            .wsx .tpl-item { background:#fff; border-bottom:0; }
+            .wsx .tpl-empty { grid-column:1 / -1; background:#fff; }
+            .wsx .pane-br.is-searching .tpl-list::before { grid-column:1 / -1; }
+        }
+
+        .wsx .pane-tr > .dtl-cards {
+            flex:none; display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:8px; align-items:stretch;
+            padding:8px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0;
+        }
+        .wsx .dtl-cards[hidden] { display:none; }
+        .wsx .dtl-card {
+            display:flex; flex-direction:column; gap:7px; min-width:0; padding:9px 10px;
+            background:#fff; border:1px solid #e2e8f0; border-radius:8px;
+        }
+        .wsx .dtl-member[data-gender="male"]   { box-shadow:inset 0 3px 0 #b9d1f5; }
+        .wsx .dtl-member[data-gender="female"] { box-shadow:inset 0 3px 0 #f1c3d9; }
+        .wsx .dtl-img {
+            flex:none; display:block; width:56px; height:56px; padding:0; overflow:hidden;
+            background:#f1f5f9; border:1px solid #e2e8f0; border-radius:10px;
+        }
+        .wsx .dtl-img.is-empty { display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; border:1px dashed #cbd5e1; }
+        .wsx .dtl-body { display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px 12px; min-width:0; }
+        .wsx .dtl-profile { flex:0 1 152px; display:flex; flex-direction:column; gap:7px; min-width:140px; }
+        .wsx .dtl-head-row { display:flex; align-items:center; gap:8px; min-width:0; }
+        .wsx .dtl-head-row .dtl-img { width:48px; height:48px; border-radius:9px; }
+        .wsx .dtl-ident { min-width:0; }
+        .wsx .dtl-name { display:flex; align-items:center; gap:5px; font-size:14.5px; font-weight:700; line-height:1.25; color:#1e293b; white-space:nowrap; }
+        .wsx .dtl-name > span:first-child { overflow:hidden; text-overflow:ellipsis; }
+        .wsx .dtl-gender { flex:none; padding:1px 5px; font-size:10px; font-weight:600; border-radius:4px; }
+        .wsx .dtl-gender.is-male   { color:#1d4ed8; background:#eaf2fd; }
+        .wsx .dtl-gender.is-female { color:#be185d; background:#fcedf4; }
+        .wsx .dtl-id {
+            display:inline-block; margin-top:3px; font-size:12px; font-weight:600; color:#334155;
+            text-decoration:underline; text-decoration-color:#cbd5e1; text-underline-offset:2px;
+        }
+        .wsx .dtl-id:hover { text-decoration-color:#475569; }
+        .wsx .dtl-id.is-none { text-decoration:none; color:#94a3b8; font-weight:400; }
+        .wsx .dtl-attrs { display:flex; flex-wrap:wrap; gap:4px; margin:0; padding:0; list-style:none; }
+        .wsx .dtl-attrs li {
+            padding:0 7px; font-size:11px; line-height:18px; color:#475569; white-space:nowrap;
+            background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px;
+        }
+        .wsx .dtl-attrs .is-folder { color:#334155; font-weight:600; background:#eef2f6; border-color:#dbe2ea; border-radius:4px; }
+        .wsx .dtl-links { display:flex; flex-direction:column; gap:2px; font-size:11px; line-height:1.45; color:#64748b; }
+        .wsx .dtl-links b { font-weight:700; color:#92400e; }
+        .wsx .dtl-links a { color:#2563eb; text-decoration:underline; text-underline-offset:2px; }
+        .wsx .dtl-table { flex:1 1 150px; min-width:0; margin:0; overflow:hidden; border:1px solid #e2e8f0; border-radius:6px; }
+        .wsx .dtl-table > div { display:grid; grid-template-columns:minmax(72px, 38%) minmax(0, 1fr); }
+        .wsx .dtl-table > div + div { border-top:1px solid #edf1f5; }
+        .wsx .dtl-table dt, .wsx .dtl-table dd { min-width:0; padding:3px 9px; line-height:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .wsx .dtl-table dt { font-size:11px; color:#64748b; background:#f8fafc; border-right:1px solid #edf1f5; }
+        .wsx .dtl-table dd { margin:0; font-size:12.5px; font-weight:600; color:#334155; font-variant-numeric:tabular-nums; }
+        .wsx .dtl-memo { margin-top:auto; }
+        .wsx .dtl-memo-head { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-bottom:3px; }
+        .wsx .dtl-memo-head label { font-size:10.5px; font-weight:700; color:#94a3b8; }
+        .wsx .dtl-memo textarea {
+            display:block; width:100%; box-sizing:border-box; height:36px; min-height:30px; padding:4px 8px;
+            font:inherit; font-size:12px; line-height:1.5; color:#334155; resize:vertical;
+            background:#fffdf4; border:1px solid #e7e2cf; border-radius:6px;
+        }
+        .wsx .dtl-memo textarea:focus { outline:none; border-color:#94a3b8; box-shadow:0 0 0 3px rgba(100,116,139,.15); }
+        .wsx .dtl-btn-save {
+            appearance:none; min-width:52px; padding:2px 12px; font:inherit; font-size:11.5px; font-weight:600; line-height:18px; color:#fff;
+            white-space:nowrap; background:#475569; border:0; border-radius:4px; cursor:pointer; transition:background-color .15s;
+        }
+        .wsx .dtl-btn-save:hover { background:#334155; }
+        .wsx .dtl-btn-save:disabled { opacity:.6; cursor:default; }
+        .wsx .dtl-btn-save.is-done  { background:#15803d; }
+        .wsx .dtl-btn-save.is-error { background:#dc2626; }
+        .wsx .pane-tr > .dtl-mini {
+            flex:none; display:flex; align-items:center; flex-wrap:wrap; gap:2px 0; padding:6px 12px;
+            font-size:12px; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0;
+        }
+        .wsx .dtl-mini[hidden] { display:none; }
+        .wsx .dtl-mini > span + span::before { content:""; display:inline-block; width:3px; height:3px; margin:0 6px; vertical-align:middle; border-radius:50%; background:#cbd5e1; }
+        .wsx .dtl-mini b { font-weight:700; color:#1e293b; }
+        .wsx .dtl-mini .dtl-gender { margin-left:5px; }
+        .wsx .dtl-mini a { font-weight:600; color:#334155; text-decoration:underline; text-decoration-color:#cbd5e1; text-underline-offset:2px; }
+        .wsx .dtl-mini a:hover { text-decoration-color:#475569; }
+        .wsx .dtl-mini i { margin-right:4px; font-style:normal; font-size:11px; color:#94a3b8; }
+        .wsx .dtl-mini > .dtl-mini-staff { margin-left:auto; padding-left:12px; }
+        .wsx .dtl-mini > .dtl-mini-staff::before { display:none; }
+        .wsx .pane-tr > .dtl-log-head {
+            flex:none; display:flex; align-items:center; gap:10px; padding:5px 8px 5px 12px;
+            font-size:11px; color:#94a3b8; background:#fff; border-bottom:1px solid #edf1f5;
+        }
+        .wsx .dtl-log-title { font-size:12px; font-weight:700; color:#334155; }
+        .wsx .dtl-log-count { font-variant-numeric:tabular-nums; }
+        .wsx .dtl-log-legend { display:flex; gap:12px; margin-left:auto; }
+        .wsx .dtl-toggle {
+            appearance:none; padding:3px 8px; font:inherit; font-size:11px; color:#64748b;
+            background:#fff; border:1px solid #e2e8f0; border-radius:4px; cursor:pointer; white-space:nowrap;
+        }
+        .wsx .dtl-toggle:hover { color:#334155; background:#f1f5f9; }
+        .wsx .dtl-toggle::after {
+            content:""; display:inline-block; width:6px; height:6px; margin-left:7px; vertical-align:1px;
+            border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-135deg);
+        }
+        .wsx .dtl-toggle[aria-expanded="false"]::after { transform:rotate(45deg); vertical-align:3px; }
+        .wsx .dtl-log-legend i { display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:-1px; border-radius:3px; box-shadow:inset 0 0 0 1px rgba(15,23,42,.1); }
+        .wsx .dtl-log-legend .lg-in  { background:#fff; }
+        .wsx .dtl-log-legend .lg-out { background:#e6ebf1; }
+        .wsx .dtl-log-head[data-gender="male"] .lg-in { background:#eaf2fd; }
+        .wsx .dtl-log-head[data-gender="female"] .lg-in { background:#fcedf4; }
+        .wsx .pane-tr > .dtl-log { flex:1 1 auto; min-height:0; overflow:auto; padding:4px 14px 14px; background:#f6f8fa; }
+        .wsx .msg-sep { display:flex; align-items:center; gap:10px; margin:14px 0 6px; font-size:11px; color:#94a3b8; white-space:nowrap; }
+        .wsx .msg-sep::before, .wsx .msg-sep::after { content:""; flex:1; height:1px; background:#e2e8f0; }
+        .wsx .msg { display:flex; align-items:flex-start; gap:8px; margin:8px 0; }
+        .wsx .msg[hidden] { display:none; }
+        .wsx .msg.is-out { justify-content:flex-end; }
+        .wsx .msg-av {
+            flex:none; display:flex; align-items:center; justify-content:center; width:28px; height:28px; overflow:hidden;
+            font-size:12px; font-weight:700; color:#475569; background:#e2e8f0; border-radius:7px;
+        }
+        .wsx .msg-av.is-male   { color:#1e40af; background:#d2e2f9; }
+        .wsx .msg-av.is-female { color:#9d174d; background:#f5d3e3; }
+        .wsx .msg-av.is-staff  { color:#fff; background:#64748b; }
+        .wsx .msg-bubble {
+            flex:0 1 76%; min-width:260px; max-width:900px; padding:7px 12px 9px;
+            background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 1px rgba(15,23,42,.03);
+        }
+        .wsx .msg.is-in .msg-bubble  { border-top-left-radius:3px; }
+        .wsx .msg.is-out .msg-bubble { border-top-right-radius:3px; background:#e6ebf1; border-color:#dbe2ea; }
+        .wsx .msg.is-diff .msg-bubble { background:#ede9fe; border-color:#ddd6fe; }
+        .wsx .dtl-log[data-gender="male"]   .msg.is-in .msg-bubble { background:#f2f7fe; border-color:#d6e4f7; }
+        .wsx .dtl-log[data-gender="female"] .msg.is-in .msg-bubble { background:#fdf3f8; border-color:#f3d9e6; }
+        .wsx .msg-meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:11px; color:#94a3b8; }
+        .wsx .msg.is-out .msg-meta { justify-content:flex-end; }
+        .wsx .msg-who { font-weight:700; color:#475569; }
+        .wsx .msg-time { font-variant-numeric:tabular-nums; }
+        .wsx .msg-time b { font-weight:600; color:#64748b; }
+        .wsx .msg-flag { padding:0 6px; font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border-radius:4px; }
+        .wsx .msg-flag.is-ng   { color:#991b1b; background:#fecaca; }
+        .wsx .msg-flag.is-diff { color:#6d28d9; background:#ddd6fe; }
+        .wsx .msg-flag.is-mute { color:#64748b; background:#e2e8f0; }
+        .wsx .msg-err { margin-top:2px; font-size:11px; color:#dc2626; overflow-wrap:anywhere; }
+        .wsx .msg-title { margin:4px 0 2px; font-size:13px; font-weight:700; color:#1e293b; overflow-wrap:anywhere; }
+        .wsx .msg-body {
+            display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:5; overflow:hidden;
+            font-size:12.5px; line-height:1.65; color:#334155; white-space:pre-wrap; overflow-wrap:anywhere;
+        }
+        .wsx .msg.is-open .msg-body { display:block; -webkit-line-clamp:unset; }
+        .wsx .msg-more {
+            appearance:none; margin-top:2px; padding:0; font:inherit; font-size:11px; color:#64748b;
+            background:none; border:0; cursor:pointer; text-decoration:underline; text-underline-offset:2px;
+        }
+        .wsx .msg-more:hover { color:#334155; }
+        .wsx .msg-atts { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+        .wsx .msg-atts img { width:60px; height:60px; object-fit:cover; border:1px solid #cbd5e1; border-radius:4px; cursor:zoom-in; }
+        .wsx .dtl-empty { padding:40px 0; font-size:12px; text-align:center; color:#94a3b8; }
+        .wsx .pane-tr > .dtl-foot {
+            flex:none; display:flex; align-items:center; justify-content:flex-end; gap:12px;
+            padding:6px 10px; font-size:12px; background:#f8fafc; border-top:1px solid #e2e8f0;
+        }
+        .thread-lightbox { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.85); align-items:center; justify-content:center; cursor:zoom-out; }
+        .thread-lightbox img { max-width:92vw; max-height:92vh; box-shadow:0 4px 30px rgba(0,0,0,.5); }
     </style>
 </head>
 <body>
 <section layout:fragment="content">
 <div class="wsx" th:attr="data-layout=${threadLayout}">
 
-    <!-- ===== Top-left: Inbox list ===== -->
     <div class="pane pane-tl">
-        <header>
-            <button type="button" class="btn-layout-save" id="btnLayoutSave" title="現在の4画面の大きさを保存し、次回もこの形で開きます">画面レイアウト保存</button>
-            <span>受信ボックス (<span id="inboxCount" th:text="${#lists.size(inboxRows)}">0</span>)</span>
-            <button class="btn-refresh ml-auto" type="button" onclick="location.reload()">更新</button>
+        <header class="inbox-head">
+            <span class="inbox-title">受信ボックス</span>
+            <div class="inbox-filters" role="group" aria-label="表示の切り替え">
+                <button type="button" class="inbox-filter" data-inbox-filter="all" aria-pressed="true">
+                    全受信履歴 <span class="inbox-count" id="inboxCount" th:text="${#lists.size(inboxRows)}">0</span>
+                </button>
+                <button type="button" class="inbox-filter" data-inbox-filter="pending" aria-pressed="false">
+                    未対応 <span class="inbox-count" id="inboxPendingCount">0</span>
+                </button>
+            </div>
+            <div class="inbox-tools">
+                <button type="button" class="btn-layout-save" id="btnLayoutSave" title="現在の4画面の大きさ・やり取りメモの高さ・情報欄の開閉を保存し、次回もこの形で開きます">画面レイアウト保存</button>
+                <button class="btn-refresh" type="button" onclick="location.reload()">更新</button>
+            </div>
         </header>
+
         <div class="body" id="inboxBody">
-            <div th:if="${inboxRows == null or inboxRows.empty}" class="text-xs text-slate-400 p-2">受信はまだありません</div>
-            <a th:each="r : ${inboxRows}" class="ibx-row"
-               th:href="@{'/manager/users/' + ${r.userId} + '/thread'}"
-               th:classappend="(${r.userId == user.id} ? 'current ' : '') + (${r.unreplied} ? 'unreplied' : '')"
-               th:attr="data-user-id=${r.userId}"
-               style="text-decoration:none;">
-                <span class="nm" th:text="${r.displayName}"></span>
-                <span class="uc" th:if="${r.unreadCount > 0}" th:text="${r.unreadCount}"></span>
-                <span class="dt"
-                      th:text="${r.latestAt != null} ? ${#temporals.format(r.latestAt, 'MM-dd HH:mm')} : '-'"></span>
-                <button type="button" class="del" title="この受信を一覧から削除（履歴は残ります）"
-                        th:attr="data-dismiss-user=${r.userId}">×</button>
-            </a>
+            <table class="inbox-table">
+                <thead>
+                <tr>
+                    <th class="col-check"><label class="inbox-check-wrap" title="このページを全選択"><input type="checkbox" id="inboxCheckAll"/></label></th>
+                    <th class="col-star" title="★を付けると全受信履歴で上部に表示されます">
+                        <svg class="inbox-th-star" viewBox="0 0 24 24" aria-label="★"><path d="M12 2.8l2.84 5.76 6.36.92-4.6 4.49 1.09 6.33L12 17.31l-5.69 2.99 1.09-6.33-4.6-4.49 6.36-.92z"/></svg>
+                    </th>
+                    <th>フォルダ名</th>
+                    <th>受信経路</th>
+                    <th>ユーザー</th>
+                    <th class="th-staff">キャラ</th>
+                    <th class="is-num">ポイント</th>
+                    <th>受信日</th>
+                    <th>ログイン日</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${inboxRows}" th:with="iu=${inboxUsers.get(r.userId)}"
+                    class="inbox-row" th:classappend="${r.userId == user.id} ? 'is-current'"
+                    th:data-id="${r.userId}"
+                    th:data-href="@{'/manager/users/' + ${r.userId} + '/thread'}"
+                    th:data-gender="${iu != null and iu.gender == 'M'} ? 'male' : (${iu != null and iu.gender == 'F'} ? 'female' : '')"
+                    th:data-pending="${r.unreplied} ? '1' : '0'"
+                    th:data-starred="${starredUserIds.contains(r.userId)} ? '1' : '0'">
+                    <td class="col-check"><label class="inbox-check-wrap"><input type="checkbox" class="inbox-check" name="ids" th:value="${r.userId}" form="inboxBulkForm"/></label></td>
+                    <td class="col-star"><button type="button" class="inbox-star"></button></td>
+                    <td>
+                        <span th:if="${iu != null and iu.folder != null and !#strings.isEmpty(iu.folder)}" class="inbox-folder"
+                              th:style="${folderColors.get(iu.folder) != null} ? 'background:' + ${folderColors.get(iu.folder)}"
+                              th:text="${iu.folder}">フォルダ</span>
+                        <span th:unless="${iu != null and iu.folder != null and !#strings.isEmpty(iu.folder)}">—</span>
+                    </td>
+                    <td th:switch="${r.latestChannel}">
+                        <span th:case="'WEB_REPLY'" class="inbox-route is-web">Web</span>
+                        <span th:case="'LINE'" class="inbox-route is-line">LINE</span>
+                        <span th:case="'SMS'" class="inbox-route is-sms">SMS</span>
+                        <span th:case="*" class="inbox-route is-direct">直アド</span>
+                    </td>
+                    <td class="inbox-member"><a th:href="@{'/manager/users/' + ${r.userId} + '/thread'}" th:text="${r.displayName}">ユーザー</a></td>
+                    <td class="inbox-staff" th:text="${r.latestLineAccountName} ?: '—'">—</td>
+                    <td class="inbox-point" title="ポイント残高は未対応です">—</td>
+                    <td class="inbox-date">
+                        <th:block th:if="${r.latestAt != null}"><span class="d" th:text="${#temporals.format(r.latestAt, 'M/d')}"></span><th:block th:text="${#temporals.format(r.latestAt, 'H:mm')}"/></th:block>
+                        <th:block th:if="${r.latestAt == null}">—</th:block>
+                    </td>
+                    <td class="inbox-date">
+                        <th:block th:if="${iu != null and iu.lastLoginAt != null}"><span class="d" th:text="${#temporals.format(iu.lastLoginAt, 'M/d')}"></span><th:block th:text="${#temporals.format(iu.lastLoginAt, 'H:mm')}"/></th:block>
+                        <th:block th:unless="${iu != null and iu.lastLoginAt != null}">—</th:block>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
         </div>
+
+        <footer class="inbox-foot">
+            <div class="inbox-legend" aria-hidden="true">
+                <span><i class="sw-male"></i>男性</span>
+                <span><i class="sw-female"></i>女性</span>
+            </div>
+            <div class="inbox-foot-right">
+                <form id="inboxBulkForm" class="inbox-bulk" method="post" th:action="@{/manager/inbox/bulk-dismiss}">
+                    <input type="hidden" name="returnUserId" th:value="${user.id}"/>
+                    <span class="inbox-selected" id="inboxSelectedCount"></span>
+                    <button type="submit" class="inbox-btn-delete" id="inboxBulkDelete" disabled>選択削除</button>
+                </form>
+                <span class="inbox-divider"></span>
+                <span class="inbox-range" id="inboxRange"></span>
+                <nav class="inbox-pages" id="inboxPages" aria-label="ページ"></nav>
+            </div>
+        </footer>
     </div>
 
     <div class="v-sash" id="sashT" data-sash="T" title="ドラッグで上段の左右幅を調整"></div>
 
-    <!-- ===== Top-right: history ===== -->
-    <div class="pane pane-tr">
-        <header style="flex-wrap:wrap; gap:4px 10px;">
-            <a class="font-semibold text-blue-700 hover:underline"
-               th:href="@{'/manager/users/' + ${user.id}}"
-               th:text="${user.displayName} ?: ${user.email}"></a>
-            <span>送受信履歴</span>
-            <span class="text-slate-400">|</span>
-            <!-- Previously read boundAddresses[0].carrierDomain — the FIRST AMG pool address
-                 bound to this user, which is the same address for everyone, so every thread
-                 wrongly displayed the pool's first carrier (i.softbank.jp). The carrier we
-                 actually want is the user's own (from the CSV import / detail form). -->
-            <span class="text-slate-500" th:text="${user.carrierDomain} ?: '-'"></span>
-            <span class="text-slate-400">|</span>
-            <span class="text-slate-500" th:text="'広告: ' + (${user.adCode} ?: '-')"></span>
-            <span class="text-slate-400">|</span>
-            <span class="text-slate-500" th:text="'フォルダ: ' + (${user.folder} ?: '-')"></span>
-            <span class="text-slate-400">|</span>
-            <span class="text-slate-500"
-                  th:text="'最終入金: ' + (${user.lastPaymentAt != null} ? ${#temporals.format(user.lastPaymentAt, 'yyyy-MM-dd')} : '-')"></span>
-            <span class="text-slate-400">|</span>
-            <span class="text-slate-500" th:text="'入金額: ' + ${#numbers.formatDecimal(totalPaid, 0, 'COMMA', 0, 'POINT')} + '円'"></span>
-            <span class="text-slate-400">|</span>
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700"
-                  th:text="'Web ' + ${threadWebReply}" title="Web返信数"></span>
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-200 text-slate-600"
-                  th:text="'Mail ' + ${threadMailReply}" title="メール返信数"></span>
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700"
-                  th:text="'送 ' + ${threadOut}" title="送信数 (SMS送信を含む) — SMSは返信を受信できないためSMS返信数は表示しません"></span>
-        </header>
-        <!-- Directly above the exchange (2026-09-30 client request — a panel under the reply
-             form was easy to miss): the in-use 専用HTML's title as a link to its preview, and a
-             link to the user's own view of the exchange (メッセージボックス). -->
-        <div style="padding:4px 10px; border-bottom:1px solid #e2e8f0; background:#fffbeb; font-size:.76rem; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center;">
-            <span th:if="${activeMemoLabel != null}">
-                <span style="font-weight:700; color:#92400e;">専用HTML使用中：</span>
-                <a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank"
-                   style="color:#2563eb; text-decoration:underline; font-weight:600;"
-                   th:text="${activeMemoLabel}">③ キャンペーン</a>
-            </span>
-            <span th:unless="${activeMemoLabel != null}" style="color:#94a3b8;">専用HTML：未使用</span>
-            <a th:href="@{'/manager/users/' + ${user.id} + '/message-box'}" target="_blank"
-               style="color:#2563eb; text-decoration:underline;">ユーザーの受信画面を確認 ↗</a>
+    <div class="pane pane-tr"
+         th:with="uname=${user.displayName != null and !#strings.isEmpty(user.displayName)} ? ${user.displayName} : (${user.email} ?: ('ID ' + ${user.id})),
+                  ugender=${user.gender == 'M'} ? 'male' : (${user.gender == 'F'} ? 'female' : '')">
+        <section class="dtl-cards" id="dtlCards" th:data-user-id="${user.id}" data-staff-id="0">
+            <div class="dtl-card dtl-member" th:data-gender="${ugender}">
+                <div class="dtl-body">
+                    <div class="dtl-profile">
+                        <div class="dtl-head-row">
+                            <span class="dtl-img is-empty">画像</span>
+                            <div class="dtl-ident">
+                                <div class="dtl-name"><span th:text="${uname}">ユーザー</span><span th:if="${ugender == 'male'}" class="dtl-gender is-male">男性</span><span th:if="${ugender == 'female'}" class="dtl-gender is-female">女性</span></div>
+                                <a class="dtl-id" th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + ${user.id}">ID</a>
+                            </div>
+                        </div>
+                        <ul class="dtl-attrs" th:if="${user.folder != null and !#strings.isEmpty(user.folder)}">
+                            <li class="is-folder" th:text="${user.folder}">フォルダ</li>
+                        </ul>
+                        <div class="dtl-links">
+                            <span th:if="${activeMemoLabel != null}"><b>専用HTML使用中：</b><a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank" rel="noopener" th:text="${activeMemoLabel}">返信HTML</a></span>
+                            <span th:unless="${activeMemoLabel != null}">専用HTML：未使用</span>
+                            <a th:href="@{'/manager/users/' + ${user.id} + '/message-box'}" target="_blank" rel="noopener">ユーザーの受信画面を確認 ↗</a>
+                        </div>
+                    </div>
+                    <dl class="dtl-table">
+                        <div><dt>広告コード</dt><dd th:text="${user.adCode != null and !#strings.isEmpty(user.adCode)} ? ${user.adCode} : '—'">—</dd></div>
+                        <div><dt>登録日時</dt><dd th:text="${user.createdAt != null} ? ${#temporals.format(user.createdAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
+                        <div><dt>最終ログイン</dt><dd th:text="${user.lastLoginAt != null} ? ${#temporals.format(user.lastLoginAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
+                        <div><dt>最終送信日</dt><dd th:text="${lastInboundAt != null} ? ${#temporals.format(lastInboundAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
+                        <div><dt>最終購入日</dt><dd th:text="${user.lastPaymentAt != null} ? ${#temporals.format(user.lastPaymentAt, 'yyyy/MM/dd')} : '—'">—</dd></div>
+                    </dl>
+                </div>
+                <div class="dtl-memo" data-memo-target="member">
+                    <div class="dtl-memo-head"><label for="dtlMemoMember">やり取りメモ</label><button type="button" class="dtl-btn-save">保存</button></div>
+                    <textarea id="dtlMemoMember" th:maxlength="${memoMax}" th:text="${memberMemo}"></textarea>
+                </div>
+            </div>
+
+            <div class="dtl-card dtl-staff">
+                <div class="dtl-body">
+                    <div class="dtl-profile">
+                        <div class="dtl-head-row">
+                            <span class="dtl-img is-empty">画像</span>
+                            <div class="dtl-ident">
+                                <div class="dtl-name"><span th:text="${charName} ?: 'キャラ未設定'">キャラ</span></div>
+                                <span class="dtl-id is-none">ID —</span>
+                            </div>
+                        </div>
+                    </div>
+                    <dl class="dtl-table">
+                        <div><dt>文字入れ A</dt><dd>—</dd></div>
+                        <div><dt>文字入れ B</dt><dd>—</dd></div>
+                        <div><dt>文字入れ C</dt><dd>—</dd></div>
+                        <div><dt>文字入れ D</dt><dd>—</dd></div>
+                        <div><dt>文字入れ E</dt><dd>—</dd></div>
+                    </dl>
+                </div>
+                <div class="dtl-memo" data-memo-target="staff">
+                    <div class="dtl-memo-head"><label for="dtlMemoStaff">やり取りメモ</label><button type="button" class="dtl-btn-save">保存</button></div>
+                    <textarea id="dtlMemoStaff" th:maxlength="${memoMax}" th:text="${staffMemo}"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <div class="dtl-mini" id="dtlMini" hidden>
+            <span><b th:text="${uname}">ユーザー</b><span th:if="${ugender == 'male'}" class="dtl-gender is-male">男性</span><span th:if="${ugender == 'female'}" class="dtl-gender is-female">女性</span></span>
+            <span><a th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + ${user.id}">ID</a></span>
+            <span th:if="${user.folder != null and !#strings.isEmpty(user.folder)}" th:text="${user.folder}">フォルダ</span>
+            <span><i>広告コード</i><th:block th:text="${user.adCode != null and !#strings.isEmpty(user.adCode)} ? ${user.adCode} : '—'"/></span>
+            <span><i>入金額</i><th:block th:text="${#numbers.formatDecimal(totalPaid, 1, 'COMMA', 0, 'POINT')} + '円'"/></span>
+            <span class="dtl-mini-staff"><b th:text="${charName} ?: 'キャラ未設定'">キャラ</b></span>
         </div>
-        <div class="body" id="historyBody">
-            <!-- 差分予約 — pending (not-yet-fired) diff-schedule sends for this user, displayed
-                 1件ずつ as individual cards matching normal 予約送信 rows (2026-09-10 operator
-                 request: previously a single lumped summary box). -->
+
+        <div class="dtl-log-head" th:data-gender="${ugender}">
+            <span class="dtl-log-title">やり取り履歴</span>
+            <span class="dtl-log-count" th:text="'受信 ' + ${threadInCount} + '・送信 ' + ${threadOutCount}">受信 0・送信 0</span>
+            <span class="dtl-log-legend"><span><i class="lg-in"></i>左：ユーザー</span><span><i class="lg-out"></i>右：キャラ</span></span>
+            <button type="button" class="dtl-toggle" id="dtlToggleCards" aria-expanded="true" aria-controls="dtlCards">情報を閉じる</button>
+        </div>
+
+        <div class="body dtl-log" id="dtlLog" th:data-gender="${ugender}">
             <div th:each="s : ${diffReservations}" th:with="sched=${diffSchedulesById.get(s.diffScheduleId)}"
-                 class="hist-item out diff">
-                <div class="font-medium">
-                    <span th:text="${sched != null ? sched.diffNameSnapshot : '差分'}"></span>
-                    <span class="text-xs" style="opacity:.75;" th:text="'(' + ${s.channel} + ')'"></span>
-                    <span th:if="${s.lineAccountId != null}" class="text-xs"
-                          style="background:#d9f7e6; color:#046c3a; padding:1px 6px; border-radius:4px; margin-left:4px;"
-                          th:text="${lineAccountNamesById.get(s.lineAccountId)} ?: ('LINEアカウント#' + ${s.lineAccountId})"></span>
+                 class="msg is-out is-diff" th:data-at="${#temporals.format(s.scheduledFor, 'yyyy-MM-dd''T''HH:mm')}">
+                <div class="msg-bubble">
+                    <div class="msg-meta">
+                        <span class="msg-flag is-diff">差分予約</span>
+                        <span class="msg-time" th:text="'予約 ' + ${#temporals.format(s.scheduledFor, 'M/d H:mm')}"></span>
+                        <span th:switch="${s.channel}">
+                            <span th:case="'LINE'" class="inbox-route is-line">LINE</span>
+                            <span th:case="'SMS'" class="inbox-route is-sms">SMS</span>
+                            <span th:case="*" class="inbox-route is-direct">直アド</span>
+                        </span>
+                        <span class="msg-who" th:text="${sched != null} ? ${sched.diffNameSnapshot} : '差分'"></span>
+                        <span th:if="${s.lineAccountId != null}" th:text="${lineAccountNamesById.get(s.lineAccountId)} ?: ('LINEアカウント#' + ${s.lineAccountId})"></span>
+                        <button type="button" class="sched-del" th:data-diff-step-id="${s.id}" th:data-user-id="${user.id}" onclick="deleteDiffReservation(this)">削除</button>
+                    </div>
+                    <div class="msg-title" th:if="${s.subjectSnapshot != null and !#strings.isEmpty(s.subjectSnapshot)}" th:text="${s.subjectSnapshot}"></div>
+                    <div class="msg-body" th:text="${s.bodySnapshot}"></div>
                 </div>
-                <div class="font-medium" th:if="${s.subjectSnapshot != null and !s.subjectSnapshot.isEmpty()}"
-                     th:text="${s.subjectSnapshot}"></div>
-                <div class="whitespace-pre-wrap" th:text="${s.bodySnapshot}"></div>
-                <div class="meta">
-                    <span>差分予約</span>
-                    ·
-                    <span class="font-semibold ml-2"
-                          th:text="'予約: ' + ${#temporals.format(s.scheduledFor, 'yyyy-MM-dd HH:mm')}"></span>
-                    <button type="button" class="sched-del"
-                            th:attr="data-diff-step-id=${s.id},data-user-id=${user.id}"
-                            onclick="deleteDiffReservation(this)">削除</button>
-                </div>
+                <div class="msg-av is-staff">差</div>
             </div>
 
-            <div th:if="${thread.empty}" class="text-center text-xs text-slate-400 py-6">まだメッセージはありません</div>
-            <div th:each="m : ${thread}" class="hist-item"
-                 th:classappend="${m.channel == 'SMS'} ? (${m.direction == 'OUT'} ? 'out sms' : 'in sms') : (${m.channel == 'LINE'} ? (${m.direction == 'OUT'} ? 'out line' : 'in line') : (${m.direction == 'OUT'} ? 'out' : (${m.channel == 'WEB_REPLY'} ? 'in web' : 'in')))">
-                <div class="font-medium">
-                    <span th:text="${m.subject} ?: '(件名なし)'"></span>
-                    <!-- 📎 badge next to subject when this inbound carries images -->
-                    <span th:if="${attachmentsByMessageId.get(m.id) != null and !attachmentsByMessageId.get(m.id).empty}"
-                          class="ml-1 text-xs"
-                          th:text="'📎 ' + ${attachmentsByMessageId.get(m.id).size()}"
-                          title="添付画像あり"></span>
-                    <span th:if="${m.channel == 'LINE' and m.lineAccountId != null}" class="text-xs"
-                          style="background:#d9f7e6; color:#046c3a; padding:1px 6px; border-radius:4px; margin-left:4px;"
-                          th:text="${lineAccountNamesById.get(m.lineAccountId)} ?: ('LINEアカウント#' + ${m.lineAccountId})"></span>
+            <div th:each="m : ${thread}"
+                 th:with="isOut=${m.direction == 'OUT'},
+                          at=${m.sentAt != null ? m.sentAt : m.createdAt},
+                          who=${m.direction == 'OUT'} ? (${m.channel == 'LINE' and m.lineAccountId != null and !#strings.isEmpty(lineAccountNamesById.get(m.lineAccountId))} ? ${lineAccountNamesById.get(m.lineAccountId)} : '運営') : ${uname}"
+                 class="msg" th:classappend="${isOut} ? 'is-out' : 'is-in'"
+                 th:data-at="${#temporals.format(at, 'yyyy-MM-dd''T''HH:mm')}">
+                <div th:unless="${isOut}" class="msg-av"
+                     th:classappend="${ugender == 'male'} ? 'is-male' : (${ugender == 'female'} ? 'is-female' : '')"
+                     th:text="${#strings.substring(uname, 0, 1)}">ユ</div>
+                <div class="msg-bubble">
+                    <div class="msg-meta" th:if="${!isOut}">
+                        <span class="msg-who" th:text="${who}"></span>
+                        <th:block th:replace="~{::route(${m.channel})}"/>
+                        <span class="msg-time"><b>受信</b> <th:block th:text="${#temporals.format(at, 'M/d H:mm')}"/></span>
+                        <span class="msg-flag" th:if="${latestOutAt == null or m.createdAt.isAfter(latestOutAt)}">未対応</span>
+                    </div>
+                    <div class="msg-meta" th:if="${isOut}">
+                        <span class="msg-flag is-ng" th:if="${m.status == 'FAILED'}">NG</span>
+                        <span class="msg-flag is-mute" th:if="${m.status == 'CANCELLED'}">取消</span>
+                        <span class="msg-flag" th:if="${m.status == 'QUEUED' and m.scheduledAt != null}" th:text="'予約 ' + ${#temporals.format(m.scheduledAt, 'M/d H:mm')}"></span>
+                        <span class="msg-flag is-mute" th:if="${m.status == 'QUEUED' and m.scheduledAt == null}">送信待ち</span>
+                        <button th:if="${m.status == 'QUEUED' and m.scheduledAt != null}" type="button" class="sched-del"
+                                th:data-msg-id="${m.id}" onclick="deleteScheduledMessage(this)">削除</button>
+                        <span class="msg-time"><b>送信</b> <th:block th:text="${#temporals.format(at, 'M/d H:mm')}"/></span>
+                        <th:block th:replace="~{::route(${m.channel})}"/>
+                        <span class="msg-who" th:text="${who}"></span>
+                    </div>
+                    <div class="msg-title" th:text="${m.subject} ?: '(件名なし)'"></div>
+                    <div class="msg-body" th:text="${m.bodyText}"></div>
+                    <div class="msg-atts" th:if="${attachmentsByMessageId.get(m.id) != null and !attachmentsByMessageId.get(m.id).empty}">
+                        <img th:each="a : ${attachmentsByMessageId.get(m.id)}"
+                             th:src="@{'/manager/users/' + ${user.id} + '/attachment/' + ${a.id}}"
+                             th:alt="${a.fileName}" th:title="${a.fileName}" onclick="openThreadLightbox(this.src);"/>
+                    </div>
+                    <div class="msg-err" th:if="${isOut and m.status == 'FAILED' and m.errorMessage != null}" th:text="${#strings.abbreviate(m.errorMessage, 120)}"></div>
                 </div>
-                <div class="whitespace-pre-wrap" th:text="${m.bodyText}"></div>
-                <!-- Inbound attachment thumbnails — click opens the lightbox. -->
-                <div th:if="${attachmentsByMessageId.get(m.id) != null and !attachmentsByMessageId.get(m.id).empty}"
-                     class="mt-1 flex flex-wrap gap-1">
-                    <img th:each="a : ${attachmentsByMessageId.get(m.id)}"
-                         th:src="@{'/manager/users/' + ${user.id} + '/attachment/' + ${a.id}}"
-                         th:alt="${a.fileName}"
-                         th:title="${a.fileName}"
-                         class="hist-att-thumb"
-                         style="width:60px; height:60px; object-fit:cover; border:1px solid #cbd5e1; border-radius:3px; cursor:zoom-in;"
-                         onclick="openThreadLightbox(this.src);"/>
-                </div>
-                <div class="meta">
-                    <span th:if="${m.direction == 'OUT' and m.status == 'FAILED'}"
-                          style="font-weight:700;background:#fecaca;color:#991b1b;padding:1px 6px;border-radius:3px;">NG</span>
-                    <span th:if="${m.direction == 'OUT' and m.status != 'FAILED'}"
-                          th:text="${m.status}"></span>
-                    <span th:if="${m.direction == 'IN'}">RECV</span>
-                    ·
-                    <!-- Prefer sentAt over createdAt: for scheduled broadcast OUT rows,
-                         createdAt = when the row was queued (often hours earlier),
-                         sentAt = the actual relay timestamp (= what the recipient sees).
-                         Falls back to createdAt only when the message hasn't been sent
-                         yet (QUEUED / SCHEDULED). -->
-                    <span th:text="${#temporals.format(m.sentAt != null ? m.sentAt : m.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
-                    <span th:if="${m.scheduledAt != null and m.status == 'QUEUED'}"
-                          class="text-amber-700 font-semibold ml-2"
-                          th:text="'予約: ' + ${#temporals.format(m.scheduledAt, 'yyyy-MM-dd HH:mm')}"></span>
-                    <button th:if="${m.scheduledAt != null and m.status == 'QUEUED'}"
-                            type="button" class="sched-del" th:attr="data-msg-id=${m.id}"
-                            onclick="deleteScheduledMessage(this)">削除</button>
-                    <span th:if="${m.status == 'FAILED' and m.errorMessage != null}"
-                          style="color:#dc2626;margin-left:6px;font-size:.66rem;"
-                          th:text="${#strings.abbreviate(m.errorMessage, 80)}"></span>
-                </div>
+                <div th:if="${isOut}" class="msg-av is-staff" th:text="${#strings.substring(who, 0, 1)}">運</div>
             </div>
-
-            <!-- Lightbox overlay for thread thumbnails -->
-            <div id="threadLightbox" onclick="this.style.display='none'"
-                 style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); align-items:center; justify-content:center; cursor:zoom-out;">
-                <img id="threadLightboxImg" src="" alt=""
-                     style="max-width:92vw; max-height:92vh; box-shadow:0 4px 30px rgba(0,0,0,0.5);"/>
-            </div>
-            <script>
-                function openThreadLightbox(src) {
-                    var lb = document.getElementById('threadLightbox');
-                    var im = document.getElementById('threadLightboxImg');
-                    if (!lb || !im) return;
-                    im.src = src;
-                    lb.style.display = 'flex';
-                }
-                document.addEventListener('keydown', function (e) {
-                    if (e.key === 'Escape') {
-                        var lb = document.getElementById('threadLightbox');
-                        if (lb) lb.style.display = 'none';
-                    }
-                });
-            </script>
         </div>
+
+        <footer class="dtl-foot">
+            <span class="inbox-range" id="dtlRange"></span>
+            <nav class="inbox-pages" id="dtlPages" aria-label="履歴のページ"></nav>
+        </footer>
+
+        <div id="threadLightbox" class="thread-lightbox" onclick="this.style.display='none'"><img id="threadLightboxImg" src="" alt=""/></div>
     </div>
+
+    <th:block th:if="${false}">
+    <th:block th:fragment="route(ch)">
+        <span th:switch="${ch}" th:remove="tag">
+            <span th:case="'WEB_REPLY'" class="inbox-route is-web">Web</span>
+            <span th:case="'LINE'" class="inbox-route is-line">LINE</span>
+            <span th:case="'SMS'" class="inbox-route is-sms">SMS</span>
+            <span th:case="'BROADCAST'" class="inbox-route is-bc">一斉</span>
+            <span th:case="*" class="inbox-route is-direct">直アド</span>
+        </span>
+    </th:block>
+    </th:block>
 
     <div class="h-sash" id="sashL" data-sash="L" title="ドラッグで左列の上下高さを調整"></div>
     <div class="h-sash" id="sashR" data-sash="R" title="ドラッグで右列の上下高さを調整"></div>
 
-    <!-- ===== Bottom-left: compose ===== -->
     <div class="pane pane-bl">
         <div class="body">
           <div class="cmp-layout">
@@ -406,8 +751,6 @@
                     <span th:if="${hasLineLink}" id="lineCharCount" class="text-xs text-slate-400"
                           th:attr="data-max=${lineMaxBodyLength}"
                           th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
-                    <!-- 送信キャラ: a customer friended with several characters picks which one
-                         replies; first option = the one they most recently messaged. -->
                     <select th:if="${#maps.size(linkedCharNames) > 1}" name="lineAccountId"
                             title="LINE返信を送るキャラ"
                             style="font-size:.72rem;padding:3px 4px;border:1px solid #06C755;border-radius:4px;max-width:12em;">
@@ -428,13 +771,11 @@
                         <input type="datetime-local" th:field="*{scheduledAt}" data-sched-input/>
                         <button type="button" class="chip" data-sched-quick="60">+1時間</button>
                         <button type="button" class="chip" data-sched-quick="180">+3時間</button>
-                        <!-- 画像添付: uploads to HTML画像管理 and inserts the image's public URL into 本文. -->
                         <button type="button" class="chip" id="btnComposeImage">画像添付</button>
                         <input type="file" id="composeImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;"/>
                     </div>
                 </div>
 
-                <!-- 個別メモ (admin-only, saved via separate AJAX endpoint) -->
                 <div style="margin-top:2px;border-top:1px solid #e2e8f0;padding-top:2px;">
                     <label class="text-xs text-slate-500" style="font-weight:600;">個別メモ <span class="text-slate-400 font-normal">(管理者用)</span></label>
                     <div class="memo-row">
@@ -446,7 +787,6 @@
             </form>
 
             <div class="tag-col">
-            <!-- 置き換えタグ — クリックで本文末尾に挿入。ユーザー専用タグはここで保存編集可。 -->
             <div class="tag-panel">
                 <h4>デフォルトの置き換えタグ <span class="text-slate-400 font-normal">(クリックで本文に挿入)</span></h4>
                 <div class="tag-row" th:each="t : ${builtinTags}">
@@ -455,7 +795,7 @@
                 </div>
             </div>
 
-            <div class="tag-panel" th:with="uid=${user.id}">
+            <div class="tag-panel">
                 <h4>置き換えタグ（ユーザー専用・保存編集可）</h4>
                 <div class="tag-row">
                     <code class="tag-name" data-token="%amount%">%amount%</code>
@@ -502,81 +842,75 @@
 
     <div class="v-sash" id="sashB" data-sash="B" title="ドラッグで下段の左右幅を調整"></div>
 
-    <!-- ===== Bottom-right: templates ===== -->
     <div class="pane pane-br">
-        <header>
-            <span>定型文</span>
-            <a class="btn-refresh ml-auto" th:href="@{/manager/settings/message-templates/new}" target="_blank">＋新規</a>
-            <a class="btn-refresh" th:href="@{/manager/settings/message-templates}" target="_blank">一覧</a>
-        </header>
-        <!-- Page-tab strip: click switches the visible page in-place (no reload). 2026-05-23. -->
-        <div id="tplTabs" class="flex border-b border-slate-200 bg-slate-50 text-xs overflow-x-auto" style="flex:0 0 auto;">
-            <button type="button" th:each="p, iter : ${templateActivePages}"
-                    class="tpl-tab px-3 py-1.5 whitespace-nowrap border-r border-slate-200"
-                    th:classappend="${iter.index == 0 ? 'bg-white text-blue-700 font-semibold border-b-2 border-b-blue-500' : 'text-slate-600 hover:bg-white'}"
-                    th:attr="data-page=${p}"
-                    th:text="${templatePageTitles[iter.index]}">タイトル</button>
-        </div>
-        <div class="body">
-            <div th:if="${templates.empty}" class="text-xs text-slate-400 p-2">定型文はまだ登録されていません</div>
-            <div th:each="t : ${templates}" class="tpl-item"
-                 th:attr="data-page=${t.pageNo}"
-                 th:classappend="${t.color != null and t.color != ''} ? 'color-' + ${t.color} : ''"
-                 th:style="${t.pageNo != templateActivePages[0] ? 'display:none;' : null}">
-                <div class="txt"
-                     th:attr="data-subject=${t.subject},data-body=${t.body}"
-                     onclick="applyTemplateFromElement(this)"
-                     style="flex-direction:column;align-items:flex-start;">
-                    <span class="name" th:text="${t.name}" th:title="${t.name}"></span>
-                    <span class="subj" th:text="${t.subject} ?: '(タイトル未設定)'" th:title="${t.subject}" style="font-weight:600;color:#1e293b;"></span>
-                    <span class="subj" th:text="${t.body}" th:title="${t.body}"></span>
-                </div>
-                <a class="icon" th:href="@{'/manager/settings/message-templates/' + ${t.id} + '/edit'}" target="_blank">編集</a>
+        <div class="tpl-bar">
+            <div id="tplTabs" class="tpl-tabs" role="tablist" aria-label="定型文のページ">
+                <button th:each="p, iter : ${templateActivePages}" type="button" class="tpl-tab" role="tab"
+                        th:data-page="${p}" aria-selected="false"><th:block th:text="${templatePageTitles[iter.index]}"/> <span class="tpl-tab-count">0</span></button>
+            </div>
+            <div class="tpl-bar-actions">
+                <a class="tpl-btn tpl-btn-new" th:href="@{/manager/settings/message-templates/new}" target="_blank" rel="noopener">＋ 新規</a>
+                <a class="tpl-btn tpl-btn-list" th:href="@{/manager/settings/message-templates}" target="_blank" rel="noopener">一覧</a>
             </div>
         </div>
-        <script>
-        // Tab strip behaviour: click a tab → hide tpl-item whose data-page mismatches.
-        (function () {
-            var tabs = document.querySelectorAll('#tplTabs .tpl-tab');
-            if (!tabs.length) return;
-            function setActive(page) {
-                tabs.forEach(function (t) {
-                    var active = String(t.getAttribute('data-page')) === String(page);
-                    t.classList.toggle('bg-white', active);
-                    t.classList.toggle('text-blue-700', active);
-                    t.classList.toggle('font-semibold', active);
-                    t.classList.toggle('border-b-2', active);
-                    t.classList.toggle('border-b-blue-500', active);
-                    t.classList.toggle('text-slate-600', !active);
-                });
-                document.querySelectorAll('.pane-br .tpl-item').forEach(function (it) {
-                    it.style.display = String(it.getAttribute('data-page')) === String(page) ? '' : 'none';
-                });
-            }
-            tabs.forEach(function (t) {
-                t.addEventListener('click', function () { setActive(t.getAttribute('data-page')); });
-            });
-        })();
-        </script>
+        <div class="tpl-search">
+            <div class="tpl-search-box">
+                <input type="search" id="tplSearch" placeholder="定型文を検索（全ページ）" autocomplete="off"/>
+                <button type="button" class="tpl-search-clear" id="tplSearchClear" aria-label="検索をクリア" hidden>×</button>
+            </div>
+            <div class="tpl-hint">クリックで本文に挿入（件名が空なら件名も入ります）</div>
+        </div>
+        <div class="body">
+            <ul th:each="p, iter : ${templateActivePages}" class="tpl-list" th:data-page="${p}" th:data-title="${templatePageTitles[iter.index]}">
+                <li th:each="t : ${templates}" th:if="${t.pageNo == p}" class="tpl-item"
+                    th:classappend="${t.color != null and !#strings.isEmpty(t.color)} ? 'color-' + ${t.color}"
+                    th:data-id="${t.id}" th:data-subject="${t.subject}">
+                    <button type="button" class="tpl-insert" title="クリックで返信欄に挿入">
+                        <span class="tpl-name" th:text="${t.name}">名前</span>
+                        <span class="tpl-subject" th:if="${t.subject != null and !#strings.isEmpty(t.subject)}" th:text="${t.subject}">件名</span>
+                        <span class="tpl-body" th:text="${t.body}">本文</span>
+                    </button>
+                    <div class="tpl-actions">
+                        <button type="button" class="tpl-peek" aria-expanded="false">全文</button>
+                        <a class="tpl-edit" th:href="@{'/manager/settings/message-templates/' + ${t.id} + '/edit'}" target="_blank" rel="noopener">編集</a>
+                    </div>
+                    <span class="tpl-done" aria-live="polite"></span>
+                </li>
+                <li class="tpl-empty">このページの定型文はまだありません</li>
+            </ul>
+            <div class="tpl-nohit" id="tplNoHit" hidden>該当する定型文はありません</div>
+        </div>
     </div>
 
 </div>
 
 <script>
-// --- 4 independent sashes + 画面レイアウト保存 (2026-10-02) ---
-// wT / wB: top / bottom vertical sash (% of width); hL / hR: left / right horizontal sash
-// (% of height). Four rectangles only tile while wT == wB or hL == hR, so a sash moves on
-// its own whenever that still holds and otherwise drags its partner along; dropping a
-// sash within SNAP % of its partner lines them up again and frees the other pair.
+function checkResponse(r) {
+    if (r.redirected && /\/manager\/login/.test(r.url)) throw new Error('ログインの有効期限が切れました。再読み込みしてください');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r;
+}
+
+function threadLayoutValues() {
+    var root = document.querySelector('.wsx');
+    var v = ((root && root.getAttribute('data-layout')) || '').split(',').map(Number);
+    var ok = (v.length === 4 || v.length === 7) && v.slice(0, 4).every(function (x) { return x >= 10 && x <= 90; });
+    if (!ok) return null;
+    return { wT: v[0], wB: v[1], hL: v[2], hR: v[3], memoMember: v[4] || 0, memoStaff: v[5] || 0, cards: v.length === 7 ? v[6] === 1 : true };
+}
+
 (function () {
     var root = document.querySelector('.wsx');
     if (!root) return;
-    var MIN = 10, MAX = 90, SNAP = 1.5, G = 3; // G = half sash width (px)
+    var MIN = 10, MAX = 90, SNAP = 1.5, G = 3;
     var L = { wT: 50, wB: 50, hL: 50, hR: 50 };
-    var saved = (root.getAttribute('data-layout') || '').split(',').map(Number);
-    if (saved.length === 4 && saved.every(function (v) { return v >= MIN && v <= MAX; })) {
-        L = { wT: saved[0], wB: saved[1], hL: saved[2], hR: saved[3] };
-    }
+    var saved = threadLayoutValues();
+    if (saved) L = { wT: saved.wT, wB: saved.wB, hL: saved.hL, hR: saved.hR };
+
+    var memoMember = document.getElementById('dtlMemoMember');
+    var memoStaff = document.getElementById('dtlMemoStaff');
+    if (saved && saved.memoMember && memoMember) memoMember.style.height = saved.memoMember + 'px';
+    if (saved && saved.memoStaff && memoStaff) memoStaff.style.height = saved.memoStaff + 'px';
 
     var panes = {
         tl: root.querySelector('.pane-tl'), tr: root.querySelector('.pane-tr'),
@@ -588,8 +922,6 @@
     };
     function eq(a, b) { return Math.abs(a - b) < 0.05; }
     function clamp(v) { return Math.max(MIN, Math.min(MAX, v)); }
-
-    // CSS length for a % edge, pulled in by G px when it borders a sash.
     function edge(pct, shift) { return shift ? 'calc(' + pct + '% + ' + shift + 'px)' : pct + '%'; }
     function size(from, to) {
         var cut = (from > 0 ? G : 0) + (to < 100 ? G : 0);
@@ -613,7 +945,6 @@
         if (sash.L) { sash.L.style.top = edge(L.hL, -G); sash.L.style.left = '0'; sash.L.style.width = wMid + '%'; }
         if (sash.R) { sash.R.style.top = edge(L.hR, -G); sash.R.style.left = wMid + '%'; sash.R.style.width = (100 - wMid) + '%'; }
     }
-
     function moveSash(k, v) {
         v = clamp(v);
         if (k === 'T' || k === 'B') {
@@ -627,7 +958,6 @@
         }
         apply();
     }
-
     Object.keys(sash).forEach(function (k) {
         var el = sash[k];
         if (!el) return;
@@ -653,27 +983,465 @@
     });
     apply();
 
+    function memoHeight(ta, fallback) {
+        if (!ta) return 0;
+        if (ta.offsetHeight > 0) return Math.min(1000, Math.round(ta.offsetHeight));
+        var h = parseInt(ta.style.height, 10);
+        return isNaN(h) ? (fallback || 0) : Math.min(1000, h);
+    }
     var btn = document.getElementById('btnLayoutSave');
     if (btn) btn.addEventListener('click', function () {
         var label = btn.textContent;
+        var cards = document.getElementById('dtlCards');
         var fd = new FormData();
         ['wT', 'wB', 'hL', 'hR'].forEach(function (k) { fd.append(k, Math.round(L[k] * 10) / 10); });
+        fd.append('memoMember', memoHeight(memoMember, saved && saved.memoMember));
+        fd.append('memoStaff', memoHeight(memoStaff, saved && saved.memoStaff));
+        fd.append('cards', cards && cards.hidden ? '0' : '1');
         btn.disabled = true;
         fetch('/manager/thread-layout', { method: 'POST', credentials: 'same-origin', body: fd })
-            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); btn.textContent = '✓ 保存しました'; })
+            .then(function (r) { checkResponse(r); btn.textContent = '✓ 保存しました'; })
             .catch(function () { btn.textContent = '✗ 保存に失敗しました'; })
             .then(function () { setTimeout(function () { btn.textContent = label; btn.disabled = false; }, 1500); });
     });
 })();
 
-function applyTemplateFromElement(el) {
-    var s = el.getAttribute('data-subject') || '';
-    var b = el.getAttribute('data-body') || '';
-    document.getElementById('subject').value = s;
-    document.getElementById('body').value = b;
-}
+(function () {
+    var pane = document.querySelector('.pane-tl');
+    if (!pane) return;
+    var PAGE_SIZE = 50;
+    var STAR_API = '/manager/inbox/star';
+    var KEY = 'crmInboxView';
+    var STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.84 5.76 6.36.92-4.6 4.49 1.09 6.33L12 17.31l-5.69 2.99 1.09-6.33-4.6-4.49 6.36-.92z"/></svg>';
+    var $ = function (id) { return document.getElementById(id); };
 
-// SMS is billed per 65-character segment — nudge staying within 60 for a single message.
+    function loadView() { try { return JSON.parse(sessionStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
+    function saveView() { try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { return; } }
+    var saved = loadView();
+    var state = { filter: saved.filter === 'pending' ? 'pending' : 'all', page: Math.max(1, parseInt(saved.page, 10) || 1) };
+    var seq = 0;
+
+    function tbody() { return pane.querySelector('.inbox-table tbody'); }
+    function rowsAll() { return Array.prototype.slice.call(tbody().querySelectorAll('tr.inbox-row')); }
+    function isPending(r) { return r.getAttribute('data-pending') === '1'; }
+    function isStarred(r) { return r.getAttribute('data-starred') === '1'; }
+    function checkOf(r) { return r.querySelector('.inbox-check'); }
+
+    function prepare(rows) {
+        rows.forEach(function (r) {
+            if (r.hasAttribute('data-order')) return;
+            r.setAttribute('data-order', seq++);
+            var star = r.querySelector('.inbox-star');
+            if (star && !star.firstElementChild) star.innerHTML = STAR_SVG;
+            syncStar(r);
+        });
+    }
+    function syncStar(r) {
+        var b = r.querySelector('.inbox-star');
+        if (!b) return;
+        var on = isStarred(r);
+        b.setAttribute('aria-pressed', String(on));
+        b.setAttribute('aria-label', on ? '★を外す' : '★を付けて上部に表示');
+        b.title = on ? '★を外す' : '★を付けて上部に表示';
+    }
+    function pageNumbers(cur, total) {
+        var set = {};
+        [1, total, cur - 1, cur, cur + 1].forEach(function (p) { if (p >= 1 && p <= total) set[p] = true; });
+        var list = Object.keys(set).map(Number).sort(function (a, b) { return a - b; });
+        var out = [];
+        list.forEach(function (p, i) { if (i && p - list[i - 1] > 1) out.push(0); out.push(p); });
+        return out;
+    }
+
+    function render() {
+        var tb = tbody();
+        if (!tb) return;
+        var rows = rowsAll();
+        prepare(rows);
+        var pending = rows.filter(isPending);
+        $('inboxCount').textContent = rows.length;
+        $('inboxPendingCount').textContent = pending.length;
+        $('inboxPendingCount').classList.toggle('is-alert', pending.length > 0);
+        pane.querySelectorAll('[data-inbox-filter]').forEach(function (b) {
+            b.setAttribute('aria-pressed', String(b.getAttribute('data-inbox-filter') === state.filter));
+        });
+        var list = (state.filter === 'pending' ? pending : rows).slice().sort(function (a, b) {
+            if (state.filter === 'all') {
+                var s = isStarred(b) - isStarred(a);
+                if (s) return s;
+            }
+            return a.getAttribute('data-order') - b.getAttribute('data-order');
+        });
+        var pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        if (state.page > pages) state.page = pages;
+        var start = (state.page - 1) * PAGE_SIZE;
+        var end = Math.min(list.length, start + PAGE_SIZE);
+
+        var frag = document.createDocumentFragment();
+        list.forEach(function (r, i) { r.hidden = i < start || i >= end; frag.appendChild(r); });
+        rows.forEach(function (r) { if (list.indexOf(r) === -1) { r.hidden = true; frag.appendChild(r); } });
+        var empty = tb.querySelector('tr.inbox-empty');
+        if (!empty) {
+            empty = document.createElement('tr');
+            empty.className = 'inbox-empty';
+            empty.innerHTML = '<td colspan="9"></td>';
+        }
+        empty.hidden = list.length > 0;
+        empty.firstChild.textContent = rows.length ? '未対応の受信はありません' : '受信はまだありません';
+        frag.appendChild(empty);
+        tb.appendChild(frag);
+        rows.forEach(function (r) { if (r.hidden && checkOf(r)) checkOf(r).checked = false; });
+
+        $('inboxRange').textContent = list.length ? (start + 1) + '–' + end + ' / ' + list.length + '件' : '0件';
+        var html = '<button type="button" class="inbox-page" data-page="' + (state.page - 1) + '"' + (state.page === 1 ? ' disabled' : '') + ' aria-label="前のページ">‹ 前へ</button>';
+        pageNumbers(state.page, pages).forEach(function (p) {
+            html += p === 0 ? '<span class="inbox-gap">…</span>'
+                : '<button type="button" class="inbox-page" data-page="' + p + '"' + (p === state.page ? ' aria-current="page"' : '') + '>' + p + '</button>';
+        });
+        html += '<button type="button" class="inbox-page" data-page="' + (state.page + 1) + '"' + (state.page === pages ? ' disabled' : '') + ' aria-label="次のページ">次へ ›</button>';
+        $('inboxPages').innerHTML = html;
+        updateSelection();
+    }
+
+    function visibleRows() { return rowsAll().filter(function (r) { return !r.hidden; }); }
+    function updateSelection() {
+        var vis = visibleRows();
+        var checked = vis.filter(function (r) { var c = checkOf(r); return c && c.checked; });
+        rowsAll().forEach(function (r) { var c = checkOf(r); r.classList.toggle('is-selected', !!(c && c.checked)); });
+        var all = $('inboxCheckAll');
+        all.checked = vis.length > 0 && checked.length === vis.length;
+        all.indeterminate = checked.length > 0 && checked.length < vis.length;
+        $('inboxBulkDelete').disabled = checked.length === 0;
+        $('inboxSelectedCount').textContent = checked.length ? checked.length + '件選択中' : '';
+    }
+    function clearSelection() { rowsAll().forEach(function (r) { if (checkOf(r)) checkOf(r).checked = false; }); }
+
+    function persistStar(id, on) {
+        var fd = new FormData();
+        fd.append('id', id);
+        fd.append('starred', on ? '1' : '0');
+        return fetch(STAR_API, { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(checkResponse);
+    }
+
+    pane.addEventListener('click', function (e) {
+        var t = e.target;
+        var f = t.closest('[data-inbox-filter]');
+        if (f) {
+            state.filter = f.getAttribute('data-inbox-filter');
+            state.page = 1;
+            clearSelection(); saveView(); render();
+            return;
+        }
+        var pg = t.closest('.inbox-page[data-page]');
+        if (pg) {
+            if (pg.disabled || pg.hasAttribute('aria-current')) return;
+            state.page = parseInt(pg.getAttribute('data-page'), 10);
+            clearSelection(); saveView(); render();
+            pane.querySelector('.body').scrollTop = 0;
+            return;
+        }
+        var star = t.closest('.inbox-star');
+        if (star) {
+            var row = star.closest('tr.inbox-row');
+            var on = !isStarred(row);
+            row.setAttribute('data-starred', on ? '1' : '0');
+            syncStar(row);
+            render();
+            persistStar(row.getAttribute('data-id'), on).catch(function (err) {
+                row.setAttribute('data-starred', on ? '0' : '1');
+                syncStar(row);
+                render();
+                alert('★の保存に失敗しました (' + err.message + ')');
+            });
+            return;
+        }
+        if (t.closest('a, button, input, select, textarea, label')) return;
+        var tr = t.closest('tr.inbox-row[data-href]');
+        if (tr) location.href = tr.getAttribute('data-href');
+    });
+    pane.addEventListener('change', function (e) {
+        if (e.target.id === 'inboxCheckAll') {
+            var on = e.target.checked;
+            visibleRows().forEach(function (r) { if (checkOf(r)) checkOf(r).checked = on; });
+        }
+        if (e.target.id === 'inboxCheckAll' || e.target.classList.contains('inbox-check')) updateSelection();
+    });
+    $('inboxBulkForm').addEventListener('submit', function (e) {
+        var n = visibleRows().filter(function (r) { var c = checkOf(r); return c && c.checked; }).length;
+        if (n === 0 || !confirm(n + ' 件を受信ボックスから削除します（やり取り履歴は残ります）。よろしいですか?')) e.preventDefault();
+    });
+    render();
+})();
+
+(function () {
+    var pane = document.querySelector('.pane-br');
+    if (!pane) return;
+    var KEY = 'crmTplPage';
+    var tabs = Array.prototype.slice.call(pane.querySelectorAll('.tpl-tab'));
+    var lists = Array.prototype.slice.call(pane.querySelectorAll('.tpl-list'));
+    var search = document.getElementById('tplSearch');
+    var clearBtn = document.getElementById('tplSearchClear');
+    var nohit = document.getElementById('tplNoHit');
+    var bodyEl = document.getElementById('body');
+    var subjectEl = document.getElementById('subject');
+    var caret = null;
+
+    var page = null;
+    try { page = sessionStorage.getItem(KEY); } catch (e) { page = null; }
+    if (!tabs.some(function (t) { return t.getAttribute('data-page') === page; })) page = tabs.length ? tabs[0].getAttribute('data-page') : null;
+
+    function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    pane.querySelectorAll('.tpl-body').forEach(function (b) {
+        b.innerHTML = esc(b.textContent).replace(/%[a-z_]+%/gi, function (m) { return '<span class="tpl-tag">' + m + '</span>'; });
+    });
+    lists.forEach(function (ul) {
+        var tab = pane.querySelector('.tpl-tab[data-page="' + ul.getAttribute('data-page') + '"] .tpl-tab-count');
+        if (tab) tab.textContent = ul.querySelectorAll('.tpl-item').length;
+    });
+
+    function render() {
+        var q = (search ? search.value : '').trim().toLowerCase();
+        pane.classList.toggle('is-searching', !!q);
+        if (clearBtn) clearBtn.hidden = !q;
+        tabs.forEach(function (t) {
+            var on = t.getAttribute('data-page') === page;
+            t.setAttribute('aria-selected', String(on));
+            t.tabIndex = on ? 0 : -1;
+        });
+        var hits = 0;
+        lists.forEach(function (ul) {
+            var items = Array.prototype.slice.call(ul.querySelectorAll('.tpl-item'));
+            var n = 0;
+            items.forEach(function (li) {
+                var ok = !q || li.textContent.toLowerCase().indexOf(q) !== -1;
+                li.hidden = !ok;
+                if (ok) n++;
+            });
+            var empty = ul.querySelector('.tpl-empty');
+            if (empty) empty.hidden = !!q || items.length > 0;
+            ul.hidden = q ? n === 0 : ul.getAttribute('data-page') !== page;
+            hits += n;
+        });
+        if (nohit) nohit.hidden = !q || hits > 0;
+    }
+
+    function insert(li) {
+        if (!bodyEl) return;
+        var text = li.querySelector('.tpl-body').textContent;
+        var subject = li.getAttribute('data-subject') || '';
+        var v = bodyEl.value;
+        var pos = caret == null ? v.length : Math.min(caret, v.length);
+        var before = v.slice(0, pos);
+        var glue = before && !/\n$/.test(before) ? '\n' : '';
+        bodyEl.value = before + glue + text + v.slice(pos);
+        caret = (before + glue + text).length;
+        bodyEl.focus();
+        bodyEl.setSelectionRange(caret, caret);
+        bodyEl.dispatchEvent(new Event('input', { bubbles: true }));
+        var withSubject = false;
+        if (subjectEl && subject && !subjectEl.value.trim()) {
+            subjectEl.value = subject;
+            subjectEl.dispatchEvent(new Event('input', { bubbles: true }));
+            withSubject = true;
+        }
+        var done = li.querySelector('.tpl-done');
+        if (done) done.textContent = withSubject ? '✓ 件名と本文に挿入' : '✓ 本文に挿入';
+        li.classList.add('is-inserted');
+        setTimeout(function () { li.classList.remove('is-inserted'); }, 1300);
+    }
+
+    if (bodyEl) {
+        ['click', 'keyup', 'select', 'input'].forEach(function (ev) {
+            bodyEl.addEventListener(ev, function () { caret = bodyEl.selectionStart; });
+        });
+    }
+    pane.addEventListener('click', function (e) {
+        var tab = e.target.closest('.tpl-tab');
+        if (tab) {
+            page = tab.getAttribute('data-page');
+            try { sessionStorage.setItem(KEY, page); } catch (err) { page = tab.getAttribute('data-page'); }
+            if (search) search.value = '';
+            render();
+            pane.querySelector('.body').scrollTop = 0;
+            return;
+        }
+        var peek = e.target.closest('.tpl-peek');
+        if (peek) {
+            var open = peek.closest('.tpl-item').classList.toggle('is-open');
+            peek.textContent = open ? '閉じる' : '全文';
+            peek.setAttribute('aria-expanded', String(open));
+            return;
+        }
+        var ins = e.target.closest('.tpl-insert');
+        if (ins) insert(ins.closest('.tpl-item'));
+    });
+    pane.addEventListener('keydown', function (e) {
+        var tab = e.target.closest('.tpl-tab');
+        if (!tab || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+        var i = tabs.indexOf(tab);
+        var nextIndex = (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+        var next = tabs[nextIndex];
+        next.click();
+        next.focus();
+    });
+    if (search) {
+        search.addEventListener('input', render);
+        search.addEventListener('keydown', function (e) { if (e.key === 'Escape') { search.value = ''; render(); } });
+    }
+    if (clearBtn) clearBtn.addEventListener('click', function () { search.value = ''; render(); search.focus(); });
+    render();
+})();
+
+(function () {
+    var pane = document.querySelector('.pane-tr');
+    if (!pane) return;
+    var PAGE_SIZE = 50;
+    var MEMO_API = '/manager/thread-memo';
+    var WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+    var $ = function (id) { return document.getElementById(id); };
+    var log = $('dtlLog');
+    var page = 1;
+
+    function items() { return Array.prototype.slice.call(log.querySelectorAll('.msg')); }
+    function dayLabel(iso) {
+        var p = iso.split('-').map(Number);
+        return p[0] + '年' + p[1] + '月' + p[2] + '日（' + WEEK[new Date(p[0], p[1] - 1, p[2]).getDay()] + '）';
+    }
+    function pageNumbers(cur, total) {
+        var set = {};
+        [1, total, cur - 1, cur, cur + 1].forEach(function (p) { if (p >= 1 && p <= total) set[p] = true; });
+        var list = Object.keys(set).map(Number).sort(function (a, b) { return a - b; });
+        var out = [];
+        list.forEach(function (p, i) { if (i && p - list[i - 1] > 1) out.push(0); out.push(p); });
+        return out;
+    }
+    function render() {
+        var list = items();
+        log.querySelectorAll('.msg-sep, .dtl-empty').forEach(function (n) { n.parentNode.removeChild(n); });
+        if (!list.length) log.insertAdjacentHTML('beforeend', '<div class="dtl-empty">やり取りはまだありません</div>');
+        var pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        if (page > pages) page = pages;
+        var start = (page - 1) * PAGE_SIZE;
+        var end = Math.min(list.length, start + PAGE_SIZE);
+        var prev = null;
+        list.forEach(function (m, i) {
+            var on = i >= start && i < end;
+            m.hidden = !on;
+            if (!on) return;
+            var day = (m.getAttribute('data-at') || '').slice(0, 10);
+            if (day && day !== prev) {
+                var sep = document.createElement('div');
+                sep.className = 'msg-sep';
+                sep.textContent = dayLabel(day);
+                log.insertBefore(sep, m);
+                prev = day;
+            }
+        });
+        $('dtlRange').textContent = list.length ? (start + 1) + '–' + end + ' / ' + list.length + '件' : '0件';
+        var html = '<button type="button" class="inbox-page" data-page="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') + ' aria-label="前のページ">‹ 前へ</button>';
+        pageNumbers(page, pages).forEach(function (p) {
+            html += p === 0 ? '<span class="inbox-gap">…</span>'
+                : '<button type="button" class="inbox-page" data-page="' + p + '"' + (p === page ? ' aria-current="page"' : '') + '>' + p + '</button>';
+        });
+        html += '<button type="button" class="inbox-page" data-page="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') + ' aria-label="次のページ">次へ ›</button>';
+        $('dtlPages').innerHTML = html;
+        list.forEach(function (m) { if (!m.hidden) addMore(m); });
+    }
+    function addMore(m) {
+        var body = m.querySelector('.msg-body');
+        if (!body || m.classList.contains('is-open') || m.querySelector('.msg-more')) return;
+        if (body.scrollHeight > body.clientHeight + 2) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'msg-more';
+            b.textContent = '全文を表示';
+            body.insertAdjacentElement('afterend', b);
+        }
+    }
+    log.addEventListener('click', function (e) {
+        var b = e.target.closest('.msg-more');
+        if (!b) return;
+        var open = b.closest('.msg').classList.toggle('is-open');
+        b.textContent = open ? '折りたたむ' : '全文を表示';
+    });
+    $('dtlPages').addEventListener('click', function (e) {
+        var pg = e.target.closest('.inbox-page[data-page]');
+        if (!pg || pg.disabled || pg.hasAttribute('aria-current')) return;
+        page = parseInt(pg.getAttribute('data-page'), 10);
+        render();
+        log.scrollTop = 0;
+    });
+
+    var cards = $('dtlCards');
+    var toggle = $('dtlToggleCards');
+    var mini = $('dtlMini');
+    function setCards(open, remember) {
+        cards.hidden = !open;
+        if (mini) mini.hidden = open;
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.textContent = open ? '情報を閉じる' : '情報を開く';
+        if (remember) { try { sessionStorage.setItem('crmDtlCards', open ? '1' : '0'); } catch (e) { return; } }
+    }
+    var sessionCards = null;
+    try { sessionCards = sessionStorage.getItem('crmDtlCards'); } catch (e) { sessionCards = null; }
+    var layout = threadLayoutValues();
+    setCards(sessionCards != null ? sessionCards !== '0' : (layout ? layout.cards : true), false);
+    toggle.addEventListener('click', function () { setCards(cards.hidden, true); });
+
+    var uid = cards.getAttribute('data-user-id');
+    var sid = cards.getAttribute('data-staff-id') || '0';
+    pane.querySelectorAll('.dtl-memo').forEach(function (box) {
+        var target = box.getAttribute('data-memo-target');
+        var ta = box.querySelector('textarea');
+        var btn = box.querySelector('.dtl-btn-save');
+        var timer = null;
+        function flash(label, cls, title) {
+            clearTimeout(timer);
+            btn.textContent = label;
+            btn.classList.remove('is-done', 'is-error');
+            btn.classList.add(cls);
+            btn.title = title || '';
+            timer = setTimeout(function () {
+                btn.textContent = '保存';
+                btn.classList.remove('is-done', 'is-error');
+                btn.title = '';
+            }, cls === 'is-error' ? 3000 : 1500);
+        }
+        btn.addEventListener('click', function () {
+            var fd = new FormData();
+            fd.append('target', target);
+            fd.append('userId', uid);
+            fd.append('staffId', sid);
+            fd.append('memo', ta.value.trim());
+            btn.disabled = true;
+            fetch(MEMO_API, { method: 'POST', credentials: 'same-origin', body: fd })
+                .then(function (r) { checkResponse(r); flash('✓ 保存', 'is-done'); })
+                .catch(function (err) { flash('✗ 失敗', 'is-error', '保存に失敗しました (' + err.message + ')'); })
+                .then(function () { btn.disabled = false; });
+        });
+        ta.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) btn.click();
+        });
+    });
+
+    render();
+})();
+
+function openThreadLightbox(src) {
+    var lb = document.getElementById('threadLightbox');
+    var im = document.getElementById('threadLightboxImg');
+    if (!lb || !im) return;
+    im.src = src;
+    lb.style.display = 'flex';
+}
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        var lb = document.getElementById('threadLightbox');
+        if (lb) lb.style.display = 'none';
+    }
+});
+
 (function () {
     var ta = document.getElementById('body');
     var counter = document.getElementById('smsCharCount');
@@ -687,7 +1455,6 @@ function applyTemplateFromElement(el) {
     update();
 })();
 
-// LINE本文の目安文字数(LINE設定で設定可能) — SMSと違い課金上の制約ではなく運用上の目安表示。
 (function () {
     var ta = document.getElementById('body');
     var counter = document.getElementById('lineCharCount');
@@ -702,7 +1469,6 @@ function applyTemplateFromElement(el) {
     update();
 })();
 
-// --- Reservation (予約送信) helpers shared with broadcast-form ---
 function pad2(n) { return String(n).padStart(2, '0'); }
 function fmtLocal(d) {
     return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
@@ -724,17 +1490,13 @@ document.querySelectorAll('[data-sched-box]').forEach(function (box) {
     box.querySelectorAll('[data-sched-quick]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var minutes = parseInt(btn.getAttribute('data-sched-quick'), 10);
-            var d = new Date(Date.now() + minutes * 60000);
-            input.value = fmtLocal(d);
+            input.value = fmtLocal(new Date(Date.now() + minutes * 60000));
             refresh();
         });
     });
-    var clear = box.querySelector('[data-sched-clear]');
-    if (clear) clear.addEventListener('click', function () { input.value = ''; refresh(); });
     refresh();
 });
 
-// --- 画像添付: upload → insert the public image URL at the cursor in 本文 ---
 (function () {
     var btn = document.getElementById('btnComposeImage');
     var file = document.getElementById('composeImageFile');
@@ -748,7 +1510,6 @@ document.querySelectorAll('[data-sched-box]').forEach(function (box) {
         btn.disabled = true;
         btn.textContent = 'アップロード中…';
         fetch('/manager/settings/html-images/compose-upload', { method: 'POST', credentials: 'same-origin', body: fd })
-            // A non-JSON answer (e.g. login page after session timeout) becomes a readable error.
             .then(function (r) {
                 return r.json().catch(function () { return { error: 'HTTP ' + r.status }; })
                     .then(function (j) { return { ok: r.ok, j: j }; });
@@ -766,7 +1527,6 @@ document.querySelectorAll('[data-sched-box]').forEach(function (box) {
     });
 })();
 
-// --- Tag panel: click-to-insert + AJAX save ---
 function insertTagToBody(token) {
     var ta = document.getElementById('body');
     if (!ta) return;
@@ -781,66 +1541,23 @@ document.querySelectorAll('code.tag-name[data-token]').forEach(function (el) {
 
 (function () {
     var memoBtn = document.getElementById('btnInternalMemoSave');
-    if (memoBtn) {
-        var uid = memoBtn.getAttribute('data-user-id');
-        memoBtn.addEventListener('click', async function () {
-            var memo = (document.getElementById('userInternalMemo') || {}).value || '';
-            try {
-                var r = await fetch('/manager/api/users/' + uid + '/internal-memo', {
-                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ internalMemo: memo })
-                });
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                memoBtn.textContent = '保存しました';
-                memoBtn.classList.add('saved');
-                setTimeout(function () { memoBtn.textContent = '保存'; memoBtn.classList.remove('saved'); }, 1500);
-            } catch (e) { alert('メモ保存失敗: ' + e.message); }
-        });
-    }
-})();
-
-// --- Per-row 受信 削除 (dismiss-from-inbox). One click → POST → DOM update, no reload. ---
-(function () {
-    var body = document.getElementById('inboxBody');
-    if (!body) return;
-    body.addEventListener('click', function (ev) {
-        var btn = ev.target.closest && ev.target.closest('.del[data-dismiss-user]');
-        if (!btn) return;
-        // The button is inside an <a>; we must stop both the link navigation and any further bubbling.
-        ev.preventDefault();
-        ev.stopPropagation();
-        var uid = btn.getAttribute('data-dismiss-user');
-        if (!uid) return;
-        if (btn.disabled) return;
-        btn.disabled = true;
-        fetch('/manager/users/' + uid + '/inbox/dismiss', {
-            method: 'POST',
-            credentials: 'same-origin'
-        })
-            .then(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
-            })
-            .then(function () {
-                // Remove this row + recompute 受信 (N). Keep the operator on the current thread
-                // so any draft reply they were typing in the bottom-left pane is preserved.
-                var row = btn.closest('.ibx-row');
-                if (row && row.parentNode) row.parentNode.removeChild(row);
-                var counter = document.getElementById('inboxCount');
-                if (counter) {
-                    var remaining = body.querySelectorAll('.ibx-row').length;
-                    counter.textContent = remaining;
-                }
-            })
-            .catch(function (e) {
-                btn.disabled = false;
-                alert('削除に失敗しました: ' + e.message);
+    if (!memoBtn) return;
+    var uid = memoBtn.getAttribute('data-user-id');
+    memoBtn.addEventListener('click', async function () {
+        var memo = (document.getElementById('userInternalMemo') || {}).value || '';
+        try {
+            var r = await fetch('/manager/api/users/' + uid + '/internal-memo', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ internalMemo: memo })
             });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            memoBtn.textContent = '保存しました';
+            memoBtn.classList.add('saved');
+            setTimeout(function () { memoBtn.textContent = '保存'; memoBtn.classList.remove('saved'); }, 1500);
+        } catch (e) { alert('メモ保存失敗: ' + e.message); }
     });
 })();
 
-// --- 予約送信 削除: 削除ボタン → パスワード入力 → 認証 → 削除 の単純フロー。
-// (旧チェックボックス選択UIは廃止 — チェック後に削除できなくなる不具合の原因だったため)
 function deleteScheduledMessage(btn) {
     if (btn.disabled) return;
     var msgId = btn.getAttribute('data-msg-id');
@@ -855,17 +1572,14 @@ function deleteScheduledMessage(btn) {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'confirmPassword=' + encodeURIComponent(pw)
     })
-        .then(function (r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json();
-        })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function (json) {
             if (!json.success) {
                 alert(json.message || '削除に失敗しました');
                 btn.disabled = false;
                 return;
             }
-            var item = btn.closest('.hist-item');
+            var item = btn.closest('.msg');
             if (item && item.parentNode) item.parentNode.removeChild(item);
         })
         .catch(function (e) {
@@ -874,8 +1588,6 @@ function deleteScheduledMessage(btn) {
         });
 }
 
-// --- 差分予約 削除: 通常予約と同じくその場で削除（他のユーザーへ遷移しない）。
-// パスワード確認なし — /diff-schedules ページの差分削除と同じ挙動に合わせている。
 function deleteDiffReservation(btn) {
     if (btn.disabled) return;
     var stepId = btn.getAttribute('data-diff-step-id');
@@ -887,17 +1599,14 @@ function deleteDiffReservation(btn) {
         method: 'POST',
         credentials: 'same-origin'
     })
-        .then(function (r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json();
-        })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function (json) {
             if (!json.success) {
                 alert(json.message || '削除に失敗しました');
                 btn.disabled = false;
                 return;
             }
-            var item = btn.closest('.hist-item');
+            var item = btn.closest('.msg');
             if (item && item.parentNode) item.parentNode.removeChild(item);
         })
         .catch(function (e) {
@@ -924,8 +1633,6 @@ function deleteDiffReservation(btn) {
                     body: JSON.stringify(body)
                 })
             ];
-            // URL前文言 is a global (not per-user) setting saved to a different endpoint —
-            // included in this one button so the operator only has to click "保存" once.
             if (urlLeadTextInput) {
                 requests.push(fetch('/manager/api/settings/url-lead-text', {
                     method: 'PUT',
@@ -934,9 +1641,7 @@ function deleteDiffReservation(btn) {
                 }));
             }
             var results = await Promise.all(requests);
-            results.forEach(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-            });
+            results.forEach(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
             btn.textContent = '保存しました';
             btn.classList.add('saved');
             setTimeout(function () { btn.textContent = '保存'; btn.classList.remove('saved'); }, 1500);

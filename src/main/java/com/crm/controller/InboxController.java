@@ -20,13 +20,44 @@ public class InboxController {
     private final MessageService messageService;
     private final com.crm.service.AdminAuthService adminAuthService;
     private final com.crm.service.MessageTemplateService templateService;
+    private final com.crm.service.ThreadPanelService threadPanelService;
 
     public InboxController(MessageService messageService,
                             com.crm.service.AdminAuthService adminAuthService,
-                            com.crm.service.MessageTemplateService templateService) {
+                            com.crm.service.MessageTemplateService templateService,
+                            com.crm.service.ThreadPanelService threadPanelService) {
         this.messageService = messageService;
         this.adminAuthService = adminAuthService;
         this.templateService = templateService;
+        this.threadPanelService = threadPanelService;
+    }
+
+    /** ★ on a 受信ボックス row (thread page): starred users are listed first in 全受信履歴. */
+    @PostMapping("/manager/inbox/star")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<String> star(@RequestParam("id") Long userId,
+                                                                @RequestParam String starred) {
+        threadPanelService.setStarred(userId, "1".equals(starred));
+        return org.springframework.http.ResponseEntity.ok("ok");
+    }
+
+    /**
+     * 選択削除 on the thread page's 受信ボックス: removes the selected users from the list, the
+     * same as the per-row ×. Messages are kept, so the exchange history stays intact. Returns
+     * to the thread that was open (or to /manager/inbox, which opens the newest one).
+     */
+    @PostMapping("/manager/inbox/bulk-dismiss")
+    public String bulkDismiss(@RequestParam(name = "ids", required = false) List<Long> userIds,
+                              @RequestParam(name = "returnUserId", required = false) Long returnUserId,
+                              RedirectAttributes ra) {
+        int n = 0;
+        if (userIds != null) {
+            for (Long id : userIds) {
+                if (id != null && messageService.dismissInboxForUser(id) > 0) n++;
+            }
+        }
+        ra.addFlashAttribute("flashSuccess", n + " 件を受信ボックスから削除しました（やり取り履歴は残ります）");
+        return returnUserId != null ? "redirect:/manager/users/" + returnUserId + "/thread" : "redirect:/manager/inbox";
     }
 
     @GetMapping("/manager/inbox")

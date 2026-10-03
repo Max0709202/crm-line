@@ -11,16 +11,16 @@
 </head>
 <body class="bg-slate-50 text-slate-800">
 <div class="min-h-screen flex">
-    <!-- Sticky sidebar: pinned to viewport so the nav stays visible while the main content
-         scrolls. The fixed width of 256px (=w-64) is mirrored on <main>'s ml-64 below. -->
+    <!--/* Sticky sidebar: pinned to viewport so the nav stays visible while the main content
+         scrolls. The fixed width of 256px (=w-64) is mirrored on <main>'s ml-64 below. */-->
     <aside class="w-64 bg-slate-900 text-white flex-shrink-0 p-4 flex flex-col fixed inset-y-0 left-0 overflow-y-auto z-20">
         <div class="text-xl font-bold tracking-wide mb-1">CRM</div>
         <div class="text-xs text-slate-400 mb-6" th:if="${session.adminUserName}" th:text="${session.adminUserName}"></div>
-        <!-- Grouped nav: each section title expands its items on hover (script below);
+        <!--/* Grouped nav: each section title expands its items on hover (script below);
              the section holding the current page / last-clicked item stays open via .is-open.
-             Items marked 準備中 are placeholders for features not built yet. -->
+             Items marked 準備中 are placeholders for features not built yet. */-->
         <nav class="admin-nav no-anim flex flex-col gap-1">
-            <!-- 管理トップ: the title itself still opens the dashboard; 入金レポート folds out under it. -->
+            <!--/* 管理トップ: the title itself still opens the dashboard; 入金レポート folds out under it. */-->
             <div class="nav-group">
                 <a class="nav-link nav-top nav-group-title" th:href="@{/manager/dashboard}">管理トップ</a>
                 <div class="nav-group-items">
@@ -32,7 +32,7 @@
                 <div class="nav-group-title">会員管理</div>
                 <div class="nav-group-items">
                     <a class="nav-link" th:href="@{/manager/users}">ユーザー管理</a>
-                    <span class="nav-link nav-soon">サポート窓口<small>準備中</small></span>
+                    <a class="nav-link" th:href="@{/manager/support}">サポート窓口</a>
                     <span class="nav-link nav-soon">キャラ登録<small>準備中</small></span>
                     <a class="nav-link" th:href="@{/manager/settings/points}">ポイント設定</a>
                     <a class="nav-link" th:href="@{/manager/settings/folders}">フォルダ設定</a>

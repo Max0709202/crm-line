@@ -45,6 +45,8 @@ public class MessageController {
     private final com.crm.repository.LineAccountRepository lineAccountRepository;
     private final com.crm.service.ReplyHtmlSlotService replyHtmlSlotService;
     private final com.crm.service.ThreadLayoutService threadLayoutService;
+    private final com.crm.service.ThreadPanelService threadPanelService;
+    private final com.crm.service.FolderSettingService folderSettingService;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -61,7 +63,9 @@ public class MessageController {
                              com.crm.service.DomainSettingService domainSettingService,
                              com.crm.repository.LineAccountRepository lineAccountRepository,
                              com.crm.service.ReplyHtmlSlotService replyHtmlSlotService,
-                             com.crm.service.ThreadLayoutService threadLayoutService) {
+                             com.crm.service.ThreadLayoutService threadLayoutService,
+                             com.crm.service.ThreadPanelService threadPanelService,
+                             com.crm.service.FolderSettingService folderSettingService) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -78,6 +82,8 @@ public class MessageController {
         this.lineAccountRepository = lineAccountRepository;
         this.replyHtmlSlotService = replyHtmlSlotService;
         this.threadLayoutService = threadLayoutService;
+        this.threadPanelService = threadPanelService;
+        this.folderSettingService = folderSettingService;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -230,7 +236,16 @@ public class MessageController {
         }
         model.addAttribute("attachmentsByMessageId", attsByMsg);
         // Left-upper inbox list (all users with any inbound, newest first).
-        model.addAttribute("inboxRows", messageService.inboxByUser(false));
+        List<MessageService.InboxRow> inboxRows = messageService.inboxByUser(false);
+        model.addAttribute("inboxRows", inboxRows);
+        // 受信ボックス table columns (2026-10-03 layout): フォルダ名 / 性別色 / ログイン日 per row, ★.
+        java.util.Set<Long> inboxUserIds = new java.util.HashSet<>();
+        for (MessageService.InboxRow r : inboxRows) inboxUserIds.add(r.getUserId());
+        java.util.Map<Long, CrmUser> inboxUsers = new java.util.HashMap<>();
+        for (CrmUser u : userService.findAllByIds(inboxUserIds)) inboxUsers.put(u.getId(), u);
+        model.addAttribute("inboxUsers", inboxUsers);
+        model.addAttribute("starredUserIds", threadPanelService.starredUserIds());
+        model.addAttribute("folderColors", folderSettingService.colorMap());
         // Gates the LINE返信 button — LINE only lets you message someone who has already
         // followed the Official Account (see LineWebhookService's javadoc).
         // Most recently messaged first: that character is the default sender.
@@ -275,9 +290,54 @@ public class MessageController {
             }
             model.addAttribute("form", form);
         }
-        // 画面レイアウト保存 — this admin's saved 4-pane sizes ("wT,wB,hL,hR"), null = default 50/50.
+        // 画面レイアウト保存 — this admin's saved layout (sashes, memo heights, cards), null = default.
         model.addAttribute("threadLayout", threadLayoutService.get(currentAdminId(session)));
+        // 右上 user card (2026-10-03): 最終送信日 = the user's latest message to us, 受信/送信 counts,
+        // and the newest OUT that answers them (inbound after it is shown as 未対応).
+        java.time.LocalDateTime lastInboundAt = null;
+        java.time.LocalDateTime latestOutAt = null;
+        long inCount = 0, outCount = 0;
+        for (Message m : thread) {
+            if (Message.DIR_IN.equals(m.getDirection())) {
+                inCount++;
+                if (lastInboundAt == null || m.getCreatedAt().isAfter(lastInboundAt)) lastInboundAt = m.getCreatedAt();
+            } else if (Message.DIR_OUT.equals(m.getDirection())) {
+                outCount++;
+                // Same rule as the 受信ボックス 未対応 mark (MessageRepository#inboxGroupByUser): any OUT.
+                if (latestOutAt == null || m.getCreatedAt().isAfter(latestOutAt)) latestOutAt = m.getCreatedAt();
+            }
+        }
+        model.addAttribute("lastInboundAt", lastInboundAt);
+        model.addAttribute("latestOutAt", latestOutAt);
+        model.addAttribute("threadInCount", inCount);
+        model.addAttribute("threadOutCount", outCount);
+        // キャラ card: キャラ are not defined yet, so the card shows the LINE character the user
+        // talks to (if any) and its やり取りメモ is kept under キャラ ID 0 for now.
+        model.addAttribute("charName", linkedCharNames.isEmpty() ? null : linkedCharNames.values().iterator().next());
+        model.addAttribute("memberMemo", threadPanelService.getMemo(userId, com.crm.entity.ThreadMemo.TARGET_MEMBER, 0L));
+        model.addAttribute("staffMemo", threadPanelService.getMemo(userId, com.crm.entity.ThreadMemo.TARGET_STAFF, 0L));
+        model.addAttribute("memoMax", com.crm.service.ThreadPanelService.MEMO_MAX);
         return "message/thread";
+    }
+
+    /** やり取りメモ (user / キャラ card) on the thread page; blank text deletes the memo. */
+    @PostMapping("/manager/thread-memo")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<String> saveThreadMemo(@RequestParam String target,
+                                                                          @RequestParam Long userId,
+                                                                          @RequestParam(required = false) Long staffId,
+                                                                          @RequestParam(required = false) String memo) {
+        boolean ok = threadPanelService.saveMemo(userId, target, staffId == null ? 0L : staffId, memo);
+        return ok ? org.springframework.http.ResponseEntity.ok("ok")
+                  : org.springframework.http.ResponseEntity.badRequest().body("invalid memo");
+    }
+
+    @PostMapping("/manager/thread-memo/delete")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<String> deleteThreadMemo(@RequestParam String target,
+                                                                            @RequestParam Long userId,
+                                                                            @RequestParam(required = false) Long staffId) {
+        return saveThreadMemo(target, userId, staffId, "");
     }
 
     /** 画面レイアウト保存: stores the 受信ボックス 4-pane sash positions (%) for the logged-in admin. */
@@ -285,8 +345,11 @@ public class MessageController {
     @org.springframework.web.bind.annotation.ResponseBody
     public org.springframework.http.ResponseEntity<String> saveThreadLayout(@RequestParam double wT, @RequestParam double wB,
                                                                             @RequestParam double hL, @RequestParam double hR,
+                                                                            @RequestParam(defaultValue = "0") int memoMember,
+                                                                            @RequestParam(defaultValue = "0") int memoStaff,
+                                                                            @RequestParam(defaultValue = "1") int cards,
                                                                             HttpSession session) {
-        boolean ok = threadLayoutService.save(currentAdminId(session), wT, wB, hL, hR);
+        boolean ok = threadLayoutService.save(currentAdminId(session), wT, wB, hL, hR, memoMember, memoStaff, cards != 0);
         return ok ? org.springframework.http.ResponseEntity.ok("ok")
                   : org.springframework.http.ResponseEntity.badRequest().body("invalid layout");
     }

@@ -106,6 +106,13 @@ public class InboundMailService {
     private final CarrierBindingService bindingService;
     private final UserActivityService userActivityService;
     private final DomainSettingService settingService;
+    private SupportDeskService supportDeskService;
+
+    /** サポート窓口: mail to the support address is stored as an inquiry instead of a user reply. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setSupportDeskService(SupportDeskService supportDeskService) {
+        this.supportDeskService = supportDeskService;
+    }
 
     public InboundMailService(InboundMailLogRepository logRepository,
                               CarrierAddressPoolRepository poolRepository,
@@ -179,6 +186,24 @@ public class InboundMailService {
         String localPart = localPartOf(fromAddr);
         if (localPart != null && BOUNCE_LOCAL_PART.matcher(localPart).matches()) {
             return reject(entry, REASON_BOUNCE);
+        }
+
+        // サポート窓口 (2026-10-02): mail to support@<main domain> / the お問い合わせ address is an
+        // inquiry, not a reply to a carrier pool address.
+        if (supportDeskService != null && supportDeskService.isSupportAddress(toAddr)) {
+            boolean stored = supportDeskService.receiveMail(fromAddr, fromDisplayName(dto.getFrom(), dto.getRaw()),
+                    toAddr, decoded.subject, decoded.body, dedupKey);
+            if (!stored) {
+                entry.setIsProcessed(true);
+                entry.setIsRejected(true);
+                entry.setRejectReason(REASON_DUPLICATE);
+                logRepository.save(entry);
+                return ProcessResult.rejected(REASON_DUPLICATE);
+            }
+            entry.setIsProcessed(true);
+            entry.setIsRejected(false);
+            logRepository.save(entry);
+            return ProcessResult.accepted(null, null);
         }
 
         // 1) TO must map to one of our pool addresses. Three-step lookup so a reply addressed
@@ -429,6 +454,31 @@ public class InboundMailService {
     /** Public lister so the scheduler can find what's pending. */
     public java.util.List<InboundMailLog> listPendingPool() {
         return logRepository.findByRejectReasonAndIsProcessedFalse(REASON_PENDING_POOL);
+    }
+
+    /** Display name from the From header ("山田 太郎 <a@b>"), or null when there is none. */
+    static String fromDisplayName(String fromField, String raw) {
+        String header = fromField;
+        if ((header == null || header.indexOf('<') < 0) && raw != null && !raw.isEmpty()) {
+            try {
+                javax.mail.internet.MimeMessage msg = new javax.mail.internet.MimeMessage(
+                        javax.mail.Session.getInstance(new java.util.Properties()),
+                        new java.io.ByteArrayInputStream(raw.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1)));
+                String h = msg.getHeader("From", ",");
+                if (h != null) header = h;
+            } catch (javax.mail.MessagingException e) {
+                return null;
+            }
+        }
+        if (header == null) return null;
+        try {
+            javax.mail.internet.InternetAddress[] parsed = javax.mail.internet.InternetAddress.parseHeader(header, false);
+            if (parsed.length == 0) return null;
+            String personal = parsed[0].getPersonal();
+            return personal == null || personal.trim().isEmpty() ? null : personal.trim();
+        } catch (javax.mail.internet.AddressException e) {
+            return null;
+        }
     }
 
     private static String localPartOf(String email) {
