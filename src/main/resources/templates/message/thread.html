@@ -6,7 +6,10 @@
     <title>メッセージスレッド</title>
     <!--/* 受信ボックス 4画面 (2026-10-03 client layout). Keep notes in parser-level comments only:
            the client asked that nothing extra is visible in the page source. */-->
+    <script>if (window.name === 'crmInbox') document.documentElement.classList.add('inbox-solo');</script>
     <style>
+        html.inbox-solo aside.w-64.fixed { display:none !important; }
+        html.inbox-solo main.flex-1.ml-64 { margin-left:0 !important; }
         main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; display: flex; flex-direction: column; }
 
         .wsx { position:relative; height:100vh; box-sizing:border-box; background:#f1f5f9; color:#334155; }
@@ -357,6 +360,7 @@
         .wsx .dtl-links { display:flex; flex-direction:column; gap:2px; font-size:11px; line-height:1.45; color:#64748b; }
         .wsx .dtl-links b { font-weight:700; color:#92400e; }
         .wsx .dtl-links a { color:#2563eb; text-decoration:underline; text-underline-offset:2px; }
+        .wsx .dtl-links .dtl-chars { color:#334155; font-weight:600; }
         .wsx .dtl-table { flex:1 1 150px; min-width:0; margin:0; overflow:hidden; border:1px solid #e2e8f0; border-radius:6px; }
         .wsx .dtl-table > div { display:grid; grid-template-columns:minmax(72px, 38%) minmax(0, 1fr); }
         .wsx .dtl-table > div + div { border-top:1px solid #edf1f5; }
@@ -392,6 +396,9 @@
         .wsx .dtl-mini a:hover { text-decoration-color:#475569; }
         .wsx .dtl-mini i { margin-right:4px; font-style:normal; font-size:11px; color:#94a3b8; }
         .wsx .dtl-mini > .dtl-mini-staff { margin-left:auto; padding-left:12px; }
+        .wsx .dtl-mini > .dtl-mini-folder { margin-left:12px; padding:0 6px; font-weight:600; color:#334155; background:#eef2f6; border-radius:4px; }
+        .wsx .dtl-mini > .dtl-mini-folder::before, .wsx .dtl-mini > .dtl-mini-folder + span::before { display:none; }
+        .wsx .dtl-mini > .dtl-mini-folder + span { margin-left:12px; }
         .wsx .dtl-mini > .dtl-mini-staff::before { display:none; }
         .wsx .pane-tr > .dtl-log-head {
             flex:none; display:flex; align-items:center; gap:10px; padding:5px 8px 5px 12px;
@@ -429,7 +436,7 @@
         .wsx .msg-av.is-female { color:#9d174d; background:#f5d3e3; }
         .wsx .msg-av.is-staff  { color:#fff; background:#64748b; }
         .wsx .msg-bubble {
-            flex:0 1 76%; min-width:260px; max-width:900px; padding:7px 12px 9px;
+            flex:0 1 76%; min-width:260px; max-width:900px; margin:0; padding:7px 12px 9px; white-space:normal; line-height:1.5; font-size:inherit;
             background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 1px rgba(15,23,42,.03);
         }
         .wsx .msg.is-in .msg-bubble  { border-top-left-radius:3px; }
@@ -580,12 +587,14 @@
                             </div>
                         </div>
                         <ul class="dtl-attrs" th:if="${user.folder != null and !#strings.isEmpty(user.folder)}">
-                            <li class="is-folder" th:text="${user.folder}">フォルダ</li>
+                            <li class="is-folder" th:style="${folderColors.get(user.folder) != null} ? 'background:' + ${folderColors.get(user.folder)}" th:text="${user.folder}">フォルダ</li>
                         </ul>
                         <div class="dtl-links">
-                            <span th:if="${activeMemoLabel != null}"><b>専用HTML使用中：</b><a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank" rel="noopener" th:text="${activeMemoLabel}">返信HTML</a></span>
+                            <span th:if="${activeMemoLabel != null}"><b>専用HTML使用中</b><br/><a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank" rel="noopener" th:text="${activeMemoLabel}">返信HTML</a></span>
                             <span th:unless="${activeMemoLabel != null}">専用HTML：未使用</span>
                             <a th:href="@{'/manager/users/' + ${user.id} + '/message-box'}" target="_blank" rel="noopener">ユーザーの受信画面を確認 ↗</a>
+                            <span class="dtl-chars" th:if="${!linkedCharNames.isEmpty()}" th:text="'紐づきキャラ' + ${linkedCharNames.size()} + '人 ' + ${#strings.arrayJoin(linkedCharNames.values().toArray(), ' / ')}">紐づきキャラ</span>
+                            <span class="dtl-chars" th:if="${linkedCharNames.isEmpty()}">紐づきキャラ なし</span>
                         </div>
                     </div>
                     <dl class="dtl-table">
@@ -593,7 +602,7 @@
                         <div><dt>登録日時</dt><dd th:text="${user.createdAt != null} ? ${#temporals.format(user.createdAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
                         <div><dt>最終ログイン</dt><dd th:text="${user.lastLoginAt != null} ? ${#temporals.format(user.lastLoginAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
                         <div><dt>最終送信日</dt><dd th:text="${lastInboundAt != null} ? ${#temporals.format(lastInboundAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
-                        <div><dt>最終購入日</dt><dd th:text="${user.lastPaymentAt != null} ? ${#temporals.format(user.lastPaymentAt, 'yyyy/MM/dd')} : '—'">—</dd></div>
+                        <div><dt>入金日時</dt><dd th:text="${user.lastPaymentAt != null} ? ${#temporals.format(user.lastPaymentAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
                     </dl>
                 </div>
                 <div class="dtl-memo" data-memo-target="member">
@@ -631,7 +640,7 @@
         <div class="dtl-mini" id="dtlMini" hidden>
             <span><b th:text="${uname}">ユーザー</b><span th:if="${ugender == 'male'}" class="dtl-gender is-male">男性</span><span th:if="${ugender == 'female'}" class="dtl-gender is-female">女性</span></span>
             <span><a th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + ${user.id}">ID</a></span>
-            <span th:if="${user.folder != null and !#strings.isEmpty(user.folder)}" th:text="${user.folder}">フォルダ</span>
+            <span th:if="${user.folder != null and !#strings.isEmpty(user.folder)}" class="dtl-mini-folder" th:style="${folderColors.get(user.folder) != null} ? 'background:' + ${folderColors.get(user.folder)}" th:text="${user.folder}">フォルダ</span>
             <span><i>広告コード</i><th:block th:text="${user.adCode != null and !#strings.isEmpty(user.adCode)} ? ${user.adCode} : '—'"/></span>
             <span><i>入金額</i><th:block th:text="${#numbers.formatDecimal(totalPaid, 1, 'COMMA', 0, 'POINT')} + '円'"/></span>
             <span class="dtl-mini-staff"><b th:text="${charName} ?: 'キャラ未設定'">キャラ</b></span>
@@ -654,7 +663,7 @@
                         <span th:switch="${s.channel}">
                             <span th:case="'LINE'" class="inbox-route is-line">LINE</span>
                             <span th:case="'SMS'" class="inbox-route is-sms">SMS</span>
-                            <span th:case="*" class="inbox-route is-direct">直アド</span>
+                            <span th:case="*" class="inbox-route" th:classappend="${userHasPool} ? 'is-direct' : 'is-web'" th:text="${userHasPool} ? '直アド' : 'Web'">Web</span>
                         </span>
                         <span class="msg-who" th:text="${sched != null} ? ${sched.diffNameSnapshot} : '差分'"></span>
                         <span th:if="${s.lineAccountId != null}" th:text="${lineAccountNamesById.get(s.lineAccountId)} ?: ('LINEアカウント#' + ${s.lineAccountId})"></span>
@@ -690,7 +699,7 @@
                         <button th:if="${m.status == 'QUEUED' and m.scheduledAt != null}" type="button" class="sched-del"
                                 th:data-msg-id="${m.id}" onclick="deleteScheduledMessage(this)">削除</button>
                         <span class="msg-time"><b>送信</b> <th:block th:text="${#temporals.format(at, 'M/d H:mm')}"/></span>
-                        <th:block th:replace="~{::route(${m.channel})}"/>
+                        <th:block th:replace="~{::route(${m.channel == 'EMAIL' and !directOutIds.contains(m.id)} ? 'WEB_REPLY' : ${m.channel})}"/>
                         <span class="msg-who" th:text="${who}"></span>
                     </div>
                     <div class="msg-title" th:text="${m.subject} ?: '(件名なし)'"></div>

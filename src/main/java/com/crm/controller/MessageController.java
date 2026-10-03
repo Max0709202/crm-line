@@ -311,6 +311,21 @@ public class MessageController {
         model.addAttribute("latestOutAt", latestOutAt);
         model.addAttribute("threadInCount", inCount);
         model.addAttribute("threadOutCount", outCount);
+        // 送信経路 (2026-10-03): a sent mail is 直アド only when it went out from a 割り当てアドレス;
+        // otherwise (base-domain FROM, the reply goes through the reply page) it is Web. Pending
+        // 差分予約 mail follows the same rule via the user's current binding.
+        java.util.Map<String, Boolean> poolByFrom = new java.util.HashMap<>();
+        java.util.Set<Long> directOutIds = new java.util.HashSet<>();
+        for (Message m : thread) {
+            if (Message.DIR_OUT.equals(m.getDirection()) && Message.CHANNEL_EMAIL.equals(m.getChannel())
+                    && m.getFromAddress() != null
+                    && poolByFrom.computeIfAbsent(m.getFromAddress(), bindingService::isPoolAddress)) {
+                directOutIds.add(m.getId());
+            }
+        }
+        model.addAttribute("directOutIds", directOutIds);
+        com.crm.entity.CarrierAddressPool boundPool = bindingService.firstBoundFor(userId).orElse(null);
+        model.addAttribute("userHasPool", boundPool != null && !Boolean.FALSE.equals(boundPool.getIsActive()));
         // キャラ card: キャラ are not defined yet, so the card shows the LINE character the user
         // talks to (if any) and its やり取りメモ is kept under キャラ ID 0 for now.
         model.addAttribute("charName", linkedCharNames.isEmpty() ? null : linkedCharNames.values().iterator().next());

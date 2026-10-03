@@ -245,6 +245,11 @@ public class CarrierBindingService {
         return bindingRepository.existsByPoolIdAndUserId(poolId, userId);
     }
 
+    /** True when the address is a 割り当てアドレス (CARRIER_ADDRESS_POOL entry). */
+    public boolean isPoolAddress(String address) {
+        return address != null && !address.isEmpty() && poolRepository.existsByAddress(address);
+    }
+
     /**
      * Get the "first" bound pool entry for a user — used as the FROM candidate when
      * composing outbound mail. The relay/AMG may override this; we just need to pass
