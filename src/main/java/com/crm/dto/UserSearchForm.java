@@ -49,6 +49,9 @@ public class UserSearchForm {
     /** Cumulative inbound-message count range filter; same semantics as sentCount*. */
     private Integer replyCountMin;
     private Integer replyCountMax;
+    /** 所持ポイント range filter (〇〇pt〜〇〇pt); either bound optional, inclusive. */
+    private Integer pointMin;
+    private Integer pointMax;
 
     private int page = 0;
     private int size = 500;
@@ -171,6 +174,10 @@ public class UserSearchForm {
     public void setReplyCountMin(Integer replyCountMin) { this.replyCountMin = replyCountMin; }
     public Integer getReplyCountMax() { return replyCountMax; }
     public void setReplyCountMax(Integer replyCountMax) { this.replyCountMax = replyCountMax; }
+    public Integer getPointMin() { return pointMin; }
+    public void setPointMin(Integer pointMin) { this.pointMin = pointMin; }
+    public Integer getPointMax() { return pointMax; }
+    public void setPointMax(Integer pointMax) { this.pointMax = pointMax; }
 
     public String getSendFrom() { return sendFrom; }
     public void setSendFrom(String sendFrom) { this.sendFrom = sendFrom; }

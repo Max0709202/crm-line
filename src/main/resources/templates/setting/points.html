@@ -99,6 +99,55 @@
             </table>
         </div>
     </div>
+    <!-- 所持ポイント一括変更: every user in a ユーザーID range (2026-10-04 client request). -->
+    <form method="post" th:action="@{/manager/settings/points/bulk-change}" id="bulkPointForm"
+          class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 w-full max-w-2xl mt-6">
+        <h2 class="text-base font-semibold text-slate-800 mb-1">所持ポイント一括変更（ユーザーID指定）</h2>
+        <p class="text-xs text-slate-500 mb-4">
+            ユーザーID（ユーザー管理の「ID」）の範囲を指定して、その範囲のユーザー全員の所持ポイントをまとめて変更します。
+            1名だけ変更する場合は、開始と終了に同じIDを入力してください。
+        </p>
+        <div class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1" for="bpFrom">ユーザーID</label>
+                <div class="flex items-center gap-1">
+                    <input type="number" min="1" step="1" required class="tw-input" style="width:7rem;" id="bpFrom" name="fromId" placeholder="開始"/>
+                    <span class="text-slate-400">〜</span>
+                    <input type="number" min="1" step="1" required class="tw-input" style="width:7rem;" id="bpTo" name="toId" placeholder="終了"/>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1" for="bpMode">変更方法</label>
+                <select class="tw-input" style="width:auto;" id="bpMode" name="mode">
+                    <option value="SET">この値にする</option>
+                    <option value="ADD">加算する</option>
+                    <option value="SUBTRACT">減算する</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1" for="bpAmount">ポイント</label>
+                <div class="flex items-center gap-1">
+                    <input type="number" min="0" th:max="${T(com.crm.service.UserPointService).MAX_POINTS}" step="1" required
+                           class="tw-input" style="width:8rem;" id="bpAmount" name="amount"/>
+                    <span class="text-slate-500">pt</span>
+                </div>
+            </div>
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md shadow-sm">一括変更する</button>
+        </div>
+        <p class="mt-2 text-xs text-slate-500">減算で0ptを下回る場合は0ptになります。</p>
+    </form>
+    <script>
+    (function () {
+        var f = document.getElementById('bulkPointForm');
+        f.addEventListener('submit', function (e) {
+            var mode = document.getElementById('bpMode');
+            var msg = 'ユーザーID ' + document.getElementById('bpFrom').value + '〜' + document.getElementById('bpTo').value
+                + ' のユーザーの所持ポイントを「' + document.getElementById('bpAmount').value + 'pt ' + mode.options[mode.selectedIndex].text
+                + '」で一括変更します。よろしいですか?';
+            if (!confirm(msg)) e.preventDefault();
+        });
+    })();
+    </script>
     <script>
     // Folder tab: the cost table is only editable while 専用の設定 is ticked.
     (function () {

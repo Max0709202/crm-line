@@ -55,12 +55,10 @@ public class CrmUserService {
     private static final String[] CSV_HEADER =
             {"email", "display_name", "carrier_domain", "memo", "ad_code", "gender", "phone"};
 
-    // Retry limit for generating a unique loginId.
-    private static final int LOGIN_ID_MAX_ATTEMPTS = 10;
-
     private final CrmUserRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final CarrierBindingService bindingService;
+    private final MemberLoginIdService loginIdService;
 
     /**
      * Live CSV-import progress counter. Reset to 0 at the start of each importCsv()
@@ -78,10 +76,12 @@ public class CrmUserService {
 
     public CrmUserService(CrmUserRepository repository,
                           PasswordEncoder passwordEncoder,
-                          CarrierBindingService bindingService) {
+                          CarrierBindingService bindingService,
+                          MemberLoginIdService loginIdService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.bindingService = bindingService;
+        this.loginIdService = loginIdService;
     }
 
     public Page<CrmUser> search(UserSearchForm form) {
@@ -304,7 +304,7 @@ public class CrmUserService {
 
     /**
      * Issue (or re-issue) credentials for an existing user.
-     * - If loginId is missing, generates a new unique loginId.
+     * - If loginId is missing, issues the next sequential login ID (10000, 10001, …).
      * - Always generates a new password.
      * Returns the plaintext password so it can be shown once to the admin.
      */
@@ -317,24 +317,14 @@ public class CrmUserService {
         return cred;
     }
 
+    /** Login ID in registration order (see {@link MemberLoginIdService}) plus a generated password. */
     private IssuedCredentials issueFreshCredentials(CrmUser u) {
         if (u.getLoginId() == null || u.getLoginId().isEmpty()) {
-            u.setLoginId(generateUniqueLoginId());
+            u.setLoginId(loginIdService.next());
         }
         String plain = CredentialGenerator.generatePassword();
         u.setLoginPassword(passwordEncoder.encode(plain));
         return new IssuedCredentials(u.getLoginId(), plain);
-    }
-
-    private String generateUniqueLoginId() {
-        for (int attempt = 0; attempt < LOGIN_ID_MAX_ATTEMPTS; attempt++) {
-            String candidate = CredentialGenerator.generateLoginId();
-            if (!repository.existsByLoginId(candidate)) {
-                return candidate;
-            }
-        }
-        throw new IllegalStateException("could not generate unique login id after "
-                + LOGIN_ID_MAX_ATTEMPTS + " attempts");
     }
 
     // DO NOT add @Transactional here. Same rationale as deleteAllInFolder above: a
@@ -464,15 +454,18 @@ public class CrmUserService {
             csv.writeNext(CSV_HEADER);
             List<CrmUser> users = repository.findAll(buildSpecification(form),
                     Sort.by(Sort.Direction.DESC, "createdAt"));
+            // 権限設定: a role that sees email / phone masked gets them masked in the file too
+            boolean maskEmail = RoleMaskService.isMasked("email");
+            boolean maskPhone = RoleMaskService.isMasked("phone");
             for (CrmUser u : users) {
                 csv.writeNext(new String[]{
-                        safe(u.getEmail()),
+                        safe(maskEmail ? AdminRoleService.maskEmail(u.getEmail()) : u.getEmail()),
                         safe(u.getDisplayName()),
                         safe(u.getCarrierDomain()),
                         "", // memo \u2014 deliberately blank, see method javadoc
                         safe(u.getAdCode()),
                         csvGenderLabel(u.getGender()),
-                        safe(u.getPhoneNumber())
+                        safe(maskPhone ? AdminRoleService.maskPhone(u.getPhoneNumber()) : u.getPhoneNumber())
                 });
             }
         }
@@ -679,6 +672,27 @@ public class CrmUserService {
                 }
                 if (form.getReplyCountMax() != null) {
                     predicates.add(cb.lessThanOrEqualTo(sq, form.getReplyCountMax().longValue()));
+                }
+            }
+
+            // 所持ポイント range (USER_POINT; a user without a row has 0 pt).
+            if (form.getPointMin() != null || form.getPointMax() != null) {
+                Integer min = form.getPointMin(), max = form.getPointMax();
+                javax.persistence.criteria.Subquery<Long> inRange = query.subquery(Long.class);
+                javax.persistence.criteria.Root<com.crm.entity.UserPoint> p = inRange.from(com.crm.entity.UserPoint.class);
+                List<Predicate> c = new ArrayList<>();
+                c.add(cb.equal(p.get("userId"), root.get("id")));
+                if (min != null) c.add(cb.greaterThanOrEqualTo(p.<Integer>get("points"), min));
+                if (max != null) c.add(cb.lessThanOrEqualTo(p.<Integer>get("points"), max));
+                inRange.select(p.<Long>get("userId")).where(c.toArray(new Predicate[0]));
+                boolean zeroInRange = (min == null || min <= 0) && (max == null || max >= 0);
+                if (zeroInRange) {
+                    javax.persistence.criteria.Subquery<Long> anyRow = query.subquery(Long.class);
+                    javax.persistence.criteria.Root<com.crm.entity.UserPoint> p2 = anyRow.from(com.crm.entity.UserPoint.class);
+                    anyRow.select(p2.<Long>get("userId")).where(cb.equal(p2.get("userId"), root.get("id")));
+                    predicates.add(cb.or(cb.exists(inRange), cb.not(cb.exists(anyRow))));
+                } else {
+                    predicates.add(cb.exists(inRange));
                 }
             }
 

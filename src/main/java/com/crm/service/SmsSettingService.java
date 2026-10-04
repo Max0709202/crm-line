@@ -246,6 +246,13 @@ public class SmsSettingService {
         setRatePerMinute(ratePerMinute == null ? 60 : ratePerMinute);
     }
 
+    /** Removes the stored BytePlus Username (Message Group ID) and Password. */
+    @Transactional
+    public void clearCredentials() {
+        save(KEY_USERNAME, "");
+        save(KEY_PASSWORD, "");
+    }
+
     private String get(String key) {
         return repository.findBySettingKey(key).map(CrmSetting::getSettingValue).orElse(null);
     }

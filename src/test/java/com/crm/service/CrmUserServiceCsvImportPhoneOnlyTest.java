@@ -42,7 +42,7 @@ class CrmUserServiceCsvImportPhoneOnlyTest {
         when(repo.existsByLoginId(anyString())).thenReturn(false);
         when(enc.encode(anyString())).thenReturn("$2a$10$fake-bcrypt-hash");
         when(repo.save(any(CrmUser.class))).thenAnswer(inv -> inv.getArgument(0));
-        svc = new CrmUserService(repo, enc, binding);
+        svc = new CrmUserService(repo, enc, binding, sequentialLoginIds());
     }
 
     private CsvImportResult runImport(String csv) throws IOException {
@@ -112,5 +112,13 @@ class CrmUserServiceCsvImportPhoneOnlyTest {
 
         assertThat(r.getIssuedCredentials()).hasSize(1);
         assertThat(r.getIssuedCredentials().get(0).getEmail()).isEqualTo("09012345678");
+    }
+
+    /** Login IDs as MemberLoginIdService issues them: 10000, 10001, … */
+    private static MemberLoginIdService sequentialLoginIds() {
+        MemberLoginIdService ids = org.mockito.Mockito.mock(MemberLoginIdService.class);
+        java.util.concurrent.atomic.AtomicLong next = new java.util.concurrent.atomic.AtomicLong(MemberLoginIdService.START);
+        org.mockito.Mockito.when(ids.next()).thenAnswer(inv -> String.valueOf(next.getAndIncrement()));
+        return ids;
     }
 }

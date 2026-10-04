@@ -29,7 +29,11 @@ import java.util.regex.Pattern;
  *   %csrf%            CSRF token for the register / login forms
  *   %contact_mailto%  mailto: link for お問い合わせ
  *   %footer%          the fixed site footer (see {@link #footerHtml})
+ *   %profile_url%     プロフィール編集画面 (本登録完了ページの「プロフィール登録」ボタン)
  * </pre>
+ * The 仮登録完了 / 本登録完了 pages of member registration ({@link #REGISTER_PAGES}) work the same
+ * way: the operator's HTML from 番組デザイン設定, or the client-supplied design in
+ * {@code site/<page>.html}; ガラケー has its own fixed design ({@code site/<page>_fp.html}).
  * The footer is fixed: if the operator's HTML drops %footer%, it is inserted before
  * {@code </body>} anyway, so the legally required links and notes can't be edited away.
  */
@@ -40,12 +44,26 @@ public class PublicSiteService {
     private static final String FP_TOP_TEMPLATE = "site/top_fp.html";
     private static final String DEFAULT_IMAGES = "/member/images/";
     private static final Pattern TAG = Pattern.compile(
-            "%(sitename|brand|top_picture|top_blur|year|csrf|contact_mailto|footer)%");
+            "%(sitename|brand|top_picture|top_blur|year|csrf|contact_mailto|footer|profile_url)%");
+    /** Where 本登録完了's プロフィール登録 button leads. */
+    public static final String PROFILE_URL = "/member/profile";
+
+    /** Member-registration pages editable on 番組デザイン設定: code → name. */
+    public static final String PAGE_REGISTER_DONE = "register_done";
+    public static final String PAGE_REGISTER_COMPLETE = "register_complete";
+    public static final Map<String, String> REGISTER_PAGES;
+    static {
+        Map<String, String> m = new java.util.LinkedHashMap<>();
+        m.put(PAGE_REGISTER_DONE, "仮登録ページ");
+        m.put(PAGE_REGISTER_COMPLETE, "本登録ページ");
+        REGISTER_PAGES = java.util.Collections.unmodifiableMap(m);
+    }
     private static final Pattern BODY_END = Pattern.compile("(?i)</body\\s*>");
 
     private final SiteDesignService siteDesignService;
     private volatile String defaultTopTemplate;
     private volatile String fpTopTemplate;
+    private final Map<String, String> bundled = new java.util.concurrent.ConcurrentHashMap<>();
 
     public PublicSiteService(SiteDesignService siteDesignService) {
         this.siteDesignService = siteDesignService;
@@ -54,15 +72,45 @@ public class PublicSiteService {
     public String renderTop(String csrfToken) {
         String template = siteDesignService.getTopHtml();
         if (template == null) template = getDefaultTopTemplate();
-        if (!template.contains("%footer%")) {
-            Matcher end = BODY_END.matcher(template);
-            int at = -1;
-            while (end.find()) at = end.start();
-            template = at < 0 ? template + "\n%footer%\n"
-                    : template.substring(0, at) + "%footer%\n" + template.substring(at);
-        }
+        return fillTags(withFooter(template), csrfToken);
+    }
 
-        return fillTags(template, csrfToken);
+    /**
+     * 仮登録完了 ({@link #PAGE_REGISTER_DONE}) / 本登録完了 ({@link #PAGE_REGISTER_COMPLETE}): the saved
+     * HTML or the bundled design, with the fixed footer; {@code fp} = the ガラケー design.
+     */
+    public String renderRegisterPage(String page, boolean fp) {
+        if (!REGISTER_PAGES.containsKey(page)) throw new IllegalArgumentException("unknown page " + page);
+        if (fp) return fillTags(bundled("site/" + page + "_fp.html"), null);
+        String template = siteDesignService.getRegisterHtml(page);
+        if (template == null) template = getDefaultRegisterTemplate(page);
+        return fillTags(withFooter(template), null);
+    }
+
+    /** The bundled client design of a registration page — what 番組デザイン設定 shows / restores. */
+    public String getDefaultRegisterTemplate(String page) {
+        if (!REGISTER_PAGES.containsKey(page)) throw new IllegalArgumentException("unknown page " + page);
+        return bundled("site/" + page + ".html");
+    }
+
+    /** The fixed footer is required: inserted before {@code </body>} when the HTML dropped %footer%. */
+    private static String withFooter(String template) {
+        if (template.contains("%footer%")) return template;
+        Matcher end = BODY_END.matcher(template);
+        int at = -1;
+        while (end.find()) at = end.start();
+        return at < 0 ? template + "\n%footer%\n"
+                : template.substring(0, at) + "%footer%\n" + template.substring(at);
+    }
+
+    private String bundled(String path) {
+        return bundled.computeIfAbsent(path, k -> {
+            try (InputStream in = new ClassPathResource(k).getInputStream()) {
+                return StreamUtils.copyToString(in, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new UncheckedIOException("missing " + k, e);
+            }
+        });
     }
 
     /**
@@ -98,6 +146,7 @@ public class PublicSiteService {
         values.put("csrf", esc(csrfToken == null ? "" : csrfToken));
         values.put("contact_mailto", esc(contactMailto()));
         values.put("footer", footerHtml("#login"));
+        values.put("profile_url", PROFILE_URL);
 
         Matcher m = TAG.matcher(template);
         StringBuffer out = new StringBuffer();

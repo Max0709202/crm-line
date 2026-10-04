@@ -45,7 +45,7 @@ class CrmUserServiceImportProgressTest {
             return inv.getArgument(0);
         });
 
-        CrmUserService svc = new CrmUserService(repo, enc, binding);
+        CrmUserService svc = new CrmUserService(repo, enc, binding, sequentialLoginIds());
 
         // 30-row synthetic CSV ~= 150ms total work at 5ms/row, plenty of time to poll
         StringBuilder csv = new StringBuilder("email,display_name,carrier_domain,memo,ad_code,gender\n");
@@ -88,5 +88,13 @@ class CrmUserServiceImportProgressTest {
         // (i.e. wasn't stuck at 0) and the running flag was visible to outside threads.
         assertThat(sawRunningTrue).as("isImportRunning() returned true at least once during the run").isTrue();
         assertThat(maxObserved.get()).as("importProgress climbed above 0 mid-run").isGreaterThan(0L);
+    }
+
+    /** Login IDs as MemberLoginIdService issues them: 10000, 10001, … */
+    private static MemberLoginIdService sequentialLoginIds() {
+        MemberLoginIdService ids = org.mockito.Mockito.mock(MemberLoginIdService.class);
+        java.util.concurrent.atomic.AtomicLong next = new java.util.concurrent.atomic.AtomicLong(MemberLoginIdService.START);
+        org.mockito.Mockito.when(ids.next()).thenAnswer(inv -> String.valueOf(next.getAndIncrement()));
+        return ids;
     }
 }

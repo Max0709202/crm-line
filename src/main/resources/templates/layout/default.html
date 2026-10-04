@@ -13,9 +13,15 @@
 <div class="min-h-screen flex">
     <!--/* Sticky sidebar: pinned to viewport so the nav stays visible while the main content
          scrolls. The fixed width of 256px (=w-64) is mirrored on <main>'s ml-64 below. */-->
-    <aside class="w-64 bg-slate-900 text-white flex-shrink-0 p-4 flex flex-col fixed inset-y-0 left-0 overflow-y-auto z-20">
-        <div class="text-xl font-bold tracking-wide mb-1">CRM</div>
-        <div class="text-xs text-slate-400 mb-6" th:if="${session.adminUserName}" th:text="${session.adminUserName}"></div>
+    <!--/* .admin-aside: colors come from admin.css (not the Tailwind CDN) so the sidebar never flashes
+         white while a page loads; --role-c tints it with the logged-in 権限's color. */-->
+    <aside class="admin-aside w-64 bg-slate-900 text-white flex-shrink-0 p-4 flex flex-col fixed inset-y-0 left-0 overflow-y-auto z-20"
+           th:style="${crmRole != null} ? '--role-c:' + ${crmRole.color}">
+        <div class="admin-brand mb-1">
+            <span class="admin-brand-crm">CRM</span>
+            <span id="navRoleName" class="admin-brand-role" th:if="${crmRole != null}" th:text="${crmRole.name}">総長</span>
+        </div>
+        <div id="navAdminName" class="text-xs text-slate-400 mb-6" th:if="${session.adminUserName}" th:text="${session.adminUserName}"></div>
         <!--/* Grouped nav: each section title expands its items on hover (script below);
              the section holding the current page / last-clicked item stays open via .is-open.
              Items marked 準備中 are placeholders for features not built yet. */-->
@@ -28,62 +34,61 @@
                 </div>
             </div>
 
-            <div class="nav-group">
+            <div class="nav-group" th:unless="${crmRole != null and crmRole.isGroupHidden('会員管理')}">
                 <div class="nav-group-title">会員管理</div>
                 <div class="nav-group-items">
-                    <a class="nav-link" th:href="@{/manager/users}">ユーザー管理</a>
-                    <a class="nav-link" th:href="@{/manager/support}">サポート窓口</a>
-                    <span class="nav-link nav-soon">キャラ登録<small>準備中</small></span>
-                    <a class="nav-link" th:href="@{/manager/settings/points}">ポイント設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/folders}">フォルダ設定</a>
+                    <a class="nav-link" th:href="@{/manager/users}" th:unless="${crmRole != null and crmRole.isHidden('users')}">ユーザー管理</a>
+                    <a class="nav-link" th:href="@{/manager/support}" th:unless="${crmRole != null and crmRole.isHidden('support')}">サポート窓口</a>
+                    <a class="nav-link" th:href="@{/manager/characters}" th:unless="${crmRole != null and crmRole.isHidden('characters')}">キャラ登録</a>
+                    <a class="nav-link" th:href="@{/manager/settings/points}" th:unless="${crmRole != null and crmRole.isHidden('points')}">ポイント設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/folders}" th:unless="${crmRole != null and crmRole.isHidden('folders')}">フォルダ設定</a>
                 </div>
             </div>
 
-            <div class="nav-group">
+            <div class="nav-group" th:unless="${crmRole != null and crmRole.isGroupHidden('配信管理')}">
                 <div class="nav-group-title">配信管理</div>
                 <div class="nav-group-items">
-                    <a class="nav-link" th:href="@{/manager/inbox}" target="crmInbox">受信/返信管理</a>
-                    <a class="nav-link" th:href="@{/manager/messages}">個別メッセージ管理</a>
-                    <a class="nav-link" th:href="@{/manager/messages/broadcast}">一斉送信/返信履歴</a>
-                    <a class="nav-link" th:href="@{/manager/settings/diff-schedule/history}">差分スケジュール履歴</a>
-                    <a class="nav-link" th:href="@{/manager/settings/diff-schedule}">差分スケジュール設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/sender-names}">メール送信設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/message-templates}">定型文</a>
-                    <a class="nav-link font-medium" style="color:#06C755;" th:href="@{/manager/line-settings}">LINE設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/sms}">SMS配信設定</a>
-                    <a class="nav-link" th:href="@{/manager/carrier-pool}">キャリア登録設定</a>
-                    <a class="nav-link nav-sub" th:href="@{/manager/settings/imap-env}">IMAP 監視同期</a>
-                    <a class="nav-link" th:href="@{/manager/settings/external-link-domains}">外部リンクドメイン生成</a>
+                    <a class="nav-link" th:href="@{/manager/inbox}" target="crmInbox" th:unless="${crmRole != null and crmRole.isHidden('inbox')}">受信/返信管理</a>
+                    <a class="nav-link" th:href="@{/manager/messages}" th:unless="${crmRole != null and crmRole.isHidden('messages')}">個別メッセージ管理</a>
+                    <a class="nav-link" th:href="@{/manager/messages/broadcast}" th:unless="${crmRole != null and crmRole.isHidden('broadcast')}">一斉送信/返信履歴</a>
+                    <a class="nav-link" th:href="@{/manager/settings/diff-schedule/history}" th:unless="${crmRole != null and crmRole.isHidden('diffHistory')}">差分スケジュール履歴</a>
+                    <a class="nav-link" th:href="@{/manager/settings/diff-schedule}" th:unless="${crmRole != null and crmRole.isHidden('diffSchedule')}">差分スケジュール設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/sender-names}" th:unless="${crmRole != null and crmRole.isHidden('senderNames')}">メール送信設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/message-templates}" th:unless="${crmRole != null and crmRole.isHidden('templates')}">定型文</a>
+                    <a class="nav-link font-medium" style="color:#06C755;" th:href="@{/manager/line-settings}" th:unless="${crmRole != null and crmRole.isHidden('line')}">LINE設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/sms}" th:unless="${crmRole != null and crmRole.isHidden('sms')}">SMS配信設定</a>
+                    <a class="nav-link" th:href="@{/manager/carrier-pool}" th:unless="${crmRole != null and crmRole.isHidden('carrierPool')}">キャリア登録設定</a>
+                    <a class="nav-link nav-sub" th:href="@{/manager/settings/imap-env}" th:unless="${crmRole != null and crmRole.isHidden('imapEnv')}">IMAP 監視同期</a>
+                    <a class="nav-link" th:href="@{/manager/settings/external-link-domains}" th:unless="${crmRole != null and crmRole.isHidden('externalLinks')}">外部リンクドメイン生成</a>
                 </div>
             </div>
 
-            <div class="nav-group">
+            <div class="nav-group" th:unless="${crmRole != null and crmRole.isGroupHidden('スタッフ管理')}">
                 <div class="nav-group-title">スタッフ管理</div>
                 <div class="nav-group-items">
-                    <span class="nav-link nav-soon">権限設定<small>準備中</small></span>
-                    <a class="nav-link" th:href="@{/manager/settings/admin-password}">管理者パスワード変更</a>
-                    <a class="nav-link" th:href="@{/manager/settings/audit-log}">操作ログ</a>
+                    <a class="nav-link" th:href="@{/manager/settings/roles}" th:unless="${crmRole != null and crmRole.isHidden('roles')}">権限設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/audit-log}" th:unless="${crmRole != null and crmRole.isHidden('auditLog')}">操作ログ</a>
                 </div>
             </div>
 
-            <div class="nav-group">
+            <div class="nav-group" th:unless="${crmRole != null and crmRole.isGroupHidden('広告管理')}">
                 <div class="nav-group-title">広告管理</div>
                 <div class="nav-group-items">
-                    <a class="nav-link" th:href="@{/manager/ad-codes}">広告設定</a>
+                    <a class="nav-link" th:href="@{/manager/ad-codes}" th:unless="${crmRole != null and crmRole.isHidden('adCodes')}">広告設定</a>
                 </div>
             </div>
 
-            <div class="nav-group">
+            <div class="nav-group" th:unless="${crmRole != null and crmRole.isGroupHidden('サイト構成')}">
                 <div class="nav-group-title">サイト構成</div>
                 <div class="nav-group-items">
-                    <a class="nav-link" th:href="@{/manager/settings/domain}">ドメイン設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/payments}">決済関連設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/home-html}">本ドメイン表示設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/site-design}">番組デザイン設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/memo-html-bulk}">HTML 一括編集</a>
-                    <a class="nav-link" th:href="@{/manager/settings/html-images}">HTML画像管理</a>
-                    <a class="nav-link" th:href="@{/manager/settings/relay-servers}">リレーサーバー設定</a>
-                    <a class="nav-link" th:href="@{/manager/settings/backup}">バックアップ設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/domain}" th:unless="${crmRole != null and crmRole.isHidden('domain')}">ドメイン設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/payments}" th:unless="${crmRole != null and crmRole.isHidden('payments')}">決済関連設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/home-html}" th:unless="${crmRole != null and crmRole.isHidden('homeHtml')}">本ドメイン表示設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/site-design}" th:unless="${crmRole != null and crmRole.isHidden('siteDesign')}">番組デザイン設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/memo-html-bulk}" th:unless="${crmRole != null and crmRole.isHidden('memoHtmlBulk')}">HTML 一括編集</a>
+                    <a class="nav-link" th:href="@{/manager/settings/html-images}" th:unless="${crmRole != null and crmRole.isHidden('htmlImages')}">HTML画像管理</a>
+                    <a class="nav-link" th:href="@{/manager/settings/relay-servers}" th:unless="${crmRole != null and crmRole.isHidden('relayServers')}">リレーサーバー設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/backup}" th:unless="${crmRole != null and crmRole.isHidden('backup')}">バックアップ設定</a>
                 </div>
             </div>
         </nav>
@@ -113,7 +118,10 @@
 
             function pin(g) { g.classList.add('is-open', 'is-expanded'); g.querySelector('.nav-group-items').style.height = ''; }
             if (best && best.closest('.nav-group')) pin(best.closest('.nav-group'));
-            var lastGroup = groups[parseInt(load('crmNavGroup'), 10)];
+            // remembered by title, not position: a 権限 can hide whole groups, which shifts positions
+            function title(g) { var t = g.querySelector('.nav-group-title'); return t ? t.textContent.trim() : ''; }
+            var lastTitle = load('crmNavGroup');
+            var lastGroup = lastTitle ? groups.filter(function (g) { return title(g) === lastTitle; })[0] : null;
             if (lastGroup) pin(lastGroup);
 
             var scroll = parseInt(load('crmNavScroll'), 10);
@@ -141,7 +149,7 @@
                     a.addEventListener('click', function () {
                         clearTimeout(timer);
                         g.classList.add('is-open', 'is-expanded');
-                        save('crmNavGroup', String(idx));
+                        save('crmNavGroup', title(g));
                     });
                 });
             });

@@ -54,10 +54,32 @@
 
 /* Admin sidebar: section titles expand their items on hover (driven by the script in layout/default.html).
    Top-level entries (管理トップ + section titles) match the page heading size (text-2xl / semibold). */
+/* The sidebar's own box and colors live here, not in Tailwind classes: the Tailwind CDN script
+   builds its CSS only after the page starts rendering, so a sidebar styled only by bg-slate-900 /
+   fixed / w-64 painted white (and full width) for a moment on every page change.
+   --role-c = the logged-in 権限's color (権限設定); the dark base is tinted with it. */
+body { background-color: #f8fafc; }
+.admin-aside {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 20; width: 16rem; box-sizing: border-box;
+  display: flex; flex-direction: column; padding: 1rem; overflow-y: auto; color: #fff;
+  background-color: #0f172a;
+  background-color: color-mix(in srgb, var(--role-c, #0f172a) 20%, #0f172a);
+  box-shadow: inset -3px 0 0 color-mix(in srgb, var(--role-c, #0f172a) 70%, transparent);
+}
+.admin-aside + main { margin-left: 16rem; }
+.admin-brand { display: flex; align-items: baseline; gap: 0.6rem; line-height: 1.1; }
+.admin-brand-crm { font-size: 2.25rem; font-weight: 800; letter-spacing: 0.04em; color: #fff; }
+.admin-brand-role {
+  font-size: 1.15rem; font-weight: 800; color: var(--role-c, #cbd5e1);
+  padding: 0.05rem 0.5rem; border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--role-c, #334155) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-c, #334155) 55%, transparent);
+}
 .admin-nav .nav-link { display: block; padding: 0.4rem 0.75rem; border-radius: 0.25rem; color: #cbd5e1; font-size: 1rem; }
-.admin-nav .nav-top { font-size: 1.5rem; font-weight: 600; color: #fff; }
-.admin-nav a.nav-link:hover { background: #1e293b; color: #fff; }
-.admin-nav .nav-link.is-active { background: #1e293b; color: #fff; }
+.admin-nav a.nav-top { font-size: 1.5rem; font-weight: 600; color: #60a5fa; }  /* 管理トップ: blue (a.… beats .nav-group-title white) */
+.admin-nav a.nav-link:hover { background: color-mix(in srgb, var(--role-c, #1e293b) 26%, #1e293b); color: #fff; }
+.admin-nav .nav-link.is-active { background: color-mix(in srgb, var(--role-c, #1e293b) 34%, #1e293b); color: #fff; box-shadow: inset 3px 0 0 var(--role-c, transparent); }
+.admin-nav a.nav-top:hover, .admin-nav a.nav-top.is-active { color: #93c5fd; }
 .admin-nav .nav-group-title {
   padding: 0.4rem 0.75rem; border-radius: 0.25rem; cursor: pointer;
   font-size: 1.5rem; font-weight: 600; color: #fff;
@@ -65,12 +87,12 @@
 }
 .admin-nav .nav-group-title::after { content: "\25B8"; font-size: 0.9rem; color: #64748b; transition: transform 0.45s ease; }
 .admin-nav .nav-group.is-expanded .nav-group-title::after { transform: rotate(90deg); }
-.admin-nav .nav-group:hover .nav-group-title { background: #1e293b; }
+.admin-nav .nav-group:hover .nav-group-title { background: color-mix(in srgb, var(--role-c, #1e293b) 26%, #1e293b); }
 /* Height is animated from JS (0 <-> content height); .is-open (current / last-clicked section) renders fully open. */
 .admin-nav .nav-group-items {
   display: flex; flex-direction: column; gap: 2px;
   padding-left: 0.5rem; margin: 2px 0 4px 0.75rem;
-  border-left: 1px solid #334155;
+  border-left: 1px solid color-mix(in srgb, var(--role-c, #334155) 55%, #334155);
   height: 0; overflow: hidden;
   transition: height 0.45s ease;
 }

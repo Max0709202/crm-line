@@ -37,7 +37,8 @@ import java.util.Optional;
 @RequestMapping("/manager/users")
 public class UserController {
 
-    private static final List<String> STATUSES = Arrays.asList(CrmUser.STATUS_ACTIVE, CrmUser.STATUS_SUSPENDED);
+    private static final List<String> STATUSES = Arrays.asList(
+            CrmUser.STATUS_PENDING, CrmUser.STATUS_ACTIVE, CrmUser.STATUS_SUSPENDED);
 
     private static boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
@@ -61,6 +62,7 @@ public class UserController {
     private final com.crm.service.DiffScheduleService diffScheduleService;
     private final com.crm.repository.LineUserRepository lineUserRepository;
     private final com.crm.repository.LineAccountRepository lineAccountRepository;
+    private final com.crm.service.UserPointService userPointService;
 
     public UserController(CrmUserService service,
                           CarrierBindingService bindingService,
@@ -79,7 +81,8 @@ public class UserController {
                           com.crm.service.MessageBoxService messageBoxService,
                           com.crm.service.DiffScheduleService diffScheduleService,
                           com.crm.repository.LineUserRepository lineUserRepository,
-                          com.crm.repository.LineAccountRepository lineAccountRepository) {
+                          com.crm.repository.LineAccountRepository lineAccountRepository,
+                          com.crm.service.UserPointService userPointService) {
         this.service = service;
         this.bindingService = bindingService;
         this.placeholderService = placeholderService;
@@ -98,6 +101,7 @@ public class UserController {
         this.diffScheduleService = diffScheduleService;
         this.lineUserRepository = lineUserRepository;
         this.lineAccountRepository = lineAccountRepository;
+        this.userPointService = userPointService;
     }
 
     /** Active ad-code choices for autocomplete on the user-detail form. */
@@ -176,6 +180,8 @@ public class UserController {
             }
         }
         model.addAttribute("lineAccountNamesByUserId", lineAccountNamesByUserId);
+        // 所持ポイント of this page's users (pt column; no USER_POINT row = 0).
+        model.addAttribute("pointsByUserId", userPointService.getAll(pageUserIds));
         // Configurable folder choices for the filter + bulk-move control.
         model.addAttribute("folders", folderSettingService.listFolders());
         // フォルダ設定 colors, shown on the フォルダ column and filter (2026-10-01 client request).
@@ -458,7 +464,7 @@ public class UserController {
         return "redirect:" + safeReturn;
     }
 
-    /** Bulk ACTIVE ⇄ SUSPENDED status change from the /manager/users list's row-checkbox
+    /** Bulk PENDING / ACTIVE / SUSPENDED status change from the /manager/users list's row-checkbox
      *  selection. Not password-gated — unlike delete, this is a reversible field flip. */
     @PostMapping("/bulk-set-status")
     public String bulkSetStatus(@RequestParam(name = "ids", required = false) java.util.List<Long> ids,
@@ -466,7 +472,7 @@ public class UserController {
                                  @RequestParam(name = "returnTo", required = false) String returnTo,
                                  RedirectAttributes ra) {
         String safeReturn = safeRelativeReturnUrl(returnTo, "/manager/users");
-        if (!CrmUser.STATUS_ACTIVE.equals(status) && !CrmUser.STATUS_SUSPENDED.equals(status)) {
+        if (status == null || !STATUSES.contains(status)) {
             ra.addFlashAttribute("flashError", "変更先のステータスを選択してください");
             return "redirect:" + safeReturn;
         }
@@ -945,6 +951,18 @@ public class UserController {
             ra.addFlashAttribute("flashError", msg);
             ra.addFlashAttribute("form", form);
             return "redirect:/manager/users/" + id;
+        }
+        // A 権限 that sees email / phone masked can't edit them (the inputs aren't submitted):
+        // keep the stored values.
+        if (com.crm.service.RoleMaskService.isMasked("email") || com.crm.service.RoleMaskService.isMasked("phone")
+                || com.crm.service.RoleMaskService.isMasked("address")) {
+            service.findById(id).ifPresent(u -> {
+                if (com.crm.service.RoleMaskService.isMasked("email")) form.setEmail(u.getEmail());
+                if (com.crm.service.RoleMaskService.isMasked("phone")) form.setPhoneNumber(u.getPhoneNumber());
+                if (com.crm.service.RoleMaskService.isMasked("address")) {
+                    form.setFullAddress(UserForm.from(u).getFullAddress());
+                }
+            });
         }
         // A LINE-linked customer is reachable over LINE, so neither email nor phone is required
         // (they're auto-registered with neither — 2026-09-30 client report: removing a test

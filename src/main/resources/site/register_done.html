@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>%sitename% | 仮登録完了</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#2BA3EC">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<!--
+  仮登録完了ページ（会員登録フォームの送信後）。クライアント支給デザイン（community_register_done_pc.html）をそのまま使用。
+  サーバー側で置換されるタグ（前後を % で囲んで使用）: sitename brand top_blur year contact_mailto footer
+  （PublicSiteService）。フッターは固定表示（%footer% を消してもページの最後に表示されます）。
+-->
+<style>
+:root{
+  --ink:#16324A; --ink-2:#4F6679; --line:#D5E5EF;
+  --sea:#0F74C2; --sea-dark:#0B5F9E; --sea-bright:#2BA3EC;
+  --lagoon:#E3F4FC; --foam:#EEF8FC;
+  --pink:#DD1470; --pink-hover:#C40E62; --pink-bright:#FF4F9A; --pink-soft:#FFE8F2;
+  --navy:#0E2B45;
+  --font:"Zen Maru Gothic","Hiragino Maru Gothic ProN","BIZ UDPGothic","Noto Sans JP",system-ui,sans-serif;
+  --wrap:1120px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;color-scheme:light}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;font-family:var(--font);font-weight:500;font-size:16px;line-height:1.8;color:var(--ink);background:var(--foam);-webkit-font-smoothing:antialiased}
+img,svg{display:block}
+a{color:inherit;text-decoration:none}
+h1{margin:0;line-height:1.45;letter-spacing:.02em;font-feature-settings:"palt"}
+p{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+:focus-visible{outline:3px solid var(--sea-bright);outline-offset:3px;border-radius:6px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 28px;border-radius:999px;font-weight:700;font-size:16px;line-height:1.2;transition:background-color .2s,box-shadow .2s}
+.btn-ghost{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
+.btn-ghost:hover{box-shadow:inset 0 0 0 1.5px var(--sea-bright)}
+
+/* ---------- Header ---------- */
+.site-header{position:relative;z-index:2;padding-top:env(safe-area-inset-top,0px);background:rgba(255,255,255,.9);border-bottom:1px solid rgba(213,229,239,.8)}
+.header-in{max-width:var(--wrap);height:68px;margin:0 auto;padding:0 20px;display:flex;align-items:center}
+.brand{display:flex;align-items:center;gap:8px;font-weight:900;font-size:22px;letter-spacing:.02em;color:var(--pink)}
+.brand svg{width:26px;height:26px;color:var(--pink-bright)}
+.brand img{height:44px;width:auto;max-width:260px;object-fit:contain}
+
+/* ---------- 上部の帯（メイン画像をぼかして使用） ---------- */
+.band{position:relative;isolation:isolate;overflow:hidden;height:220px}
+.band::before{content:"";position:absolute;inset:-80px;z-index:-2;background:url(%top_blur%) center/cover no-repeat;filter:blur(40px) saturate(1.3);transform:scale(1.1)}
+.band::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.25) 100%)}
+.wave{position:absolute;left:0;bottom:-1px;width:100%;height:60px;color:var(--foam)}
+
+/* ---------- 完了カード ---------- */
+main{flex:1;padding:0 20px 96px}
+.card{position:relative;z-index:1;max-width:620px;margin:-150px auto 0;padding:40px 48px 36px;background:#fff;border-radius:28px;border:1px solid rgba(213,229,239,.7);box-shadow:0 34px 70px -36px rgba(14,70,120,.5);text-align:center;animation:card-in .6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes card-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+/* 進み具合：入力 → 仮登録 → 本登録 */
+.tracker{list-style:none;display:flex;justify-content:center;align-items:flex-start;margin:0 auto 30px;padding:0;max-width:380px}
+.tracker li{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ink-2)}
+.tracker li+li::before{content:"";position:absolute;top:17px;right:calc(50% + 24px);width:calc(100% - 48px);height:2px;background:var(--sea-bright)}
+.tracker li.next::before{background:none;border-top:2px dashed #F6A8C8;height:0}
+.dot{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:900}
+.done .dot{background:var(--sea);color:#fff}
+.done .dot svg{width:18px;height:18px}
+.done:nth-child(2) .dot{animation:pop .45s .35s cubic-bezier(.2,.8,.3,1.4) both}
+.next{color:var(--pink)}
+.next .dot{background:#fff;color:var(--pink);box-shadow:inset 0 0 0 2px var(--pink-bright);animation:ring 1.6s .9s ease-out 2}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+@keyframes ring{0%{box-shadow:inset 0 0 0 2px var(--pink-bright),0 0 0 0 rgba(255,79,154,.45)}100%{box-shadow:inset 0 0 0 2px var(--pink-bright),0 0 0 14px rgba(255,79,154,0)}}
+
+.mail-icon{width:84px;height:84px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;background:var(--lagoon);color:var(--sea)}
+.mail-icon svg{width:40px;height:40px}
+.card h1{font-size:clamp(24px,3.4vw,30px);font-weight:900}
+.message{margin-top:18px;display:grid;gap:10px;word-break:auto-phrase;text-wrap:balance}
+.message p{color:var(--ink-2)}
+.message .action{color:var(--ink);font-weight:700}
+.notice{margin-top:24px;padding:14px 18px;border-radius:16px;background:var(--pink-soft);font-size:14px;line-height:1.75;text-align:left;color:var(--ink)}
+.actions{margin-top:28px}
+.retry{margin-top:16px;font-size:13px;color:var(--ink-2)}
+.retry a{color:var(--sea);text-decoration:underline;text-underline-offset:3px}
+
+/* ---------- Responsive ---------- */
+@media (max-width:760px){
+  .header-in{height:58px;padding:0 16px}
+  .brand{font-size:19px}
+  .brand svg{width:22px;height:22px}
+  .brand img{height:36px;max-width:170px}
+  .band{height:160px}
+  .wave{height:30px}
+  main{padding:0 16px 64px}
+  .card{margin-top:-110px;padding:30px 20px 28px;border-radius:24px}
+  .tracker{margin-bottom:24px}
+  .mail-icon{width:72px;height:72px}
+  .mail-icon svg{width:34px;height:34px}
+  .message{text-align:left;text-wrap:pretty;word-break:normal}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-heart" viewBox="0 0 24 24"><path fill="currentColor" d="M12 21s-7.4-4.5-9.5-9.2C1 8.4 3 4.5 6.7 4.5c2.2 0 3.6 1.2 4.3 2.5.7-1.3 2.2-2.5 4.3-2.5 3.7 0 5.7 3.9 4.2 7.3C19.4 16.5 12 21 12 21z"/></symbol>
+</svg>
+
+<header class="site-header">
+  <div class="header-in">
+    <a class="brand" href="/" aria-label="%sitename% トップ">%brand%</a>
+  </div>
+</header>
+
+<div class="band" aria-hidden="true">
+  <svg class="wave" viewBox="0 0 1440 60" preserveAspectRatio="none"><path fill="currentColor" d="M0 34c120-18 240-26 360-18s240 34 360 30 240-30 360-34 240 12 360 24v24H0z"/></svg>
+</div>
+
+<main>
+  <section class="card" aria-labelledby="done-title">
+    <ol class="tracker" aria-label="登録の進み具合">
+      <li class="done"><span class="dot"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>入力<span class="sr-only">（完了）</span></li>
+      <li class="done" aria-current="step"><span class="dot"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>仮登録<span class="sr-only">（完了）</span></li>
+      <li class="next"><span class="dot">3</span>本登録<span class="sr-only">（次のステップ）</span></li>
+    </ol>
+
+    <div class="mail-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/></g></svg>
+    </div>
+
+    <h1 id="done-title">仮登録が完了しました！</h1>
+
+    <div class="message">
+      <p>ご登録いただいたメールアドレスに、本登録のご案内メールをお送りしました。</p>
+      <p class="action">届いたメールに記載されているURLをクリックして、本登録を完了してください。</p>
+      <p>本登録が完了すると、すぐにサイトをご利用いただけます。</p>
+    </div>
+
+    <p class="notice">※メールが届かない場合は、迷惑メールフォルダに振り分けられている可能性があります。迷惑メールフォルダもあわせてご確認ください。</p>
+
+    <div class="actions">
+      <a class="btn btn-ghost" href="/">トップページへ戻る</a>
+    </div>
+    <p class="retry">メールアドレスを間違えた場合は、<a href="/#register">もう一度登録</a>してください。</p>
+  </section>
+</main>
+
+%footer%
+
+</body>
+</html>

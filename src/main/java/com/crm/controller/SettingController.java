@@ -957,7 +957,9 @@ public class SettingController {
     }
 
     @PostMapping("/sms")
-    public String smsSave(@ModelAttribute("form") SmsSettingForm form, RedirectAttributes ra) {
+    public String smsSave(@ModelAttribute("form") SmsSettingForm form,
+                          @RequestParam(value = "clearCredentials", required = false) String clearCredentials,
+                          RedirectAttributes ra) {
         String fixedListError = com.crm.service.SmsSettingService.validateFixedList(form.getSenderNameFixedList());
         if (fixedListError != null) {
             ra.addFlashAttribute("flashError", fixedListError);
@@ -977,6 +979,12 @@ public class SettingController {
                 form.getRatePerMinute());
         smsSettingService.setReplyUrlClipLength(
                 form.getReplyUrlClipLength() == null ? 15 : form.getReplyUrlClipLength());
+        // A blank password keeps the stored one, so clearing the credentials needs its own switch.
+        if ("true".equals(clearCredentials)) {
+            smsSettingService.clearCredentials();
+            ra.addFlashAttribute("flashSuccess", "SMS配信設定を保存し、BytePlus 認証情報を削除しました");
+            return "redirect:/manager/settings/sms";
+        }
         ra.addFlashAttribute("flashSuccess", "SMS配信設定を保存しました");
         return "redirect:/manager/settings/sms";
     }

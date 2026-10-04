@@ -59,12 +59,12 @@
                          data-lastlogin=${u.lastLoginAt != null} ? ${#temporals.format(u.lastLoginAt, 'yyyy-MM-dd HH:mm')} : ''">
                 <td class="px-3 py-2"><code class="text-xs text-slate-600" th:text="${it.count}"></code></td>
                 <td class="px-3 py-2 text-slate-700" th:text="${u.displayName}"></td>
-                <td class="px-3 py-2" th:attr="data-email=${u.email} ?: ''">
-                    <span th:if="${u.email}" class="text-xs text-slate-700" th:text="${u.email}"></span>
+                <td class="px-3 py-2" th:attr="data-email=${@roleMask.email(u.email)} ?: ''">
+                    <span th:if="${u.email}" class="text-xs text-slate-700" th:text="${@roleMask.email(u.email)}"></span>
                     <span th:unless="${u.email}" class="text-slate-400">-</span>
                 </td>
-                <td class="px-3 py-2" th:attr="data-phone=${u.phoneNumber} ?: ''">
-                    <span th:if="${u.phoneNumber}" class="text-xs text-slate-700" th:text="${u.phoneNumber}"></span>
+                <td class="px-3 py-2" th:attr="data-phone=${@roleMask.phone(u.phoneNumber)} ?: ''">
+                    <span th:if="${u.phoneNumber}" class="text-xs text-slate-700" th:text="${@roleMask.phone(u.phoneNumber)}"></span>
                     <span th:unless="${u.phoneNumber}" class="text-slate-400">-</span>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-500" th:text="${u.adCode} ?: '-'"></td>

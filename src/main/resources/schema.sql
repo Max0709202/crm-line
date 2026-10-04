@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS CRM_USER (
   -- existing DBs for backwards-compat; safe to ALTER TABLE DROP COLUMN when convenient.
   CARRIER_CODE        VARCHAR(10)   DEFAULT NULL  COMMENT 'DEPRECATED — no longer written',
   CARRIER_DOMAIN      VARCHAR(60)   DEFAULT NULL  COMMENT 'i.softbank.jp etc',
-  STATUS              VARCHAR(16)   DEFAULT 'ACTIVE'  COMMENT 'ACTIVE | SUSPENDED',
+  STATUS              VARCHAR(16)   DEFAULT 'ACTIVE'  COMMENT 'PENDING (仮登録) | ACTIVE | SUSPENDED',
   FOLDER              VARCHAR(64)   DEFAULT NULL      COMMENT 'grouping folder name',
   LAST_LOGIN_AT       DATETIME      DEFAULT NULL,
   MEMO                TEXT          DEFAULT NULL,
@@ -633,4 +633,73 @@ CREATE TABLE IF NOT EXISTS SUPPORT_TEMPLATE (
   BODY       TEXT         DEFAULT NULL,
   CREATED_AT DATETIME     NOT NULL,
   UPDATED_AT DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 権限設定: each role logs in as its own ADMIN_USER row (created when the role's first
+-- password is set). The top role (lowest SORT_ORDER) is seeded from the existing admin login.
+CREATE TABLE IF NOT EXISTS ADMIN_ROLE (
+  ID                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME                VARCHAR(32)  NOT NULL,
+  HOLDER              VARCHAR(64)  DEFAULT NULL COMMENT '担当者名 shown as 権限名：担当者名',
+  COLOR               VARCHAR(16)  NOT NULL,
+  LOGIN_ID            VARCHAR(64)  NOT NULL,
+  ADMIN_USER_ID       BIGINT       DEFAULT NULL COMMENT 'ADMIN_USER this role logs in as; NULL until a password is set',
+  MASK_FIELDS         VARCHAR(255) DEFAULT NULL COMMENT 'comma list of masked user fields: address,email,phone',
+  HIDDEN_MENUS        TEXT         DEFAULT NULL COMMENT 'comma list of menu keys hidden for this role',
+  SORT_ORDER          INT          NOT NULL,
+  IS_DEFAULT          TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'default roles (総長・幹部・特攻隊員・新人) cannot be deleted',
+  PASSWORD_UPDATED_AT DATETIME     DEFAULT NULL,
+  CREATED_AT          DATETIME     NOT NULL,
+  UPDATED_AT          DATETIME     NOT NULL,
+  UNIQUE KEY UK_ADMIN_ROLE_LOGIN_ID (LOGIN_ID),
+  UNIQUE KEY UK_ADMIN_ROLE_ADMIN_USER (ADMIN_USER_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- キャラ登録: operator characters (男性／女性) grouped in folders.
+CREATE TABLE IF NOT EXISTS CHARA_FOLDER (
+  ID         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME       VARCHAR(20)  NOT NULL,
+  CREATED_AT DATETIME     NOT NULL,
+  UPDATED_AT DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS CHARA (
+  ID         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  NAME       VARCHAR(20)  NOT NULL,
+  GENDER     VARCHAR(8)   NOT NULL COMMENT 'male | female',
+  PREF       VARCHAR(8)   DEFAULT NULL,
+  BLOOD      VARCHAR(4)   DEFAULT NULL,
+  SIGN       VARCHAR(8)   DEFAULT NULL,
+  AGE        INT          DEFAULT NULL,
+  PROFILE    VARCHAR(500) DEFAULT NULL,
+  PHOTO_URL  VARCHAR(255) DEFAULT NULL COMMENT '/img/<HTML_IMAGE.ID>',
+  FOLDER_ID  BIGINT       DEFAULT NULL COMMENT 'CHARA_FOLDER.ID, NULL = 未分類',
+  CREATED_AT DATETIME     NOT NULL,
+  UPDATED_AT DATETIME     NOT NULL,
+  KEY IDX_CHARA_FOLDER (FOLDER_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Member login IDs: one row per issued ID, so IDs run 10000, 10001, … in registration order
+-- (member registration, admin 新規登録 and CSV import all draw from here).
+CREATE TABLE IF NOT EXISTS MEMBER_LOGIN_SEQ (
+  ID         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  CREATED_AT DATETIME NOT NULL
+) ENGINE=InnoDB AUTO_INCREMENT=10000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 仮登録 → 本登録: the confirmation link mailed on member registration (CRM_USER.STATUS PENDING → ACTIVE).
+CREATE TABLE IF NOT EXISTS MEMBER_CONFIRM_TOKEN (
+  TOKEN      VARCHAR(64) NOT NULL PRIMARY KEY,
+  USER_ID    BIGINT      NOT NULL,
+  EXPIRES_AT DATETIME    NOT NULL,
+  USED_AT    DATETIME    DEFAULT NULL,
+  CREATED_AT DATETIME    NOT NULL,
+  KEY IDX_MEMBER_CONFIRM_USER (USER_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 所持ポイント per user (no row = 0 pt).
+CREATE TABLE IF NOT EXISTS USER_POINT (
+  USER_ID    BIGINT   NOT NULL PRIMARY KEY,
+  POINTS     INT      NOT NULL DEFAULT 0,
+  UPDATED_AT DATETIME NOT NULL,
+  KEY IDX_USER_POINT_POINTS (POINTS)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

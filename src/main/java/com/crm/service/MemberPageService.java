@@ -71,7 +71,7 @@ public class MemberPageService {
         FILE_TO_CODE.put("index", "menu");
     }
     private static final Pattern LINK = Pattern.compile("href=\"(?:\\.\\./)?([a-z-]+)\\.html\"");
-    private static final Pattern TAG = Pattern.compile("%(sitename|sitelogo|id|name|point|toname)%");
+    private static final Pattern TAG = Pattern.compile("%(sitename|sitelogo|id|name|point|toname|email)%");
 
     private static final String MENU_FREE_AREA = "<div class=\"htmlslot\">%HTML%</div>";
     /** Class on every HTML area's wrapper; the operator's CSS only applies inside it. */
@@ -99,6 +99,22 @@ public class MemberPageService {
      * @param linkForCode href for a link to another member page, given its page code
      */
     public String renderPreview(String code, String device, boolean markAreas, Function<String, String> linkForCode) {
+        return render(code, device, markAreas, linkForCode, null, null);
+    }
+
+    /**
+     * One post-login page for a real member (e.g. プロフ編集 after 本登録): the member's own values
+     * in the tags ({@code id} = login ID, {@code name}, {@code point}, {@code email}), and each HTML
+     * area only when it's 全表示 or limited to the member's folder.
+     */
+    public String renderForMember(String code, String device, Map<String, String> memberValues, String memberFolder,
+                                  Function<String, String> linkForCode) {
+        return render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder);
+    }
+
+    /** {@code memberFolder} null = admin preview (every area shown); else a member in that folder ("" = none). */
+    private String render(String code, String device, boolean markAreas, Function<String, String> linkForCode,
+                          Map<String, String> memberValues, String memberFolder) {
         if (!BAR_TITLES.containsKey(code)) code = "menu";
         boolean fp = "fp".equals(device) && FP_PAGES.contains(code);
         SiteDesignService.Slot slot = slotFor(code);
@@ -114,10 +130,16 @@ public class MemberPageService {
                             ? load("points.html").replace("%plans%", pointPlans())
                             : load(code + ".html"));
         }
-        html = fillTags(html);
+        html = fillTags(html, memberValues);
 
-        String top = area("上部HTML", slot.getTopHtml(), slot.getTopFolders(), markAreas);
-        String bottom = area("下部HTML", slot.getBottomHtml(), slot.getBottomFolders(), markAreas);
+        String topHtml = slot.getTopHtml(), bottomHtml = slot.getBottomHtml();
+        if (memberFolder != null) {
+            String folder = memberFolder.isEmpty() ? null : memberFolder;
+            topHtml = siteDesignService.slotHtmlFor(code, SiteDesignService.POSITION_TOP, folder);
+            bottomHtml = siteDesignService.slotHtmlFor(code, SiteDesignService.POSITION_BOTTOM, folder);
+        }
+        String top = area("上部HTML", topHtml, slot.getTopFolders(), markAreas);
+        String bottom = area("下部HTML", bottomHtml, slot.getBottomFolders(), markAreas);
         if (fp) {
             // every page: under the ID / PT row that follows the page-name bar
             html = insertAfter(html, "</div>", html.indexOf("<div class=\"acct\">"), wrapFp(top));
@@ -184,8 +206,8 @@ public class MemberPageService {
         throw new IllegalStateException("no slot for member page " + code);
     }
 
-    /** The design's member tags, with sample values (member accounts aren't built yet). */
-    private String fillTags(String html) {
+    /** The design's member tags: the member's values when given, else sample values (admin preview). */
+    private String fillTags(String html, Map<String, String> memberValues) {
         String logo = siteDesignService.getLogoUrl();
         Map<String, String> values = new HashMap<>();
         values.put("sitename", esc(siteDesignService.getConfiguredSiteName()));   // never the bare domain
@@ -195,6 +217,10 @@ public class MemberPageService {
         values.put("name", "サンプル");
         values.put("point", "1,000");
         values.put("toname", "まい");
+        values.put("email", "sample@example.jp");
+        if (memberValues != null) {
+            for (Map.Entry<String, String> e : memberValues.entrySet()) values.put(e.getKey(), esc(e.getValue()));
+        }
         Matcher m = TAG.matcher(html);
         StringBuffer out = new StringBuffer();
         while (m.find()) m.appendReplacement(out, Matcher.quoteReplacement(values.get(m.group(1))));

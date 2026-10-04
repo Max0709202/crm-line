@@ -33,7 +33,10 @@ public class UserTagApiController {
         // Fixed slot mapping — same as UserForm.applyTo()
         u.setTag1Key("amount");       u.setTag1Value(trim(body.get("amount")));
         u.setTag2Key("product");      u.setTag2Value(trim(body.get("product")));
-        u.setTag3Key("full_address"); u.setTag3Value(trim(body.get("fullAddress")));
+        // a 権限 that sees 住所 masked can't edit it — keep the stored value
+        if (!com.crm.service.RoleMaskService.isMasked("address")) {
+            u.setTag3Key("full_address"); u.setTag3Value(trim(body.get("fullAddress")));
+        }
         u.setTag4Key("date_jp");      u.setTag4Value(trim(body.get("dateJp")));
         userRepository.save(u);
         Map<String, Object> r = new HashMap<>();

@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title th:text="'ログイン前ページ確認（' + ${deviceLabels.get(device)} + '） | CRM'">ログイン前ページ確認 | CRM</title>
-    <!-- 番組デザイン設定 › PC / スマホ / ガラケー check: the saved pre-login page (…/site-design/preview)
+    <title th:text="${pageLabel} + '確認（' + ${deviceLabels.get(device)} + '） | CRM'">ログイン前ページ確認 | CRM</title>
+    <!-- 番組デザイン設定 › PC / スマホ / ガラケー check: the saved pre-login page — or 仮登録 / 本登録 (page=…) — (…/site-design/preview)
          in a frame of the device's width. Standalone (no admin sidebar) so the PC width fits. -->
     <style>
         body { margin:0; background:#1e293b; font-family:system-ui,"Noto Sans JP",sans-serif; color:#e2e8f0; }
@@ -20,14 +20,14 @@
 </head>
 <body>
 <div class="bar">
-    <span class="ttl">ログイン前ページ確認</span>
-    <a th:each="d : ${deviceWidths}" th:href="@{/manager/settings/site-design/preview-frame(device=${d.key})}"
+    <span class="ttl" th:text="${pageLabel} + '確認'">ログイン前ページ確認</span>
+    <a th:each="d : ${deviceWidths}" th:href="@{/manager/settings/site-design/preview-frame(device=${d.key},page=${page})}"
        th:classappend="${d.key == device} ? 'on'" th:text="${deviceLabels.get(d.key)}">PC</a>
     <span class="w" th:text="'表示幅 ' + ${deviceWidths.get(device)} + 'px（保存済みの内容）'">表示幅</span>
 </div>
 <div class="stage" th:classappend="${device != 'pc'} ? 'phone'">
-    <iframe th:src="@{/manager/settings/site-design/preview(device=${device})}" th:style="'width:' + ${deviceWidths.get(device)} + 'px'"
-            title="ログイン前ページ"></iframe>
+    <iframe th:src="@{/manager/settings/site-design/preview(device=${device},page=${page})}" th:style="'width:' + ${deviceWidths.get(device)} + 'px'"
+            th:title="${pageLabel}"></iframe>
 </div>
 </body>
 </html>

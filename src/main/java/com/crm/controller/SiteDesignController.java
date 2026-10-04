@@ -77,6 +77,17 @@ public class SiteDesignController {
         String topHtml = siteDesignService.getTopHtml();
         model.addAttribute("topHtml", topHtml != null ? topHtml : publicSiteService.getDefaultTopTemplate());
         model.addAttribute("topHtmlCustomized", topHtml != null);
+        // 仮登録 / 本登録 pages: same editor as ログイン前ページ (saved HTML or the bundled design)
+        Map<String, String> registerHtml = new java.util.LinkedHashMap<>();
+        Map<String, Boolean> registerCustomized = new java.util.LinkedHashMap<>();
+        for (String page : PublicSiteService.REGISTER_PAGES.keySet()) {
+            String h = siteDesignService.getRegisterHtml(page);
+            registerHtml.put(page, h != null ? h : publicSiteService.getDefaultRegisterTemplate(page));
+            registerCustomized.put(page, h != null);
+        }
+        model.addAttribute("registerPages", PublicSiteService.REGISTER_PAGES);
+        model.addAttribute("registerHtml", registerHtml);
+        model.addAttribute("registerCustomized", registerCustomized);
         model.addAttribute("footerNote", siteDesignService.getFooterNote());
         model.addAttribute("slots", siteDesignService.getSlots());
         model.addAttribute("maxSlotHtml", SiteDesignService.MAX_SLOT_HTML_CHARS);
@@ -113,6 +124,21 @@ public class SiteDesignController {
                 siteDesignService.saveTopHtml(normalized.trim().equals(def.trim()) ? null : normalized);
             } catch (IllegalArgumentException e) {
                 errors.add("ログイン前ページ: " + e.getMessage());
+            }
+        }
+        for (Map.Entry<String, String> rp : PublicSiteService.REGISTER_PAGES.entrySet()) {
+            String page = rp.getKey();
+            String html = params.get("html_" + page);
+            if ("true".equals(params.get("htmlReset_" + page))) {
+                siteDesignService.saveRegisterHtml(page, null);
+            } else if (html != null) {
+                String normalized = html.replace("\r\n", "\n");
+                String def = publicSiteService.getDefaultRegisterTemplate(page).replace("\r\n", "\n");
+                try {
+                    siteDesignService.saveRegisterHtml(page, normalized.trim().equals(def.trim()) ? null : normalized);
+                } catch (IllegalArgumentException e) {
+                    errors.add(rp.getValue() + ": " + e.getMessage());
+                }
             }
         }
         if (params.containsKey("footerNote")) siteDesignService.saveFooterNote(params.get("footerNote"));
@@ -165,11 +191,16 @@ public class SiteDesignController {
         return "redirect:/manager/settings/site-design";
     }
 
-    /** PC / スマホ / ガラケー check: the pre-login page in a frame of that device's width. */
+    /** PC / スマホ / ガラケー check: the pre-login page (or 仮登録 / 本登録 with {@code page}) in a
+     *  frame of that device's width. */
     @GetMapping("/preview-frame")
-    public String previewFrame(@RequestParam(value = "device", defaultValue = "pc") String device, Model model) {
+    public String previewFrame(@RequestParam(value = "device", defaultValue = "pc") String device,
+                               @RequestParam(value = "page", defaultValue = "top") String page, Model model) {
         if (!DEVICE_WIDTHS.containsKey(device)) device = "pc";
+        if (!PublicSiteService.REGISTER_PAGES.containsKey(page)) page = "top";
         model.addAttribute("device", device);
+        model.addAttribute("page", page);
+        model.addAttribute("pageLabel", "top".equals(page) ? "ログイン前ページ" : PublicSiteService.REGISTER_PAGES.get(page));
         model.addAttribute("deviceWidths", DEVICE_WIDTHS);
         model.addAttribute("deviceLabels", DEVICE_LABELS);
         return "setting/site-design-preview";
@@ -179,12 +210,19 @@ public class SiteDesignController {
      *  ガラケー (device=fp) shows its own design. */
     @GetMapping("/preview")
     public ResponseEntity<String> preview(@RequestParam(value = "device", defaultValue = "pc") String device,
+                                          @RequestParam(value = "page", defaultValue = "top") String page,
                                           HttpServletRequest request) {
-        Object csrf = request.getAttribute("_csrf");
-        String token = csrf == null ? null : csrf.toString();
+        String body;
+        if (PublicSiteService.REGISTER_PAGES.containsKey(page)) {
+            body = publicSiteService.renderRegisterPage(page, "fp".equals(device));
+        } else {
+            Object csrf = request.getAttribute("_csrf");
+            String token = csrf == null ? null : csrf.toString();
+            body = "fp".equals(device) ? publicSiteService.renderTopFp(token) : publicSiteService.renderTop(token);
+        }
         return ResponseEntity.ok()
                 .header("Content-Type", "text/html; charset=UTF-8")
-                .body("fp".equals(device) ? publicSiteService.renderTopFp(token) : publicSiteService.renderTop(token));
+                .body(body);
     }
 
     /**

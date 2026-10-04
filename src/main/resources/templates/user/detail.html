@@ -45,11 +45,15 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs text-slate-500 mb-1">メールアドレス <span class="text-red-500">*</span></label>
-                    <input type="email" class="tw-input" th:field="*{email}" th:attr="data-original-email=${user.email}"/>
+                    <input th:unless="${@roleMask.masks('email')}" type="email" class="tw-input" th:field="*{email}" th:attr="data-original-email=${user.email}"/>
+                    <input th:if="${@roleMask.masks('email')}" type="text" class="tw-input bg-slate-100 text-slate-500" readonly
+                           th:value="${@roleMask.email(user.email)}" title="この権限では伏せ字で表示されます"/>
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1">電話番号 (SMS配信用)</label>
-                    <input type="text" class="tw-input" th:field="*{phoneNumber}" placeholder="例: 09012345678"/>
+                    <input th:unless="${@roleMask.masks('phone')}" type="text" class="tw-input" th:field="*{phoneNumber}" placeholder="例: 09012345678"/>
+                    <input th:if="${@roleMask.masks('phone')}" type="text" class="tw-input bg-slate-100 text-slate-500" readonly
+                           th:value="${@roleMask.phone(user.phoneNumber)}" title="この権限では伏せ字で表示されます"/>
                 </div>
             </div>
             <!-- 表示名 (half) + 性別 on its right (2026-10-01 client request). -->
@@ -300,7 +304,7 @@
             <!-- Tag values are edited on the right panel; these hidden inputs carry the values. -->
             <input type="hidden" th:field="*{amount}"/>
             <input type="hidden" th:field="*{product}"/>
-            <input type="hidden" th:field="*{fullAddress}"/>
+            <input th:unless="${@roleMask.masks('address')}" type="hidden" th:field="*{fullAddress}"/>
             <input type="hidden" th:field="*{dateJp}"/>
             <input type="hidden" name="confirmPassword" id="updateConfirmPassword"/>
 
@@ -354,7 +358,9 @@
                         </div>
                         <div class="grid grid-cols-12 gap-2 items-center">
                             <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%full_address%</code>
-                            <input type="text" class="col-span-9 tw-input" th:value="${form.fullAddress}" data-mirror="fullAddress"/>
+                            <input th:unless="${@roleMask.masks('address')}" type="text" class="col-span-9 tw-input" th:value="${form.fullAddress}" data-mirror="fullAddress"/>
+                            <input th:if="${@roleMask.masks('address')}" type="text" class="col-span-9 tw-input bg-slate-100 text-slate-500" readonly
+                                   th:value="${@roleMask.address(form.fullAddress)}" title="この権限では伏せ字で表示されます"/>
                         </div>
                         <div class="grid grid-cols-12 gap-2 items-center">
                             <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%date_jp%</code>
@@ -586,6 +592,7 @@
 
     function maybeConfirmEmailChange(form) {
         const emailField = form.querySelector('[name="email"]');
+        if (!emailField) return true; // masked for this 権限 — not editable
         const orig = (emailField.getAttribute('data-original-email') || '').toLowerCase();
         const current = (emailField.value || '').trim().toLowerCase();
         if (orig === current) return true; // unchanged

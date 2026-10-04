@@ -33,17 +33,22 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Username (Message Group ID)</label>
-                <input type="text" class="tw-input" th:field="*{username}" autocomplete="off"/>
+                <input type="text" class="tw-input" th:field="*{username}" autocomplete="off" data-lpignore="true"/>
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Password (OpenAPIパスワード)</label>
-                <input type="password" class="tw-input" th:field="*{password}" autocomplete="off"
+                <input type="password" class="tw-input" th:field="*{password}" autocomplete="new-password"
                        th:placeholder="${hasStoredPassword} ? '変更する場合のみ入力(未入力なら現在の設定を保持)' : '未設定'"/>
                 <p th:if="${hasStoredPassword}" class="mt-1 text-xs text-slate-500">
                     設定済みです。変更しない場合は空欄のままで保存してください。
                 </p>
             </div>
         </div>
+        <label th:if="${hasStoredPassword or (form.username != null and !#strings.isEmpty(form.username))}"
+               class="mb-4 inline-flex items-center text-sm text-red-700">
+            <input type="checkbox" name="clearCredentials" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/>
+            登録済みの認証情報（Username・Password）を削除する
+        </label>
 
         <hr class="my-6 border-slate-200"/>
 

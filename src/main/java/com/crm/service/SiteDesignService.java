@@ -18,7 +18,8 @@ import java.util.Map;
  *   <li>replaceable images: the site logo ({@code %sitelogo%}, shown in the site headers) and
  *       the pre-login top image for PC / スマホ. Blank = the bundled default design;</li>
  *   <li>the お問い合わせ address the footer's mail link opens;</li>
- *   <li>the pre-login top page HTML (blank = the bundled client design) and the note shown in
+ *   <li>the pre-login top page HTML and the 仮登録 / 本登録 page HTML (blank = the bundled client
+ *       design), and the note shown in
  *       the fixed site footer (e.g. インターネット異性紹介事業の届出・受理番号);</li>
  *   <li>the post-login (会員) pages' free HTML areas. Those pages' layout is fixed; each page has
  *       an operator HTML area at the top (directly under the page-name bar, e.g. 受信BOX) and one
@@ -39,6 +40,8 @@ public class SiteDesignService {
     /** Stored in chunks (see {@link #saveLongText}) — CRM_SETTING.SETTING_VALUE is a MySQL TEXT
      *  (64KB) and the default design alone is ~52KB. */
     private static final String KEY_TOP_HTML = "site.top_html";
+    /** + register_done / register_complete — the 仮登録 / 本登録 pages, chunked like the top page. */
+    private static final String KEY_REGISTER_HTML_PREFIX = "site.html.";
     private static final int CHUNK_CHARS = 15000; // ≤ 60,000 bytes even at 4 bytes/char
     public static final int MAX_TOP_HTML_CHARS = 500000;
     public static final String DEFAULT_FOOTER_NOTE = "18歳未満の方および高校生の方のご利用はお断りしています。";
@@ -294,6 +297,22 @@ public class SiteDesignService {
             throw new IllegalArgumentException("HTMLが長すぎます（" + MAX_TOP_HTML_CHARS + "文字まで）");
         }
         saveLongText(KEY_TOP_HTML, html == null ? "" : html);
+    }
+
+    /** Operator-edited 仮登録 / 本登録 page HTML ({@code page} = register_done / register_complete),
+     *  or null when the bundled design is in use. */
+    public String getRegisterHtml(String page) {
+        String v = getLongText(KEY_REGISTER_HTML_PREFIX + page);
+        return (v == null || v.trim().isEmpty()) ? null : v;
+    }
+
+    /** Saves a registration page's HTML; null/blank goes back to the bundled design. */
+    @Transactional
+    public void saveRegisterHtml(String page, String html) {
+        if (html != null && html.length() > MAX_TOP_HTML_CHARS) {
+            throw new IllegalArgumentException("HTMLが長すぎます（" + MAX_TOP_HTML_CHARS + "文字まで）");
+        }
+        saveLongText(KEY_REGISTER_HTML_PREFIX + page, html == null ? "" : html);
     }
 
     /** Note printed in the fixed footer (plain text, line breaks kept). */

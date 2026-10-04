@@ -573,7 +573,7 @@
     <div class="v-sash" id="sashT" data-sash="T" title="ドラッグで上段の左右幅を調整"></div>
 
     <div class="pane pane-tr"
-         th:with="uname=${user.displayName != null and !#strings.isEmpty(user.displayName)} ? ${user.displayName} : (${user.email} ?: ('ID ' + ${user.id})),
+         th:with="uname=${user.displayName != null and !#strings.isEmpty(user.displayName)} ? ${user.displayName} : (${@roleMask.email(user.email)} ?: ('ID ' + ${user.id})),
                   ugender=${user.gender == 'M'} ? 'male' : (${user.gender == 'F'} ? 'female' : '')">
         <section class="dtl-cards" id="dtlCards" th:data-user-id="${user.id}" data-staff-id="0">
             <div class="dtl-card dtl-member" th:data-gender="${ugender}">
@@ -751,7 +751,7 @@
 
                 <div class="row">
                     <span th:if="${user.phoneNumber != null and !#strings.isEmpty(user.phoneNumber)}"
-                          class="text-xs text-slate-500" th:text="${user.phoneNumber}"></span>
+                          class="text-xs text-slate-500" th:text="${@roleMask.phone(user.phoneNumber)}"></span>
                     <span th:if="${user.phoneNumber != null and !#strings.isEmpty(user.phoneNumber)}"
                           id="smsCharCount" class="text-xs text-slate-400">60文字以内で送信 (0文字)</span>
                     <button type="submit" th:if="${user.phoneNumber != null and !#strings.isEmpty(user.phoneNumber)}"
@@ -816,7 +816,9 @@
                 </div>
                 <div class="tag-row">
                     <code class="tag-name" data-token="%full_address%">%full_address%</code>
-                    <input type="text" class="tag-val" data-tag="fullAddress" th:value="${user.tag3Value}" placeholder="例: 東京都..."/>
+                    <input th:unless="${@roleMask.masks('address')}" type="text" class="tag-val" data-tag="fullAddress" th:value="${user.tag3Value}" placeholder="例: 東京都..."/>
+                    <input th:if="${@roleMask.masks('address')}" type="text" class="tag-val" readonly style="background:#f1f5f9;color:#64748b;"
+                           th:value="${@roleMask.address(user.tag3Value)}" title="この権限では伏せ字で表示されます"/>
                 </div>
                 <div class="tag-row">
                     <code class="tag-name" data-token="%date_jp%">%date_jp%</code>

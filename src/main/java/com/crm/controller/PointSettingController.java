@@ -3,6 +3,7 @@ package com.crm.controller;
 import com.crm.service.AuditLogService;
 import com.crm.service.FolderSettingService;
 import com.crm.service.PointSettingService;
+import com.crm.service.UserPointService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,12 +32,49 @@ public class PointSettingController {
     private final PointSettingService pointSettingService;
     private final FolderSettingService folderSettingService;
     private final AuditLogService auditLog;
+    private final UserPointService userPointService;
 
     public PointSettingController(PointSettingService pointSettingService,
-                                  FolderSettingService folderSettingService, AuditLogService auditLog) {
+                                  FolderSettingService folderSettingService, AuditLogService auditLog,
+                                  UserPointService userPointService) {
         this.pointSettingService = pointSettingService;
         this.folderSettingService = folderSettingService;
         this.auditLog = auditLog;
+        this.userPointService = userPointService;
+    }
+
+    /** 所持ポイント一括変更: set / add / subtract points for every user in a ユーザーID range. */
+    @PostMapping("/bulk-change")
+    public String bulkChange(@RequestParam(value = "fromId", required = false) Long fromId,
+                             @RequestParam(value = "toId", required = false) Long toId,
+                             @RequestParam(value = "mode", required = false) String mode,
+                             @RequestParam(value = "amount", required = false) Integer amount,
+                             RedirectAttributes ra) {
+        UserPointService.BulkMode m;
+        try {
+            m = UserPointService.BulkMode.valueOf(mode == null ? "" : mode);
+        } catch (IllegalArgumentException e) {
+            m = null;
+        }
+        if (fromId == null || toId == null || fromId < 1 || toId < 1 || m == null
+                || amount == null || amount < 0 || amount > UserPointService.MAX_POINTS) {
+            ra.addFlashAttribute("flashError", "ユーザーIDの範囲・変更方法・ポイント（0〜"
+                    + String.format("%,d", UserPointService.MAX_POINTS) + "）を正しく入力してください");
+            return "redirect:/manager/settings/points";
+        }
+        int n = userPointService.bulkChange(fromId, toId, m, amount);
+        String range = "ユーザーID " + Math.min(fromId, toId) + "〜" + Math.max(fromId, toId) + " の所持ポイント";
+        String pt = String.format("%,d", amount) + "pt";
+        String detail = m == UserPointService.BulkMode.SET ? range + "を " + pt + " に変更"
+                : m == UserPointService.BulkMode.ADD ? range + "に " + pt + " 加算"
+                : range + "から " + pt + " 減算";
+        auditLog.record(AuditLogService.ACTION_SETTINGS_UPDATE, "UserPoint", null, detail + "（" + n + "名）");
+        if (n == 0) {
+            ra.addFlashAttribute("flashError", "指定したユーザーIDの範囲にユーザーがいません");
+        } else {
+            ra.addFlashAttribute("flashSuccess", detail + "しました（" + n + "名）");
+        }
+        return "redirect:/manager/settings/points";
     }
 
     @GetMapping

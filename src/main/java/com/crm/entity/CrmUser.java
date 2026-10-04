@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 @Table(name = "CRM_USER")
 public class CrmUser {
 
+    /** 仮登録: registered from the member site but the confirmation link hasn't been opened yet. */
+    public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_SUSPENDED = "SUSPENDED";
 

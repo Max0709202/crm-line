@@ -134,9 +134,9 @@
                     <a class="text-blue-700 hover:underline font-semibold"
                        th:href="@{'/manager/users/' + ${r.userId}}" target="_blank"
                        th:text="${r.displayName}">name</a>
-                    <div class="text-xs text-slate-400 truncate" th:text="${r.email}" style="max-width: 220px;"></div>
+                    <div class="text-xs text-slate-400 truncate" th:text="${@roleMask.email(r.email)}" style="max-width: 220px;"></div>
                     <div class="text-xs text-slate-400 truncate" th:if="${r.phoneNumber != null and !r.phoneNumber.isEmpty()}"
-                         th:text="${r.phoneNumber}" style="max-width: 220px;"></div>
+                         th:text="${@roleMask.phone(r.phoneNumber)}" style="max-width: 220px;"></div>
                 </td>
                 <!-- キャラ名: LINE account the latest message was received on (LINE only) -->
                 <td class="px-4 py-2 text-xs text-slate-700"

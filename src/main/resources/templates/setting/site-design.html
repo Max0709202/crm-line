@@ -19,18 +19,48 @@
     <form method="post" th:action="@{/manager/settings/site-design}" enctype="multipart/form-data" class="w-full">
         <button type="submit" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">保存する</button>
 
-        <!-- ===== 共通 ===== -->
+        <!-- ===== 共通：トップ画像（PC・スマホ）とサイトロゴを横並び（2026-10-04 client request） ===== -->
         <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
-            <h2 class="text-base font-semibold text-slate-800 mb-1">サイトロゴ <code class="text-xs text-slate-500">%sitelogo%</code>（ログイン前・ログイン後 共通）</h2>
-            <p class="text-xs text-slate-500 mb-2">ログイン前ページのヘッダー、ログイン後のページ（受信BOXなど）のヘッダーに表示されます。未登録の場合はハートのアイコンとサイト名が表示されます。JPEG / PNG / GIF / WebP、5MBまで。</p>
-            <div th:if="${logoUrl != null}" class="mb-2 flex items-center gap-4">
-                <img th:src="${logoUrl}" alt="現在のサイトロゴ" class="max-h-16 max-w-xs border border-slate-200 rounded bg-slate-50 p-1"/>
-                <label class="inline-flex items-center text-sm text-slate-700">
-                    <input type="checkbox" name="logoRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期表示に戻す
-                </label>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div class="min-w-0">
+                    <h2 class="text-base font-semibold text-slate-800 mb-1">トップ画像（PC用）<span class="text-xs font-normal text-slate-500">初期画像 1501×527</span></h2>
+                    <p class="text-xs text-slate-500 mb-2">未登録の場合は初期デザインの画像が表示されます。画像内の「男性無料入会」「女性無料入会」ボタンの位置にリンクが重なるため、同じ構図での差し替えをおすすめします。</p>
+                    <div class="mb-2 flex items-center gap-4 flex-wrap">
+                        <img th:src="${topPcUrl != null ? topPcUrl : '/member/images/main_pc.jpg'}" alt="トップ画像（PC）"
+                             class="max-h-24 max-w-full border border-slate-200 rounded"/>
+                        <label th:if="${topPcUrl != null}" class="inline-flex items-center text-sm text-slate-700">
+                            <input type="checkbox" name="topPcRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期画像に戻す
+                        </label>
+                        <span th:if="${topPcUrl == null}" class="text-xs text-slate-400">初期画像</span>
+                    </div>
+                    <input type="file" name="topPcFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm max-w-full"/>
+                </div>
+                <div class="min-w-0">
+                    <h2 class="text-base font-semibold text-slate-800 mb-1">トップ画像（スマホ用）<span class="text-xs font-normal text-slate-500">初期画像 992×345</span></h2>
+                    <p class="text-xs text-slate-500 mb-2">ログイン前ページをスマホで表示したときのトップ画像です。未登録の場合は初期デザインの画像が表示されます。</p>
+                    <div class="mb-2 flex items-center gap-4 flex-wrap">
+                        <img th:src="${topSpUrl != null ? topSpUrl : '/member/images/main_sp.jpg'}" alt="トップ画像（スマホ）"
+                             class="max-h-24 max-w-full border border-slate-200 rounded"/>
+                        <label th:if="${topSpUrl != null}" class="inline-flex items-center text-sm text-slate-700">
+                            <input type="checkbox" name="topSpRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期画像に戻す
+                        </label>
+                        <span th:if="${topSpUrl == null}" class="text-xs text-slate-400">初期画像</span>
+                    </div>
+                    <input type="file" name="topSpFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm max-w-full"/>
+                </div>
+                <div class="min-w-0">
+                    <h2 class="text-base font-semibold text-slate-800 mb-1">サイトロゴ <code class="text-xs text-slate-500">%sitelogo%</code>（ログイン前・ログイン後 共通）</h2>
+                    <p class="text-xs text-slate-500 mb-2">ログイン前ページのヘッダー、ログイン後のページ（受信BOXなど）のヘッダーに表示されます。未登録の場合はハートのアイコンとサイト名が表示されます。JPEG / PNG / GIF / WebP、5MBまで。</p>
+                    <div th:if="${logoUrl != null}" class="mb-2 flex items-center gap-4 flex-wrap">
+                        <img th:src="${logoUrl}" alt="現在のサイトロゴ" class="max-h-16 max-w-xs border border-slate-200 rounded bg-slate-50 p-1"/>
+                        <label class="inline-flex items-center text-sm text-slate-700">
+                            <input type="checkbox" name="logoRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期表示に戻す
+                        </label>
+                    </div>
+                    <p th:if="${logoUrl == null}" class="mb-2 text-xs text-slate-400">未登録（初期表示）</p>
+                    <input type="file" name="logoFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm max-w-full"/>
+                </div>
             </div>
-            <p th:if="${logoUrl == null}" class="mb-2 text-xs text-slate-400">未登録（初期表示）</p>
-            <input type="file" name="logoFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm"/>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6 items-start">
@@ -71,33 +101,39 @@
                     </label>
                 </div>
 
-                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">
-                    <h3 class="text-base font-semibold text-slate-800 mb-1">トップ画像</h3>
-                    <p class="text-xs text-slate-500 mb-4">未登録の場合は初期デザインの画像が表示されます。画像内の「男性無料入会」「女性無料入会」ボタンの位置にリンクが重なるため、同じ構図での差し替えをおすすめします。</p>
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">PC用（初期画像 1501×527）</label>
-                        <div class="mb-2 flex items-center gap-4">
-                            <img th:src="${topPcUrl != null ? topPcUrl : '/member/images/main_pc.jpg'}" alt="トップ画像（PC）"
-                                 class="max-h-24 border border-slate-200 rounded"/>
-                            <label th:if="${topPcUrl != null}" class="inline-flex items-center text-sm text-slate-700">
-                                <input type="checkbox" name="topPcRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期画像に戻す
-                            </label>
-                            <span th:if="${topPcUrl == null}" class="text-xs text-slate-400">初期画像</span>
-                        </div>
-                        <input type="file" name="topPcFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm"/>
+                <!-- 仮登録ページ / 本登録ページ: same editor as ログイン前ページ (2026-10-04 client request). -->
+                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6" th:each="rp : ${registerPages}">
+                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 class="text-base font-semibold text-slate-800 flex-1" th:text="${rp.value} + '（HTML）'">仮登録ページ（HTML）</h3>
+                        <span th:if="${registerCustomized.get(rp.key)}" class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">編集済み</span>
+                        <span th:unless="${registerCustomized.get(rp.key)}" class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">初期デザイン</span>
+                        <span class="text-xs text-slate-500 ml-2">確認：</span>
+                        <a th:each="d : ${ {'pc','sp','fp'} }"
+                           th:href="@{/manager/settings/site-design/preview-frame(device=${d},page=${rp.key})}" target="_blank"
+                           class="px-2.5 py-0.5 text-xs rounded-md border border-sky-200 bg-sky-50 text-sky-700 font-medium hover:bg-sky-100"
+                           th:text="${d == 'pc' ? 'PC' : (d == 'sp' ? 'スマホ' : 'ガラケー')}">PC</a>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">スマホ用（初期画像 992×345）</label>
-                        <div class="mb-2 flex items-center gap-4">
-                            <img th:src="${topSpUrl != null ? topSpUrl : '/member/images/main_sp.jpg'}" alt="トップ画像（スマホ）"
-                                 class="max-h-24 border border-slate-200 rounded"/>
-                            <label th:if="${topSpUrl != null}" class="inline-flex items-center text-sm text-slate-700">
-                                <input type="checkbox" name="topSpRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して初期画像に戻す
-                            </label>
-                            <span th:if="${topSpUrl == null}" class="text-xs text-slate-400">初期画像</span>
-                        </div>
-                        <input type="file" name="topSpFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm"/>
-                    </div>
+                    <p class="text-xs text-slate-500 mb-2" th:if="${rp.key == 'register_done'}">
+                        会員登録フォームを送信したあとに表示されるページです（本登録のご案内メールを送信済み）。編集して保存すると、そのまま表示されます。
+                    </p>
+                    <p class="text-xs text-slate-500 mb-2" th:if="${rp.key == 'register_complete'}">
+                        本登録のご案内メールのURLを開いたときに表示されるページです（ユーザーのステータスは PENDING → ACTIVE）。
+                        「プロフィール登録」ボタンはプロフィール編集画面（<code>%profile_url%</code>）へ移動します。
+                    </p>
+                    <p class="text-xs text-slate-500 mb-2">
+                        使えるタグ：
+                        <code>%sitename%</code> サイト名、<code>%brand%</code> ロゴ、<code>%top_blur%</code> 背景画像、
+                        <code>%contact_mailto%</code> お問い合わせ、<code>%year%</code> 年、<code>%footer%</code> フッター
+                        <th:block th:if="${rp.key == 'register_complete'}">、<code>%profile_url%</code> プロフィール編集画面</th:block>
+                    </p>
+                    <p class="text-xs text-slate-500 mb-3">フッターは固定表示です。<code>%footer%</code> を消しても、ページの最後に自動で表示されます。ガラケーは専用デザインで表示されます。</p>
+                    <textarea class="tw-input font-mono" th:name="'html_' + ${rp.key}" rows="14" spellcheck="false"
+                              style="white-space:pre; font-size:.75rem; line-height:1.4;"
+                              th:text="${registerHtml.get(rp.key)}"></textarea>
+                    <label th:if="${registerCustomized.get(rp.key)}" class="mt-2 inline-flex items-center text-sm text-slate-700">
+                        <input type="checkbox" th:name="'htmlReset_' + ${rp.key}" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/>
+                        初期デザインに戻す（編集した内容は消えます）
+                    </label>
                 </div>
 
                 <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-6">

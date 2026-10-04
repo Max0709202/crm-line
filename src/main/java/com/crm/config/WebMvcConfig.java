@@ -3,6 +3,7 @@ package com.crm.config;
 import com.crm.interceptor.AuthInterceptor;
 import com.crm.interceptor.CsrfInterceptor;
 import com.crm.interceptor.MediaAuthInterceptor;
+import com.crm.interceptor.RoleInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -13,13 +14,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final AuthInterceptor authInterceptor;
     private final CsrfInterceptor csrfInterceptor;
     private final MediaAuthInterceptor mediaAuthInterceptor;
+    private final RoleInterceptor roleInterceptor;
 
     public WebMvcConfig(AuthInterceptor authInterceptor,
                         CsrfInterceptor csrfInterceptor,
-                        MediaAuthInterceptor mediaAuthInterceptor) {
+                        MediaAuthInterceptor mediaAuthInterceptor,
+                        RoleInterceptor roleInterceptor) {
         this.authInterceptor = authInterceptor;
         this.csrfInterceptor = csrfInterceptor;
         this.mediaAuthInterceptor = mediaAuthInterceptor;
+        this.roleInterceptor = roleInterceptor;
     }
 
     @Override
@@ -27,6 +31,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // CSRF runs first so it can reject state-changing requests before auth work kicks in.
         registry.addInterceptor(csrfInterceptor);
         registry.addInterceptor(authInterceptor).addPathPatterns("/manager/**");
+        // 権限: hidden menus, masking, sidebar color — needs the session AuthInterceptor checked.
+        registry.addInterceptor(roleInterceptor).addPathPatterns("/manager/**");
         // /media/** is the public agency dashboard — Basic Auth, no admin session.
         registry.addInterceptor(mediaAuthInterceptor).addPathPatterns("/media/**");
     }

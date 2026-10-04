@@ -30,7 +30,7 @@ class CrmUserServiceExportCsvTest {
         CrmUserRepository repo = mock(CrmUserRepository.class);
         PasswordEncoder enc = mock(PasswordEncoder.class);
         CarrierBindingService binding = mock(CarrierBindingService.class);
-        CrmUserService svc = new CrmUserService(repo, enc, binding);
+        CrmUserService svc = new CrmUserService(repo, enc, binding, sequentialLoginIds());
 
         CrmUser u = new CrmUser();
         u.setEmail("user@example.com");
@@ -48,7 +48,16 @@ class CrmUserServiceExportCsvTest {
         assertThat(csv).doesNotContain("DOCTYPE").doesNotContain("大抽選会");
         // Header still has 7 columns including "memo" — re-import compatibility preserved.
         assertThat(csv).contains("\"email\",\"display_name\",\"carrier_domain\",\"memo\",\"ad_code\",\"gender\",\"phone\"");
-        // Data row: email/display_name/phone present, memo cell (4th field) empty.
-        assertThat(csv).contains("\"user@example.com\",\"Taro\",\"\",\"\",\"\",\"\",\"09012345678\"");
+        // Data row: email/display_name/phone present, memo cell (4th field) empty; no gender is
+        // exported as 未設定 (2026-10-01 client request).
+        assertThat(csv).contains("\"user@example.com\",\"Taro\",\"\",\"\",\"\",\"未設定\",\"09012345678\"");
+    }
+
+    /** Login IDs as MemberLoginIdService issues them: 10000, 10001, … */
+    private static MemberLoginIdService sequentialLoginIds() {
+        MemberLoginIdService ids = org.mockito.Mockito.mock(MemberLoginIdService.class);
+        java.util.concurrent.atomic.AtomicLong next = new java.util.concurrent.atomic.AtomicLong(MemberLoginIdService.START);
+        org.mockito.Mockito.when(ids.next()).thenAnswer(inv -> String.valueOf(next.getAndIncrement()));
+        return ids;
     }
 }

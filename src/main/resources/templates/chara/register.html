@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+<title>キャラ登録</title>
+<!--/* 会員管理 › キャラ登録 — the client-approved design (support_register.html), styles scoped to .srw. */-->
+<style>
+  main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; }
+.srw {color: #334155; background: #f8fafc; font-size: 13px; line-height: 1.5;
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;}
+.srw [hidden] {display: none !important;}
+.srw button, .srw input, .srw textarea, .srw select {font: inherit; color: inherit;}
+.srw .card {background: #fff; border: 1px solid #f1f5f9; border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, .05);}
+.srw .btn {display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 14px;
+  font-size: 13px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+  transition: background-color .12s, border-color .12s;}
+.srw .btn-primary {color: #fff; background: #2563eb;}
+.srw .btn-primary:hover:not(:disabled) {background: #1d4ed8;}
+.srw .btn-primary:disabled {background: #93c5fd; cursor: wait;}
+.srw .btn-outline {color: #475569; background: #fff; border-color: #cbd5e1;}
+.srw .btn-outline:hover:not(:disabled) {background: #f8fafc;}
+.srw .btn-sm {padding: 4px 10px; font-size: 12px;}
+.srw .btn:focus-visible, .srw .input:focus {outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .2);}
+.srw .input {width: 100%; box-sizing: border-box; padding: 6px 10px; font-size: 13px; color: #1e293b;
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;}
+.srw select.input {padding-right: 28px;}
+.srw .ico {display: inline-block; width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--i) center / contain no-repeat; mask: var(--i) center / contain no-repeat;}
+.srw .i-edit {--i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M10.5 2.5l3 3L6 13H3v-3z'/%3E%3C/svg%3E");}
+.srw .i-trash {--i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 9h6.6l.7-9'/%3E%3C/svg%3E");}
+.srw .i-folder {--i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M1.5 4a1 1 0 0 1 1-1h3.6l1.4 1.6h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z'/%3E%3C/svg%3E");}
+.srw .i-photo {--i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1.8' y='2.8' width='12.4' height='10.4' rx='2'/%3E%3Ccircle cx='5.6' cy='6.4' r='1.2'/%3E%3Cpath d='m2.5 12 3.8-3.6 2.6 2.4 2-1.8 2.8 2.6'/%3E%3C/svg%3E");}
+.srw .is-male {--g: #2563eb; --g-soft: #eff6ff; --g-line: #bfdbfe; --g-text: #1d4ed8;}
+.srw .is-female {--g: #db2777; --g-soft: #fdf2f8; --g-line: #fbcfe8; --g-text: #be185d;}
+.srw .sr {display: flex; flex-direction: column; height: 100vh; padding: 12px 16px 16px; box-sizing: border-box; gap: 12px;}
+.srw .sr-head {display: flex; align-items: center; gap: 14px; flex: none;}
+.srw .sr-head h1 {margin: 0; font-size: 22px; font-weight: 700; color: #1e293b;}
+.srw .sr-sum {display: inline-flex; align-items: center; gap: 10px; padding: 3px 12px; font-size: 12px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 999px;}
+.srw .sr-sum b {font-weight: 700; color: #1e293b;}
+.srw .sr-sum .m {color: #1d4ed8;}
+.srw .sr-sum .f {color: #be185d;}
+.srw .sr-search {position: relative; width: 240px; margin-left: auto;}
+.srw .sr-search .input {padding-left: 28px; font-size: 12.5px;}
+.srw .sr-search::before {content: ""; position: absolute; left: 9px; top: 50%; width: 13px; height: 13px; transform: translateY(-50%);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='m10.5 10.5 3 3'/%3E%3C/svg%3E") center / contain no-repeat;}
+.srw .sr-main {flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr) 370px; gap: 12px;}
+.srw .sr-main > .card {display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;}
+.srw .card-head {flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9;}
+.srw .card-title {font-size: 14px; font-weight: 700; color: #1e293b; white-space: nowrap;}
+.srw .card-sub {font-size: 11.5px; color: #94a3b8; white-space: nowrap;}
+.srw .fd-list {flex: 1; min-height: 0; overflow: auto; padding: 6px;}
+.srw .fd {position: relative; display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; margin-bottom: 2px; padding: 7px 8px 7px 10px;
+  font-size: 13px; color: #475569; text-align: left; background: none; border: 0; border-radius: 6px; cursor: pointer;}
+.srw .fd:hover {background: #f8fafc;}
+.srw .fd[aria-current="true"] {color: #1d4ed8; font-weight: 700; background: #eff6ff;}
+.srw .fd .ico {flex: none; color: #94a3b8;}
+.srw .fd[aria-current="true"] .ico {color: #3b82f6;}
+.srw .fd-name {flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.srw .fd-n {flex: none; min-width: 20px; padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 17px; text-align: center; color: #64748b; background: #f1f5f9; border-radius: 9px;}
+.srw .fd[aria-current="true"] .fd-n {color: #1d4ed8; background: #dbeafe;}
+.srw .fd-tools {display: none; gap: 1px;}
+.srw .fd:hover .fd-tools, .srw .fd:focus-within .fd-tools {display: flex;}
+.srw .fd:hover .fd-n, .srw .fd:focus-within .fd-n {display: none;}
+.srw .fd-tool {width: 22px; height: 22px; padding: 0; color: #94a3b8; background: none; border: 0; border-radius: 4px; cursor: pointer;}
+.srw .fd-tool:hover {color: #2563eb; background: #dbeafe;}
+.srw .fd-tool.del:hover {color: #dc2626; background: #fee2e2;}
+.srw .fd-tool .ico {display: block; margin: auto; color: inherit;}
+.srw .fd-sep {margin: 8px 8px 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: #94a3b8;}
+.srw .fd-rename {flex: 1; min-width: 0; padding: 2px 6px; font-size: 13px; border: 1px solid #3b82f6; border-radius: 4px; box-shadow: 0 0 0 3px rgba(59, 130, 246, .15); outline: none;}
+.srw .fd-add {flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; margin: 6px; padding: 8px;
+  font-size: 12.5px; font-weight: 700; color: #2563eb; background: #fff; border: 1.5px dashed #93c5fd; border-radius: 8px; cursor: pointer;}
+.srw .fd-add:hover {background: #eff6ff;}
+.srw .ls-head {flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--g-soft); border-bottom: 1px solid var(--g-line); box-shadow: inset 0 3px 0 var(--g);}
+.srw .ls-head .card-title {color: var(--g-text);}
+.srw .ls-head .dot {width: 9px; height: 9px; background: var(--g); border-radius: 50%;}
+.srw .ls-head .cnt {padding: 0 8px; font-size: 11.5px; font-weight: 700; line-height: 19px; color: #fff; background: var(--g); border-radius: 10px;}
+.srw .ls-head .card-sub {margin-left: auto;}
+.srw .ls-body {flex: 1; min-height: 0; overflow: auto; padding: 8px; background: #fbfcfd;}
+.srw .ls-empty {padding: 36px 10px; text-align: center; color: #94a3b8;}
+.srw .sp {position: relative; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; padding: 8px 10px 8px 12px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: inset 3px 0 0 var(--g);
+  transition: border-color .12s, box-shadow .12s;}
+.srw .sp:hover {border-color: var(--g-line);}
+.srw .sp.is-editing {border-color: var(--g); box-shadow: inset 3px 0 0 var(--g), 0 0 0 3px rgba(59, 130, 246, .15);}
+.srw .sp.is-flash {animation: spFlash 1.4s ease-out;}
+@keyframes spFlash { 0% { background: #fef9c3; } 100% { background: #fff; } }
+.srw .sp-photo {flex: none; width: 48px; height: 48px; padding: 0; overflow: hidden; background: var(--g-soft);
+  border: 1px solid var(--g-line); border-radius: 10px; cursor: zoom-in;}
+.srw .sp-photo img {display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 25%;}
+.srw .sp-photo.is-empty {display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--g-text); cursor: default;}
+.srw .sp-main {flex: 1; min-width: 0;}
+.srw .sp-top {display: flex; align-items: center; gap: 6px; min-width: 0;}
+.srw .sp-name {overflow: hidden; font-size: 13.5px; font-weight: 700; color: #1e293b; text-overflow: ellipsis; white-space: nowrap;}
+.srw .sp-id {flex: none; padding: 0 6px; font-size: 10.5px; font-weight: 700; line-height: 17px; color: var(--g-text); background: var(--g-soft); border-radius: 4px; font-variant-numeric: tabular-nums;}
+.srw .sp-folder {display: inline-flex; flex: none; align-items: center; gap: 3px; max-width: 110px; overflow: hidden; font-size: 11px; color: #64748b; text-overflow: ellipsis; white-space: nowrap;}
+.srw .sp-folder .ico {width: 11px; height: 11px; color: #94a3b8;}
+.srw .sp-attrs {margin-top: 1px; overflow: hidden; font-size: 11.5px; color: #475569; text-overflow: ellipsis; white-space: nowrap;}
+.srw .sp-prof {overflow: hidden; font-size: 11px; color: #94a3b8; text-overflow: ellipsis; white-space: nowrap;}
+.srw .sp-side {flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;}
+.srw .sp-actions {display: flex; gap: 4px;}
+.srw .sp-btn {display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; font-size: 11.5px; color: #475569;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer;}
+.srw .sp-btn .ico {width: 12px; height: 12px;}
+.srw .sp-btn:hover {color: #2563eb; border-color: #93c5fd; background: #eff6ff;}
+.srw .sp-btn.del:hover {color: #dc2626; border-color: #fecaca; background: #fef2f2;}
+.srw .sp-date {font-size: 10.5px; color: #94a3b8; white-space: nowrap; font-variant-numeric: tabular-nums;}
+.srw .sr-form {flex: 1; min-height: 0; display: flex; flex-direction: column;}
+.srw .fm-head {flex: none; padding: 12px 16px 10px; border-bottom: 1px solid #f1f5f9;}
+.srw .fm-head .card-title {display: flex; align-items: center; gap: 8px;}
+.srw .fm-mode {padding: 1px 8px; font-size: 11px; font-weight: 700; color: #fff; background: #2563eb; border-radius: 4px;}
+.srw .fm-mode.is-edit {background: #f59e0b;}
+.srw .fm-meta {margin-top: 3px; font-size: 11.5px; color: #64748b;}
+.srw .fm-body {flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 4px;}
+.srw .fm-row {margin-bottom: 10px;}
+.srw .fm-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 10px 10px; margin-bottom: 10px;}
+.srw .fm-grid .fm-row {margin-bottom: 0;}
+.srw .fm-label {display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11.5px; font-weight: 700; color: #475569;}
+.srw .fm-label .req {padding: 0 5px; font-size: 10px; font-weight: 700; line-height: 15px; color: #fff; background: #ef4444; border-radius: 3px;}
+.srw .fm-label .cnt {margin-left: auto; font-weight: 400; color: #94a3b8; font-variant-numeric: tabular-nums;}
+.srw .fm-err {margin-top: 3px; font-size: 11.5px; color: #dc2626;}
+.srw .input.is-err {border-color: #f87171;}
+.srw .seg {display: grid; grid-template-columns: 1fr 1fr; gap: 6px;}
+.srw .seg label {position: relative; cursor: pointer;}
+.srw .seg input {position: absolute; opacity: 0; pointer-events: none;}
+.srw .seg span {display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px; font-size: 13px; font-weight: 600; color: #64748b;
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; transition: all .12s;}
+.srw .seg span::before {content: ""; width: 9px; height: 9px; background: var(--g); border-radius: 50%; opacity: .35;}
+.srw .seg input:checked + span {color: var(--g-text); background: var(--g-soft); border-color: var(--g); box-shadow: 0 0 0 1px var(--g);}
+.srw .seg input:checked + span::before {opacity: 1;}
+.srw .seg input:focus-visible + span {box-shadow: 0 0 0 3px rgba(59, 130, 246, .25);}
+.srw .ph {display: flex; gap: 12px; align-items: stretch;}
+.srw .ph-preview {flex: none; width: 88px; height: 88px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #94a3b8; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px;}
+.srw .ph-preview img {display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 25%;}
+.srw .ph-drop {flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px 10px;
+  background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 10px; transition: background-color .12s, border-color .12s;}
+.srw .ph-drop.is-over {background: #eff6ff; border-color: #3b82f6;}
+.srw .ph-btns {display: flex; gap: 6px;}
+.srw .ph-note {font-size: 11px; line-height: 1.5; color: #94a3b8;}
+.srw .ph-info {font-size: 11px; font-weight: 600; color: #15803d;}
+.srw .ph-info.is-err {color: #dc2626;}
+.srw #fProfile {height: 110px; resize: vertical; line-height: 1.65;}
+.srw .fm-foot {flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid #f1f5f9; background: #f8fafc;}
+.srw .fm-foot .btn-primary {flex: 1; padding: 8px 14px;}
+.srw .zoom {position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, .4); cursor: zoom-out;}
+.srw .zoom figure {margin: 0; padding: 8px; background: #fff; border-radius: 14px; box-shadow: 0 14px 36px rgba(15, 23, 42, .28); animation: zIn .16s ease-out;}
+.srw .zoom img {display: block; width: min(300px, 70vw); max-height: 70vh; object-fit: contain; border-radius: 10px;}
+.srw .zoom figcaption {padding: 6px 4px 0; font-size: 12px; color: #475569; text-align: center;}
+@keyframes zIn { from { opacity: 0; transform: scale(.85); } }
+.srw .toast {position: fixed; left: 50%; bottom: 24px; z-index: 70; max-width: 90vw; padding: 9px 18px; font-size: 12.5px; color: #fff;
+  background: rgba(30, 41, 59, .94); border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, .2);
+  transform: translateX(-50%); transition: opacity .2s, transform .2s;}
+.srw .toast.is-hide {opacity: 0; transform: translate(-50%, 8px); pointer-events: none;}
+@media (max-width: 1500px) {
+.srw .sr-main {grid-template-columns: 190px minmax(0, 1fr) minmax(0, 1fr) 330px;}
+.srw .sp-folder {display: none;}
+}
+</style>
+</head>
+<body>
+<section layout:fragment="content">
+<div class="srw">
+<div class="sr">
+
+  <!-- ===== 見出し ===== -->
+  <header class="sr-head">
+    <h1>キャラ登録</h1>
+    <span class="sr-sum">登録キャラ <b id="sumAll">0</b>名 <span class="m">男性 <b id="sumMale">0</b></span><span class="f">女性 <b id="sumFemale">0</b></span></span>
+    <div class="sr-search"><input type="search" class="input" id="spSearch" placeholder="表示名・ID・プロフィール"/></div>
+  </header>
+
+  <div class="sr-main">
+
+    <!-- ===== 左：フォルダ ===== -->
+    <aside class="card" aria-label="フォルダ">
+      <div class="card-head"><span class="card-title">フォルダ</span><span class="card-sub">名前は ✎ で変更</span></div>
+      <div class="fd-list" id="fdList"></div>
+      <button type="button" class="fd-add" id="fdAdd">＋ フォルダを追加</button>
+    </aside>
+
+    <!-- ===== 中央：♂男キャラ ===== -->
+    <section class="card is-male" aria-label="♂男キャラ">
+      <div class="ls-head"><span class="dot"></span><span class="card-title">♂男キャラ</span><span class="cnt" id="cntMale">0</span><span class="card-sub" id="fdLabelM"></span></div>
+      <div class="ls-body" id="listMale"></div>
+    </section>
+
+    <!-- ===== 中央：♀女キャラ ===== -->
+    <section class="card is-female" aria-label="♀女キャラ">
+      <div class="ls-head"><span class="dot"></span><span class="card-title">♀女キャラ</span><span class="cnt" id="cntFemale">0</span><span class="card-sub" id="fdLabelF"></span></div>
+      <div class="ls-body" id="listFemale"></div>
+    </section>
+
+    <!-- ===== 右：登録・編集 ===== -->
+    <section class="card" aria-label="キャラの登録・編集">
+      <form id="spForm" class="sr-form" novalidate>
+        <div class="fm-head">
+          <div class="card-title"><span class="fm-mode" id="fmMode">新規登録</span><span id="fmTitle">キャラを登録</span></div>
+          <div class="fm-meta" id="fmMeta">登録すると ID が自動で付きます</div>
+        </div>
+        <div class="fm-body">
+          <div class="fm-row">
+            <div class="fm-label">フォルダ</div>
+            <select class="input" id="fFolder" name="folderId"></select>
+          </div>
+          <div class="fm-row">
+            <div class="fm-label">表示名 <span class="req">必須</span><span class="cnt" id="nameCnt">0/20</span></div>
+            <input type="text" class="input" id="fName" name="name" maxlength="20" placeholder="例: キャラA"/>
+            <div class="fm-err" id="errName" hidden>表示名を入力してください</div>
+          </div>
+          <div class="fm-row">
+            <div class="fm-label">性別 <span class="req">必須</span></div>
+            <div class="seg">
+              <label class="is-male"><input type="radio" name="gender" value="male"/><span>男性</span></label>
+              <label class="is-female"><input type="radio" name="gender" value="female"/><span>女性</span></label>
+            </div>
+            <div class="fm-err" id="errGender" hidden>性別を選んでください</div>
+          </div>
+          <div class="fm-grid">
+            <div class="fm-row"><div class="fm-label">都道府県</div><select class="input" id="fPref" name="pref"></select></div>
+            <div class="fm-row"><div class="fm-label">血液型</div><select class="input" id="fBlood" name="blood"></select></div>
+            <div class="fm-row"><div class="fm-label">星座</div><select class="input" id="fSign" name="sign"></select></div>
+            <div class="fm-row"><div class="fm-label">年齢</div><select class="input" id="fAge" name="age"></select></div>
+          </div>
+          <div class="fm-row">
+            <div class="fm-label">写真</div>
+            <div class="ph">
+              <div class="ph-preview" id="phPreview">写真なし</div>
+              <div class="ph-drop" id="phDrop">
+                <div class="ph-btns">
+                  <label class="btn btn-outline btn-sm"><span class="ico i-photo"></span>写真を選ぶ<input type="file" id="fPhoto" accept="image/*" hidden/></label>
+                  <button type="button" class="btn btn-outline btn-sm" id="phClear" hidden>外す</button>
+                </div>
+                <div class="ph-note">ここにドラッグでもOK。大きな写真も自動で縮小（長辺640px・約200KB以内）して保存します。</div>
+                <div class="ph-info" id="phInfo" hidden></div>
+              </div>
+            </div>
+          </div>
+          <div class="fm-row">
+            <div class="fm-label">プロフィール<span class="cnt" id="profCnt">0/500</span></div>
+            <textarea class="input" id="fProfile" name="profile" maxlength="500" placeholder="趣味・得意分野・一言など"></textarea>
+          </div>
+        </div>
+        <div class="fm-foot">
+          <button type="submit" class="btn btn-primary" id="fmSubmit">登録する</button>
+          <button type="button" class="btn btn-outline" id="fmCancel" hidden>キャンセル</button>
+        </div>
+      </form>
+    </section>
+
+  </div>
+</div>
+
+<div class="zoom" id="zoom" hidden><figure><img alt=""><figcaption></figcaption></figure></div>
+<div class="toast is-hide" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- フォルダ：id, name -->
+<script type="application/json" id="srFolders" th:utext="${foldersJson}">[]</script>
+<!-- キャラ：id, name, gender(male/female), pref, blood, sign, age, profile, photo(URL), folderId(空＝未分類), createdAt -->
+<script type="application/json" id="srSupports" th:utext="${charasJson}">[]</script>
+<script>
+// キャラ登録：フォルダ（追加・名前変更・削除）、男性／女性キャラの一覧、登録・編集・削除、写真の自動縮小
+(function () {
+    'use strict';
+
+    /* ===== 設定 ===================================================== */
+    var PHOTO = {
+        maxSide: 640,               // 縮小後の長辺(px)
+        quality: 0.85,              // JPEGの画質（大きいときは自動で下げる）
+        maxBytes: 200 * 1024,       // 縮小後の目安（これを超えると画質を下げて再圧縮）
+        maxInputBytes: 20 * 1024 * 1024  // 受け付ける元ファイルの上限
+    };
+    // 送信先（CSRF は管理画面共通の fetch パッチで付与）
+    var API = {
+        save: '/manager/characters/save',                 // id（新規は空）, name, gender, pref, blood, sign, age, profile, folderId, photo(画像ファイル) / photoRemove=1
+        remove: '/manager/characters/delete',             // id
+        folderSave: '/manager/characters/folders/save',   // id（新規は空）, name → { id }
+        folderDelete: '/manager/characters/folders/delete' // id（中のキャラは未分類へ）
+    };
+    /* ================================================================ */
+
+    var PREFS = ['北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
+        '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県', '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県',
+        '和歌山県', '鳥取県', '島根県', '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県',
+        '大分県', '宮崎県', '鹿児島県', '沖縄県'];
+    var BLOODS = ['A型', 'B型', 'O型', 'AB型'];
+    var SIGNS = ['おひつじ座', 'おうし座', 'ふたご座', 'かに座', 'しし座', 'おとめ座', 'てんびん座', 'さそり座', 'いて座', 'やぎ座', 'みずがめ座', 'うお座'];
+    var AGES = []; for (var a = 18; a <= 80; a++) AGES.push(String(a));
+
+    var $ = function (id) { return document.getElementById(id); };
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function fmtDate(iso) { if (!iso) return ''; var p = iso.split(/[-T:]/).map(Number); return p[0] + '/' + p[1] + '/' + p[2] + ' ' + p[3] + ':' + pad(p[4]); }
+    function kb(n) { return n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+    function post(url, fields) {
+        var fd = new FormData();
+        Object.keys(fields).forEach(function (k) {
+            var v = fields[k];
+            if (v instanceof Blob) fd.append(k, v, 'photo.jpg'); else if (v != null) fd.append(k, v);
+        });
+        return fetch(url, { method: 'POST', credentials: 'same-origin', body: fd }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (body) {
+                if (!r.ok) throw new Error(body.message || 'HTTP ' + r.status);
+                return body;
+            });
+        });
+    }
+    var toastTimer = null;
+    function toast(msg) {
+        var t = $('toast'); t.textContent = msg; t.classList.remove('is-hide');
+        clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.add('is-hide'); }, 2400);
+    }
+
+    /* ---- データ ---- */
+    var folders = JSON.parse($('srFolders').textContent || '[]');
+    var supports = JSON.parse($('srSupports').textContent || '[]');
+    function folderName(id) { var f = folders.filter(function (x) { return x.id === id; })[0]; return f ? f.name : '未分類'; }
+
+    var state = { folder: 'all', q: '', editing: null, renaming: null };
+
+    /* ================= フォルダ ================= */
+    function renderFolders() {
+        var count = function (fid) { return supports.filter(function (s) { return fid === 'all' || (s.folderId || '') === fid; }).length; };
+        var row = function (fid, name, editable) {
+            var cur = state.folder === fid;
+            if (state.renaming === fid) {
+                return '<div class="fd" aria-current="' + cur + '"><span class="ico i-folder"></span>' +
+                    '<input class="fd-rename" data-rename="' + esc(fid) + '" maxlength="20" value="' + esc(name) + '" aria-label="フォルダ名"/></div>';
+            }
+            return '<div class="fd" role="button" tabindex="0" data-folder="' + esc(fid) + '" aria-current="' + cur + '">' +
+                '<span class="ico i-folder"></span><span class="fd-name">' + esc(name) + '</span><span class="fd-n">' + count(fid) + '</span>' +
+                (editable ? '<span class="fd-tools"><button type="button" class="fd-tool" data-act="rename" title="名前を変更" aria-label="「' + esc(name) + '」の名前を変更"><span class="ico i-edit"></span></button>' +
+                    '<button type="button" class="fd-tool del" data-act="delete" title="フォルダを削除" aria-label="「' + esc(name) + '」を削除"><span class="ico i-trash"></span></button></span>' : '') +
+                '</div>';
+        };
+        $('fdList').innerHTML = row('all', 'すべて', false) + row('', '未分類', false) +
+            '<div class="fd-sep">フォルダ</div>' + folders.map(function (f) { return row(f.id, f.name, true); }).join('');
+        var input = document.querySelector('.fd-rename');
+        if (input) { input.focus(); input.select(); }
+        // フォームのフォルダ選択肢
+        var sel = $('fFolder'), keep = sel.value;
+        sel.innerHTML = '<option value="">未分類</option>' + folders.filter(function (f) { return !f.isNew; }).map(function (f) { return '<option value="' + esc(f.id) + '">' + esc(f.name) + '</option>'; }).join('');
+        sel.value = folders.some(function (f) { return f.id === keep; }) ? keep : '';
+    }
+
+    var savingFolder = false;
+    function saveFolderName(fid, name) {
+        var f = folders.filter(function (x) { return x.id === fid; })[0];
+        name = name.trim();
+        state.renaming = null;
+        if (!f) return renderAll();
+        if (!name) { if (f.isNew) folders = folders.filter(function (x) { return x !== f; }); return renderAll(); }
+        if (savingFolder) return;
+        savingFolder = true;
+        post(API.folderSave, { id: f.isNew ? '' : f.id, name: name }).then(function (res) {
+            f.name = res.name || name;
+            if (res.id && String(res.id) !== f.id) {
+                if (state.folder === f.id) state.folder = String(res.id);
+                f.id = String(res.id);
+            }
+            delete f.isNew; renderAll();
+        }).catch(function (e) {
+            if (f.isNew) folders = folders.filter(function (x) { return x !== f; });
+            toast('保存に失敗しました (' + e.message + ')'); renderAll();
+        }).then(function () { savingFolder = false; });
+    }
+
+    $('fdList').addEventListener('click', function (e) {
+        var row = e.target.closest('[data-folder]');
+        if (!row) return;
+        var fid = row.getAttribute('data-folder');
+        var act = e.target.closest('[data-act]');
+        if (act && act.getAttribute('data-act') === 'rename') { state.renaming = fid; renderFolders(); return; }
+        if (act && act.getAttribute('data-act') === 'delete') {
+            var n = supports.filter(function (s) { return s.folderId === fid; }).length;
+            if (!confirm('フォルダ「' + folderName(fid) + '」を削除します。' + (n ? '\n中のキャラ ' + n + '名は「未分類」に移ります。' : '') + '\nよろしいですか?')) return;
+            post(API.folderDelete, { id: fid }).then(function () {
+                folders = folders.filter(function (f) { return f.id !== fid; });
+                supports.forEach(function (s) { if (s.folderId === fid) s.folderId = ''; });
+                if (state.folder === fid) state.folder = 'all';
+                renderAll(); toast('フォルダを削除しました');
+            }).catch(function (er) { toast('削除に失敗しました (' + er.message + ')'); });
+            return;
+        }
+        state.folder = fid;
+        renderAll();
+    });
+    $('fdList').addEventListener('keydown', function (e) {
+        var input = e.target.closest('.fd-rename');
+        if (input) {
+            if (e.key === 'Enter') { e.preventDefault(); saveFolderName(input.getAttribute('data-rename'), input.value); }
+            if (e.key === 'Escape') { var f = folders.filter(function (x) { return x.id === state.renaming; })[0]; if (f && f.isNew) folders = folders.filter(function (x) { return x !== f; }); state.renaming = null; renderAll(); }
+            return;
+        }
+        var row = e.target.closest('[data-folder]');
+        if (row && (e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); row.click(); }
+    });
+    $('fdList').addEventListener('focusout', function (e) {
+        var input = e.target.closest('.fd-rename');
+        if (input && state.renaming === input.getAttribute('data-rename')) saveFolderName(state.renaming, input.value);
+    });
+    $('fdAdd').addEventListener('click', function () {
+        var f = { id: 'new-' + Date.now(), name: '新しいフォルダ', isNew: true };
+        folders.push(f);
+        state.renaming = f.id;
+        renderFolders();
+    });
+
+    /* ================= 一覧（男性／女性） ================= */
+    function attrs(s) {
+        return [s.age ? s.age + '歳' : '', s.blood || '', s.sign || '', s.pref || ''].filter(Boolean).join('・') || 'プロフィール項目は指定なし';
+    }
+    function card(s) {
+        var photo = s.photo
+            ? '<button type="button" class="sp-photo" data-zoom title="クリックで拡大"><img src="' + esc(s.photo) + '" alt="' + esc(s.name) + '"/></button>'
+            : '<span class="sp-photo is-empty">写真なし</span>';
+        return '<article class="sp' + (state.editing === s.id ? ' is-editing' : '') + '" data-id="' + esc(s.id) + '">' + photo +
+            '<div class="sp-main"><div class="sp-top"><span class="sp-name">' + esc(s.name) + '</span><span class="sp-id">ID ' + esc(s.id) + '</span>' +
+            '<span class="sp-folder"><span class="ico i-folder"></span>' + esc(folderName(s.folderId || '')) + '</span></div>' +
+            '<div class="sp-attrs">' + esc(attrs(s)) + '</div>' +
+            '<div class="sp-prof">' + esc((s.profile || '').replace(/\s+/g, ' ') || '—') + '</div></div>' +
+            '<div class="sp-side"><div class="sp-actions">' +
+            '<button type="button" class="sp-btn" data-act="edit"><span class="ico i-edit"></span>編集</button>' +
+            '<button type="button" class="sp-btn del" data-act="delete"><span class="ico i-trash"></span>削除</button></div>' +
+            '<time class="sp-date">' + fmtDate(s.createdAt) + ' 登録</time></div></article>';
+    }
+    function renderLists() {
+        var q = state.q.trim().toLowerCase();
+        var list = supports.filter(function (s) {
+            if (state.folder !== 'all' && (s.folderId || '') !== state.folder) return false;
+            if (q && (s.name + ' id' + s.id + ' ' + s.id + ' ' + (s.profile || '')).toLowerCase().indexOf(q) === -1) return false;
+            return true;
+        }).sort(function (a, b) { return Number(a.id) - Number(b.id); });
+        ['male', 'female'].forEach(function (g) {
+            var items = list.filter(function (s) { return s.gender === g; });
+            var box = $(g === 'male' ? 'listMale' : 'listFemale');
+            box.innerHTML = items.map(card).join('') ||
+                '<div class="ls-empty">' + (supports.some(function (s) { return s.gender === g; }) ? '該当する' + (g === 'male' ? '男性' : '女性') + 'キャラはいません' : (g === 'male' ? '男性' : '女性') + 'キャラはまだ登録されていません') + '</div>';
+            $(g === 'male' ? 'cntMale' : 'cntFemale').textContent = items.length;
+        });
+        var label = state.folder === 'all' ? '' : folderName(state.folder);
+        $('fdLabelM').textContent = label; $('fdLabelF').textContent = label;
+        $('sumAll').textContent = supports.length;
+        $('sumMale').textContent = supports.filter(function (s) { return s.gender === 'male'; }).length;
+        $('sumFemale').textContent = supports.filter(function (s) { return s.gender === 'female'; }).length;
+    }
+    function renderAll() { renderFolders(); renderLists(); }
+
+    $('spSearch').addEventListener('input', function (e) { state.q = e.target.value; renderLists(); });
+
+    function onListClick(e) {
+        var z = e.target.closest('[data-zoom]');
+        var el = e.target.closest('.sp');
+        if (!el) return;
+        var s = supports.filter(function (x) { return x.id === el.getAttribute('data-id'); })[0];
+        if (z) { openZoom(s.photo, s.name + '（ID ' + s.id + '）'); return; }
+        var act = e.target.closest('[data-act]');
+        if (!act) return;
+        if (act.getAttribute('data-act') === 'edit') { startEdit(s); return; }
+        if (!confirm('「' + s.name + '（ID ' + s.id + '）」を削除します。よろしいですか?')) return;
+        post(API.remove, { id: s.id }).then(function () {
+            supports = supports.filter(function (x) { return x !== s; });
+            if (state.editing === s.id) resetForm();
+            renderAll(); toast(s.name + '（ID ' + s.id + '）を削除しました');
+        }).catch(function (er) { toast('削除に失敗しました (' + er.message + ')'); });
+    }
+    $('listMale').addEventListener('click', onListClick);
+    $('listFemale').addEventListener('click', onListClick);
+
+    function openZoom(src, cap) {
+        var z = $('zoom');
+        z.querySelector('img').src = src; z.querySelector('figcaption').textContent = cap; z.hidden = false;
+    }
+    $('zoom').addEventListener('click', function () { $('zoom').hidden = true; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('zoom').hidden = true; });
+
+    /* ================= 登録・編集フォーム ================= */
+    function fillSelect(id, list, label) {
+        $(id).innerHTML = '<option value="">' + label + '</option>' + list.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v) + (id === 'fAge' ? '歳' : '') + '</option>'; }).join('');
+    }
+    fillSelect('fPref', PREFS, '指定なし');
+    fillSelect('fBlood', BLOODS, '指定なし');
+    fillSelect('fSign', SIGNS, '指定なし');
+    fillSelect('fAge', AGES, '指定なし');
+
+    var photo = { dataUrl: '', blob: null, changed: false };
+
+    function setPhotoPreview(src) {
+        $('phPreview').innerHTML = src ? '<img src="' + esc(src) + '" alt="写真"/>' : '写真なし';
+        $('phClear').hidden = !src;
+    }
+    function setInfo(msg, isErr) { var i = $('phInfo'); i.textContent = msg || ''; i.hidden = !msg; i.classList.toggle('is-err', !!isErr); }
+
+    function resizeImage(file) {
+        return new Promise(function (resolve, reject) {
+            if (!/^image\//.test(file.type)) return reject(new Error('画像ファイルを選んでください'));
+            if (file.size > PHOTO.maxInputBytes) return reject(new Error('元の画像が大きすぎます（' + kb(PHOTO.maxInputBytes) + 'まで）'));
+            var url = URL.createObjectURL(file);
+            var img = new Image();
+            img.onload = function () {
+                URL.revokeObjectURL(url);
+                var w = img.naturalWidth, h = img.naturalHeight;
+                var r = Math.min(1, PHOTO.maxSide / Math.max(w, h));
+                var cw = Math.round(w * r), ch = Math.round(h * r);
+                var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+                var ctx = c.getContext('2d');
+                ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);     // 透過PNGの背景を白に
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, cw, ch);
+                var q = PHOTO.quality;
+                (function attempt() {
+                    c.toBlob(function (blob) {
+                        if (!blob) return reject(new Error('画像を変換できませんでした'));
+                        if (blob.size > PHOTO.maxBytes && q > 0.45) { q = Math.round((q - 0.1) * 100) / 100; return attempt(); }
+                        var fr = new FileReader();
+                        fr.onload = function () { resolve({ blob: blob, dataUrl: fr.result, w: cw, h: ch, ow: w, oh: h }); };
+                        fr.readAsDataURL(blob);
+                    }, 'image/jpeg', q);
+                })();
+            };
+            img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('この画像は読み込めません（HEICはJPEG/PNGに変換してください）')); };
+            img.src = url;
+        });
+    }
+    function handleFile(file) {
+        if (!file) return;
+        setInfo('縮小しています…');
+        resizeImage(file).then(function (res) {
+            photo = { dataUrl: res.dataUrl, blob: res.blob, changed: true };
+            setPhotoPreview(res.dataUrl);
+            setInfo('✓ ' + kb(file.size) + '（' + res.ow + '×' + res.oh + '）→ ' + kb(res.blob.size) + '（' + res.w + '×' + res.h + '）に縮小');
+        }).catch(function (e) { setInfo(e.message, true); });
+    }
+    $('fPhoto').addEventListener('change', function (e) { handleFile(e.target.files[0]); e.target.value = ''; });
+    var drop = $('phDrop');
+    ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('is-over'); }); });
+    ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('is-over'); }); });
+    drop.addEventListener('drop', function (e) { handleFile(e.dataTransfer.files[0]); });
+    $('phClear').addEventListener('click', function () { photo = { dataUrl: '', blob: null, changed: true }; setPhotoPreview(''); setInfo(''); });
+
+    function counters() {
+        $('nameCnt').textContent = $('fName').value.length + '/20';
+        $('profCnt').textContent = $('fProfile').value.length + '/500';
+    }
+    $('fName').addEventListener('input', function () { counters(); $('errName').hidden = true; $('fName').classList.remove('is-err'); });
+    $('fProfile').addEventListener('input', counters);
+    document.querySelectorAll('input[name="gender"]').forEach(function (r) { r.addEventListener('change', function () { $('errGender').hidden = true; }); });
+
+    function gender() { var r = document.querySelector('input[name="gender"]:checked'); return r ? r.value : ''; }
+
+    function resetForm() {
+        state.editing = null;
+        $('spForm').reset();
+        $('fFolder').value = state.folder !== 'all' ? state.folder : '';
+        photo = { dataUrl: '', blob: null, changed: false };
+        setPhotoPreview(''); setInfo('');
+        $('fmMode').textContent = '新規登録'; $('fmMode').classList.remove('is-edit');
+        $('fmTitle').textContent = 'キャラを登録';
+        $('fmMeta').textContent = '登録すると ID が自動で付きます';
+        $('fmSubmit').textContent = '登録する';
+        $('fmCancel').hidden = true;
+        $('errName').hidden = true; $('errGender').hidden = true; $('fName').classList.remove('is-err');
+        counters();
+    }
+    function startEdit(s) {
+        state.editing = s.id;
+        $('fFolder').value = s.folderId || '';
+        $('fName').value = s.name;
+        document.querySelectorAll('input[name="gender"]').forEach(function (r) { r.checked = r.value === s.gender; });
+        $('fPref').value = s.pref || ''; $('fBlood').value = s.blood || ''; $('fSign').value = s.sign || ''; $('fAge').value = s.age || '';
+        $('fProfile').value = s.profile || '';
+        photo = { dataUrl: s.photo || '', blob: null, changed: false };
+        setPhotoPreview(s.photo || ''); setInfo('');
+        $('fmMode').textContent = '編集'; $('fmMode').classList.add('is-edit');
+        $('fmTitle').textContent = s.name + '（ID ' + s.id + '）';
+        $('fmMeta').textContent = fmtDate(s.createdAt) + ' 登録';
+        $('fmSubmit').textContent = '更新する';
+        $('fmCancel').hidden = false;
+        counters();
+        renderLists();
+        $('fName').focus();
+    }
+    $('fmCancel').addEventListener('click', function () { resetForm(); renderLists(); });
+
+    $('spForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = $('fName').value.trim(), g = gender(), ok = true;
+        if (!name) { $('errName').hidden = false; $('fName').classList.add('is-err'); ok = false; }
+        if (!g) { $('errGender').hidden = false; ok = false; }
+        if (!ok) { toast('必須項目を入力してください'); return; }
+
+        var editing = state.editing ? supports.filter(function (x) { return x.id === state.editing; })[0] : null;
+        var f = {
+            id: editing ? editing.id : '', name: name, gender: g, pref: $('fPref').value, blood: $('fBlood').value, sign: $('fSign').value,
+            age: $('fAge').value, profile: $('fProfile').value.trim(), folderId: $('fFolder').value
+        };
+        if (photo.changed) { if (photo.blob) f.photo = photo.blob; else f.photoRemove = '1'; }
+        var btn = $('fmSubmit');
+        btn.disabled = true;
+        post(API.save, f).then(function (res) {
+            var s = editing;
+            if (!s) { s = {}; supports.push(s); }
+            Object.keys(res).forEach(function (k) { s[k] = res[k]; });
+            var msg = (editing ? '更新しました：' : '登録しました：') + s.name + '（ID ' + s.id + '）';
+            resetForm();
+            renderAll();
+            var el = document.querySelector('.sp[data-id="' + s.id + '"]');
+            if (el) { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); el.classList.add('is-flash'); }
+            toast(msg);
+        }).catch(function (er) { toast('保存に失敗しました (' + er.message + ')'); })
+          .then(function () { btn.disabled = false; });
+    });
+
+    /* ---- 初期表示 ---- */
+    renderAll();
+    resetForm();
+})();
+</script>
+</section>
+</body>
+</html>
