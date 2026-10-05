@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+<title>メールテンプレート設定</title>
+<!--/* サイト構成 › メールテンプレート設定 — the client-approved design (mail_templates.html), styles scoped to .mtw. Data / tags (番組仕様): MailTemplateController. */-->
+<style>
+  main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; }
+  /* ===== 共通（他の設定画面と同じ色合い） ===== */
+
+  .mtw {
+    margin: 0; color: #334155; background: #f8fafc; font-size: 13px; line-height: 1.5;
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+  }
+  .mtw [hidden] { display: none !important; }
+  .mtw button, .mtw input, .mtw textarea, .mtw select { font: inherit; color: inherit; }
+  .mtw .card { background: #fff; border: 1px solid #f1f5f9; border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, .05); }
+  .mtw .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 14px;
+    font-size: 13px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+    transition: background-color .12s, border-color .12s;
+  }
+  .mtw .btn-primary { color: #fff; background: #2563eb; }
+  .mtw .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+  .mtw .btn-outline { color: #475569; background: #fff; border-color: #cbd5e1; }
+  .mtw .btn-outline:hover:not(:disabled) { background: #f8fafc; }
+  .mtw .btn:disabled { color: #fff; background: #cbd5e1; border-color: transparent; cursor: not-allowed; }
+  .mtw .btn-sm { padding: 3px 10px; font-size: 12px; }
+  .mtw .btn:focus-visible, .mtw .input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .2); }
+  .mtw .input {
+    width: 100%; box-sizing: border-box; padding: 6px 10px; font-size: 13px; color: #1e293b;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+  }
+  .mtw .input.is-err { border-color: #f87171; }
+  .mtw .card-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
+  .mtw .card-title { font-size: 14px; font-weight: 700; color: #1e293b; white-space: nowrap; }
+  .mtw .card-sub { font-size: 11.5px; color: #94a3b8; white-space: nowrap; }
+
+  .mtw .chk { width: 15px; height: 15px; margin: 0; accent-color: #2563eb; cursor: pointer; }
+  .mtw .on-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #334155; cursor: pointer; user-select: none; white-space: nowrap; }
+  .mtw .on-chk.is-off { color: #94a3b8; }
+
+  /* スイッチ */
+  .mtw .sw { position: relative; display: inline-block; flex: none; width: 36px; height: 20px; vertical-align: middle; }
+  .mtw .sw input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+  .mtw .sw span { position: absolute; inset: 0; background: #cbd5e1; border-radius: 10px; transition: background-color .15s; pointer-events: none; }
+  .mtw .sw span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: transform .15s; }
+  .mtw .sw input:checked + span { background: #34d399; }
+  .mtw .sw input:checked + span::after { transform: translateX(16px); }
+  .mtw .sw input:focus-visible + span { box-shadow: 0 0 0 3px rgba(59, 130, 246, .3); }
+  .mtw .sw.lg { width: 44px; height: 24px; }
+  .mtw .sw.lg span { border-radius: 12px; }
+  .mtw .sw.lg span::after { width: 20px; height: 20px; }
+  .mtw .sw.lg input:checked + span::after { transform: translateX(20px); }
+
+  .mtw .st { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 11px; font-weight: 700; line-height: 18px; border-radius: 9px; white-space: nowrap; }
+  .mtw .st-on { color: #047857; background: #d1fae5; }
+  .mtw .st-off { color: #64748b; background: #e2e8f0; }
+
+  /* ===== 画面全体 ===== */
+  .mtw .mt { display: flex; flex-direction: column; height: 100vh; padding: 12px 16px 16px; box-sizing: border-box; gap: 12px; }
+  .mtw .mt-head { display: flex; align-items: center; gap: 14px; flex: none; }
+  .mtw .mt-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: #1e293b; }
+  .mtw .mt-chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 12px; font-size: 12px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; }
+  .mtw .mt-chip b { color: #1e293b; }
+  .mtw .mt-note { margin-left: auto; font-size: 12px; color: #64748b; }
+
+  .mtw .warn {
+    flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 14px; font-size: 12.5px;
+    color: #991b1b; background: #fef2f2; border: 1px solid #fca5a5; border-left: 5px solid #dc2626; border-radius: 8px;
+  }
+  .mtw .warn-ico { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 16px; font-weight: 900; color: #fff; background: #dc2626; border-radius: 50%; }
+  .mtw .warn-txt { flex: 1; min-width: 0; }
+  .mtw .warn-txt b { display: block; font-size: 13.5px; }
+
+  .mtw .mt-main { flex: 1; min-height: 0; display: grid; grid-template-columns: 290px minmax(0, 1.05fr) minmax(0, 1fr); gap: 12px; }
+  .mtw .mt-main > .card { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+
+  /* ===== 左：テンプレート一覧 ===== */
+  .mtw .tl { flex: 1; min-height: 0; overflow: auto; padding: 8px; }
+  .mtw .ti {
+    position: relative; display: block; width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 10px 12px 10px 14px;
+    text-align: left; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: border-color .12s, box-shadow .12s;
+  }
+  .mtw .ti:hover { border-color: #cbd5e1; }
+  .mtw .ti[aria-current="true"] { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .15), inset 4px 0 0 #3b82f6; }
+  .mtw .ti-top { display: flex; align-items: center; gap: 8px; }
+  .mtw .ti-ico { flex: none; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; }
+  .mtw .ti-ico i { width: 16px; height: 16px; background: currentColor; -webkit-mask: var(--i) center / contain no-repeat; mask: var(--i) center / contain no-repeat; }
+  .mtw .ti-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700; color: #1e293b; }
+  .mtw .ti-desc { margin: 5px 0 0 38px; font-size: 11.5px; color: #64748b; }
+  .mtw .ti-meta { display: flex; align-items: center; gap: 6px; margin: 5px 0 0 38px; font-size: 10.5px; color: #94a3b8; }
+  .mtw .ti.is-off .ti-name, .mtw .ti.is-off .ti-desc { color: #94a3b8; }
+  .mtw .ti.is-off .ti-ico { filter: grayscale(1); opacity: .6; }
+  .mtw .ti-dirty { width: 7px; height: 7px; background: #f59e0b; border-radius: 50%; }
+
+  /* ===== 中央：編集 ===== */
+  .mtw .ed-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; }
+  .mtw .ed-head .ti-ico { width: 36px; height: 36px; border-radius: 9px; }
+  .mtw .ed-name { font-size: 16px; font-weight: 700; color: #1e293b; }
+  .mtw .ed-timing { font-size: 11.5px; color: #64748b; }
+  .mtw .ed-onoff { display: flex; align-items: center; gap: 8px; margin-left: auto; padding: 6px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+  .mtw .ed-onoff b { font-size: 12.5px; }
+  .mtw .ed-onoff b.on { color: #047857; }
+  .mtw .ed-onoff b.off { color: #64748b; }
+  .mtw .ed-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 6px; }
+  .mtw .ed-off-note { margin-bottom: 10px; padding: 8px 12px; font-size: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; }
+  .mtw .ed-off-note.is-critical { color: #991b1b; background: #fef2f2; border-color: #fca5a5; }
+  .mtw .fm-row { margin-bottom: 10px; }
+  .mtw .fm-label { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11.5px; font-weight: 700; color: #475569; }
+  .mtw .fm-label .req { padding: 0 5px; font-size: 10px; line-height: 15px; color: #fff; background: #ef4444; border-radius: 3px; }
+  .mtw .fm-label .cnt { margin-left: auto; font-weight: 400; color: #94a3b8; font-variant-numeric: tabular-nums; }
+  .mtw .fm-err { margin-top: 3px; font-size: 11.5px; color: #dc2626; }
+  .mtw .fm-warn { margin-top: 4px; padding: 5px 9px; font-size: 11.5px; color: #92400e; background: #fffbeb; border-radius: 5px; }
+  .mtw #fBody { height: 250px; min-height: 120px; resize: vertical; line-height: 1.7; }
+  .mtw .tags { padding: 8px 10px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px; }
+  .mtw .tags-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; }
+  .mtw .tags-row + .tags-row { margin-top: 7px; padding-top: 7px; border-top: 1px dashed #e2e8f0; }
+  .mtw .tags-label { margin-right: 4px; font-size: 11px; font-weight: 700; color: #475569; white-space: nowrap; }
+  .mtw .tag {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; font-size: 11.5px; color: #475569;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  }
+  .mtw .tag:hover { border-color: #93c5fd; background: #eff6ff; }
+  .mtw .tag code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; color: #1d4ed8; }
+  .mtw .tag.is-key { border-color: #fcd34d; background: #fffbeb; }
+  .mtw .tag.is-key code { color: #b45309; }
+  .mtw .tags-hint { margin-top: 6px; font-size: 11px; color: #94a3b8; }
+  .mtw .ed-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 16px 12px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
+  .mtw .ed-foot .btn-primary { min-width: 140px; }
+  .mtw .ed-foot .dirty { font-size: 11.5px; font-weight: 600; color: #b45309; }
+  .mtw .ed-foot .reset { margin-left: auto; padding: 0; font-size: 12px; color: #94a3b8; background: none; border: 0; cursor: pointer; }
+  .mtw .ed-foot .reset:hover { color: #475569; text-decoration: underline; }
+
+  /* ===== 右：プレビュー ===== */
+  .mtw .pv-tabs { display: inline-flex; margin-left: auto; padding: 2px; background: #f1f5f9; border-radius: 6px; }
+  .mtw .pv-tabs button { padding: 3px 10px; font-size: 11.5px; font-weight: 600; color: #64748b; background: none; border: 0; border-radius: 4px; cursor: pointer; }
+  .mtw .pv-tabs button[aria-pressed="true"] { color: #1e293b; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .12); }
+  .mtw .pv-body { flex: 1; min-height: 0; overflow: auto; padding: 14px; background: #f1f5f9; }
+  .mtw .mail { max-width: 640px; margin: 0 auto; overflow: hidden; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 4px 14px rgba(15, 23, 42, .06); }
+  .mtw .mail.is-off { opacity: .55; }
+  .mtw .mail-head { padding: 12px 16px; background: #fbfcfd; border-bottom: 1px solid #f1f5f9; }
+  .mtw .mail-subj { margin-bottom: 6px; font-size: 15px; font-weight: 700; color: #1e293b; overflow-wrap: anywhere; }
+  .mtw .mail-meta { display: grid; grid-template-columns: 52px 1fr; gap: 1px 8px; font-size: 12px; color: #64748b; }
+  .mtw .mail-meta b { font-weight: 600; color: #334155; }
+  .mtw .mail-body { padding: 16px; font-size: 13px; line-height: 1.8; color: #1e293b; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .mtw .mail mark { padding: 0 2px; color: inherit; background: #fef3c7; border-radius: 3px; }
+  .mtw .mail mark.raw { color: #1d4ed8; background: #dbeafe; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  .mtw .mail mark.unknown { color: #b91c1c; background: #fee2e2; }
+  .mtw .pv-off { margin: 0 auto 10px; max-width: 640px; padding: 7px 12px; font-size: 12px; text-align: center; color: #64748b; background: #e2e8f0; border-radius: 6px; }
+  .mtw .pv-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px 12px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
+  .mtw .pv-foot .input { flex: 1; min-width: 0; }
+  .mtw .pv-foot span { font-size: 12px; font-weight: 700; color: #475569; white-space: nowrap; }
+
+  .mtw .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 70; max-width: 90vw; padding: 9px 18px; font-size: 12.5px; color: #fff;
+    background: rgba(30, 41, 59, .94); border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, .2);
+    transform: translateX(-50%); transition: opacity .2s, transform .2s;
+  }
+  .mtw .toast.is-hide { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
+
+  @media (max-width: 1450px) {
+    .mtw .mt-main { grid-template-columns: 250px minmax(0, 1fr) minmax(0, .9fr); }
+    .mtw .mt-note { display: none; }
+  }
+</style>
+</head>
+<body>
+<section layout:fragment="content">
+<div class="mtw">
+<div class="mt">
+
+  <!-- ===== 見出し ===== -->
+  <header class="mt-head">
+    <h1>メールテンプレート設定</h1>
+    <span class="mt-chip">有効 <b id="cntOn">0</b> ／ <span id="cntAll">0</span>件</span>
+    <span class="mt-note">ユーザーへ自動で送るメールの文面と、送る／送らない（有効・無効）を設定します</span>
+  </header>
+
+  <!-- 重要なメールが無効のときの警告 -->
+  <div class="warn" id="critWarn" role="alert" hidden></div>
+
+  <div class="mt-main">
+
+    <!-- ===== 左：テンプレート一覧 ===== -->
+    <aside class="card" aria-label="テンプレート一覧">
+      <div class="card-head"><span class="card-title">テンプレート</span><span class="card-sub">クリックで編集</span></div>
+      <div class="tl" id="tplList"></div>
+    </aside>
+
+    <!-- ===== 中央：編集 ===== -->
+    <section class="card" aria-label="テンプレートの編集">
+      <form id="edForm" style="flex:1;min-height:0;display:flex;flex-direction:column" novalidate>
+        <div class="ed-head" id="edHead"></div>
+        <div class="ed-body">
+          <div class="ed-off-note" id="edOffNote" hidden></div>
+          <div class="fm-row">
+            <div class="fm-label">件名 <span class="req">必須</span><span class="cnt" id="subjCnt"></span></div>
+            <input type="text" class="input" id="fSubject" maxlength="100"/>
+            <div class="fm-err" id="errSubject" hidden>件名を入力してください</div>
+          </div>
+          <div class="fm-row">
+            <div class="fm-label">本文 <span class="req">必須</span><span class="cnt" id="bodyCnt"></span></div>
+            <textarea class="input" id="fBody"></textarea>
+            <div class="fm-err" id="errBody" hidden>本文を入力してください</div>
+            <div class="fm-warn" id="keyWarn" hidden></div>
+          </div>
+          <div class="tags" id="tagBox"></div>
+        </div>
+        <div class="ed-foot">
+          <button type="submit" class="btn btn-primary" id="btnSave">保存する</button>
+          <button type="button" class="btn btn-outline" id="btnRevert">元に戻す</button>
+          <span class="dirty" id="dirtyMark" hidden>● 未保存の変更があります</span>
+        </div>
+      </form>
+    </section>
+
+    <!-- ===== 右：プレビュー ===== -->
+    <section class="card" aria-label="プレビュー">
+      <div class="card-head">
+        <span class="card-title">プレビュー</span>
+        <div class="pv-tabs" role="group" aria-label="表示">
+          <button type="button" data-pv="sample" aria-pressed="true">サンプル値で表示</button>
+          <button type="button" data-pv="raw" aria-pressed="false">タグのまま</button>
+        </div>
+      </div>
+      <div class="pv-body" id="pvBody"></div>
+      <div class="pv-foot">
+        <span>テスト送信</span>
+        <input type="email" class="input" id="testTo" placeholder="送信先のメールアドレス"/>
+        <button type="button" class="btn btn-outline" id="btnTest">送信</button>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="toast is-hide" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ===== データ（サーバーから出力） ===== -->
+<!-- 置き換えタグ：common＝全テンプレート共通、各キー＝そのテンプレート用。[タグ, 説明, プレビュー用のサンプル値] -->
+<script type="application/json" id="mtTags" th:utext="${tagsJson}">{}</script>
+<!-- テンプレート：key, name, timing（送るタイミング）, enabled, subject, body, updatedAt -->
+<script type="application/json" id="mtTemplates" th:utext="${templatesJson}">{}</script>
+
+<script>
+// メールテンプレート設定：仮登録通知・本登録通知・決済入金通知・メール通知の文面と有効／無効
+(function () {
+    'use strict';
+
+    /* ===== 設定 ===================================================== */
+    // 送信先。null のままだとプレビュー動作（このブラウザ内だけに保存。テスト送信は行いません）。
+    var API = {
+        save: '/manager/settings/mail-templates/save',     // 例: '/manager/settings/mail-templates/save'   … key, subject, body → JSON { updatedAt }
+        toggle: '/manager/settings/mail-templates/enabled',   // 例: '/manager/settings/mail-templates/enabled' … key, enabled(1/0)
+        test: '/manager/settings/mail-templates/test'      // 例: '/manager/settings/mail-templates/test'    … key, to, subject, body（サンプル値に置き換えて送信）
+    };
+    // テンプレートごとの見た目・注意書き
+    var ICON = {
+        user: "%3Ccircle cx='6' cy='5' r='2.6'/%3E%3Cpath d='M1.5 13.5c.4-2.6 2.3-4 4.5-4s4.1 1.4 4.5 4M12.5 5v4M10.5 7h4'/%3E",
+        check: "%3Ccircle cx='8' cy='8' r='6.2'/%3E%3Cpath d='m5.2 8.2 2 2 3.8-4'/%3E",
+        yen: "%3Ccircle cx='8' cy='8' r='6.2'/%3E%3Cpath d='M5.6 4.8 8 8l2.4-3.2M8 8v3.6M5.8 8.6h4.4M5.8 10.2h4.4'/%3E",
+        bell: "%3Cpath d='M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1 1H3z'/%3E%3Cpath d='M6.6 13.6a1.5 1.5 0 0 0 2.8 0'/%3E"
+    };
+    var META = {
+        provisional: { icon: 'user', color: '#b45309', bg: '#fef3c7', critical: true, keyTags: ['%verify_url%'],
+            off: '無効の間は仮登録メールが送られず、新規登録したユーザーは本登録用URLを受け取れません（登録を完了できません）。' },
+        registered: { icon: 'check', color: '#047857', bg: '#d1fae5', keyTags: [],
+            off: '無効の間は、本登録完了のお知らせメールは送られません（登録自体は完了します）。' },
+        payment: { icon: 'yen', color: '#1d4ed8', bg: '#dbeafe', keyTags: [],
+            off: '無効の間は、入金確認メールは送られません（入金・ポイント付与は通常どおり行われます）。' },
+        notice: { icon: 'bell', color: '#6d28d9', bg: '#ede9fe', keyTags: ['%reply_url%'],
+            off: '無効の間は、新着メッセージのお知らせメールは送られません（メッセージはマイページで確認できます）。' }
+    };
+    /* ================================================================ */
+
+    var $ = function (id) { return document.getElementById(id); };
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function nowIso() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function fmt(iso) { if (!iso) return ''; var p = iso.split(/[-T:]/).map(Number); return p[0] + '/' + p[1] + '/' + p[2] + ' ' + p[3] + ':' + pad(p[4]); }
+    function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+    function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
+    function post(url, fields) {
+        var fd = new FormData();
+        Object.keys(fields).forEach(function (k) { if (fields[k] != null) fd.append(k, fields[k]); });
+        return fetch(url, { method: 'POST', credentials: 'same-origin', body: fd }).then(function (r) {
+            // サーバーのエラー（{ error }）をそのまま表示する
+            if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('HTTP ' + r.status)); });
+            return r.json().catch(function () { return {}; });
+        });
+    }
+    var toastTimer = null;
+    function toast(msg) {
+        var t = $('toast'); t.textContent = msg; t.classList.remove('is-hide');
+        clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.add('is-hide'); }, 2800);
+    }
+    function icon(key, cls) {
+        var m = META[key] || META.notice;
+        var svg = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E" + ICON[m.icon] + "%3C/svg%3E\")";
+        return '<span class="ti-ico ' + (cls || '') + '" style="color:' + m.color + ';background:' + m.bg + '"><i style="--i:' + svg.replace(/"/g, '&quot;') + '"></i></span>';
+    }
+
+    /* ---- データ ---- */
+    var TAGS = JSON.parse($('mtTags').textContent || '{}');
+    var preview = !API.save;
+    var tpls = (preview && load('mtTemplatesV3')) || JSON.parse($('mtTemplates').textContent || '[]');
+    function persist() { if (preview) store('mtTemplatesV3', tpls); }
+    var currentKey = tpls.length ? tpls[0].key : null;
+    var draft = null;
+    var pvMode = 'sample';
+    var lastField = 'fBody', caret = { fSubject: null, fBody: null };
+
+    function cur() { return tpls.filter(function (t) { return t.key === currentKey; })[0]; }
+    function tagsFor(key) { return (TAGS.common || []).concat(TAGS[key] || []); }
+    function dirty() { var t = cur(); return !!(t && draft) && (t.subject !== draft.subject || t.body !== draft.body); }
+
+    /* ================= 一覧 ================= */
+    function renderList() {
+        $('cntOn').textContent = tpls.filter(function (t) { return t.enabled; }).length;
+        $('cntAll').textContent = tpls.length;
+        var d = dirty();
+        $('tplList').innerHTML = tpls.map(function (t) {
+            return '<div class="ti' + (t.enabled ? '' : ' is-off') + '" role="button" tabindex="0" data-key="' + esc(t.key) + '" aria-current="' + (t.key === currentKey) + '">' +
+                '<div class="ti-top">' + icon(t.key) + '<span class="ti-name">' + esc(t.name) + '</span>' +
+                '<label class="on-chk' + (t.enabled ? '' : ' is-off') + '"><input type="checkbox" class="chk" data-toggle' + (t.enabled ? ' checked' : '') + '/>有効</label></div>' +
+                '<div class="ti-desc">' + esc(t.timing) + '</div>' +
+                ((t.updatedAt || (t.key === currentKey && d)) ? '<div class="ti-meta">' + (t.updatedAt ? fmt(t.updatedAt) + ' 更新' : '') + (t.key === currentKey && d ? '<span class="ti-dirty" title="未保存の変更"></span>未保存' : '') + '</div>' : '') + '</div>';
+        }).join('');
+        var prov = tpls.filter(function (t) { return META[t.key] && META[t.key].critical && !t.enabled; });
+        $('critWarn').hidden = !prov.length;
+        if (prov.length) {
+            $('critWarn').innerHTML = '<span class="warn-ico">!</span><span class="warn-txt"><b>' + esc(prov.map(function (t) { return t.name; }).join('・')) + 'が無効です</b>' +
+                esc(META[prov[0].key].off) + '</span>';
+        }
+    }
+
+    function setEnabled(t, on, from) {
+        if (!on && META[t.key] && META[t.key].critical &&
+            !confirm('⚠ 「' + t.name + '」を無効にします。\n\n' + META[t.key].off + '\n\nよろしいですか?')) { renderList(); renderEditor(); return; }
+        var apply = function () {
+            t.enabled = on; persist();
+            renderList(); renderEditor(); renderPreview();
+            toast(t.name + 'を' + (on ? '有効にしました（送信します）' : '無効にしました（送信しません）'));
+        };
+        if (API.toggle) post(API.toggle, { key: t.key, enabled: on ? '1' : '0' }).then(apply).catch(function (er) { toast('変更に失敗しました (' + er.message + ')'); renderList(); renderEditor(); });
+        else apply();
+    }
+
+    $('tplList').addEventListener('change', function (e) {
+        if (!e.target.hasAttribute('data-toggle')) return;
+        var t = tpls.filter(function (x) { return x.key === e.target.closest('.ti').getAttribute('data-key'); })[0];
+        setEnabled(t, e.target.checked);
+    });
+    function pick(el) {
+        var key = el.getAttribute('data-key');
+        if (key === currentKey) return;
+        if (dirty() && !confirm('保存していない変更があります。破棄して切り替えますか?')) return;
+        select(key);
+    }
+    $('tplList').addEventListener('click', function (e) {
+        if (e.target.closest('.on-chk')) return;
+        var el = e.target.closest('.ti');
+        if (el) pick(el);
+    });
+    $('tplList').addEventListener('keydown', function (e) {
+        var el = e.target.closest('.ti');
+        if (el && e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(el); }
+    });
+
+    /* ================= 編集 ================= */
+    function renderEditor() {
+        var t = cur();
+        if (!t) return;
+        $('edHead').innerHTML = icon(t.key) + '<div><div class="ed-name">' + esc(t.name) + '</div><div class="ed-timing">送るタイミング：' + esc(t.timing) + '</div></div>' +
+            '<span class="ed-onoff"><label class="on-chk' + (t.enabled ? '' : ' is-off') + '"><input type="checkbox" class="chk" id="edToggle"' + (t.enabled ? ' checked' : '') + '/>有効（このメールを送信する）</label></span>';
+        $('edToggle').addEventListener('change', function (e) { setEnabled(t, e.target.checked); });
+        var note = $('edOffNote');
+        var unwritten = t.enabled && (!t.subject || !t.body);   // 有効でも件名・本文が未設定の間は送信されない
+        note.hidden = t.enabled && !unwritten;
+        note.classList.toggle('is-critical', !unwritten && !!(META[t.key] && META[t.key].critical));
+        note.textContent = unwritten ? '⚠ 件名・本文が未設定のため、このメールはまだ送信されません。保存すると送信されるようになります。'
+            : '⚠ このメールは現在「無効」です。' + ((META[t.key] || {}).off || '');
+    }
+    function fillForm() {
+        $('fSubject').value = draft.subject; $('fBody').value = draft.body;
+        ['errSubject', 'errBody'].forEach(function (id) { $(id).hidden = true; });
+        ['fSubject', 'fBody'].forEach(function (id) { $(id).classList.remove('is-err'); });
+        var keys = (META[currentKey] || {}).keyTags || [];
+        $('tagBox').innerHTML =
+            '<div class="tags-row"><span class="tags-label">共通タグ</span>' + (TAGS.common || []).map(function (x) { return tagBtn(x, keys.indexOf(x[0]) !== -1); }).join('') + '</div>' +
+            ((TAGS[currentKey] || []).length ? '<div class="tags-row"><span class="tags-label">このメール用</span>' + TAGS[currentKey].map(function (x) { return tagBtn(x, keys.indexOf(x[0]) !== -1); }).join('') + '</div>' : '') +
+            '<div class="tags-hint">クリックで、最後に選んだ欄（件名または本文）のカーソル位置に入ります。送信時に実際の値へ置き換わります。</div>';
+        counters();
+    }
+    function tagBtn(x, isKey) {
+        return '<button type="button" class="tag' + (isKey ? ' is-key' : '') + '" data-token="' + esc(x[0]) + '" title="例: ' + esc(x[2]) + '"><code>' + esc(x[0]) + '</code>' + esc(x[1]) + (isKey ? ((META[currentKey] || {}).critical ? '（必須）' : '（推奨）') : '') + '</button>';
+    }
+    function counters() {
+        $('subjCnt').textContent = $('fSubject').value.length + '/100';
+        $('bodyCnt').textContent = $('fBody').value.length + '文字';
+        var keys = !$('fBody').value.trim() ? [] : ((META[currentKey] || {}).keyTags || []).filter(function (k) { return $('fBody').value.indexOf(k) === -1; });
+        $('keyWarn').hidden = !keys.length;
+        if (keys.length) {
+            var names = keys.map(function (k) { var x = tagsFor(currentKey).filter(function (y) { return y[0] === k; })[0]; return (x ? x[1] : '') + '（' + k + '）'; });
+            $('keyWarn').textContent = '⚠ 本文に ' + names.join('・') + ' がありません。' + (META[currentKey].critical ? 'このままだとユーザーが登録を完了できません。' : '入れておくと、ユーザーがすぐに確認・返信できます。');
+        }
+        $('dirtyMark').hidden = !dirty();
+        $('btnRevert').disabled = !dirty();
+    }
+    ['fSubject', 'fBody'].forEach(function (id) {
+        var el = $(id);
+        el.addEventListener('input', function () {
+            draft[{ fSubject: 'subject', fBody: 'body' }[id]] = el.value;
+            el.classList.remove('is-err');
+            counters(); renderPreview(); renderList();
+        });
+        el.addEventListener('focus', function () { lastField = id; });
+        ['click', 'keyup', 'select', 'input'].forEach(function (ev) { el.addEventListener(ev, function () { caret[id] = el.selectionStart; }); });
+    });
+    $('tagBox').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-token]');
+        if (!b) return;
+        var el = $(lastField), token = b.getAttribute('data-token');
+        var v = el.value, pos = caret[lastField] == null ? v.length : Math.min(caret[lastField], v.length);
+        el.value = v.slice(0, pos) + token + v.slice(pos);
+        caret[lastField] = pos + token.length;
+        el.focus(); el.setSelectionRange(caret[lastField], caret[lastField]);
+        el.dispatchEvent(new Event('input'));
+    });
+
+    $('edForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var ok = true;
+        if (!draft.subject.trim()) { $('errSubject').hidden = false; $('fSubject').classList.add('is-err'); ok = false; }
+        if (!draft.body.trim()) { $('errBody').hidden = false; $('fBody').classList.add('is-err'); ok = false; }
+        if (!ok) { toast('件名と本文を入力してください'); return; }
+        var m = META[currentKey] || {};
+        var missing = (m.keyTags || []).filter(function (k) { return draft.body.indexOf(k) === -1; });
+        if (missing.length && m.critical && !confirm('⚠ 本文に ' + missing.join('・') + ' がありません。\nこのままだと、ユーザーが本登録を完了できません。\n\nこのまま保存しますか?')) return;
+        var t = cur();
+        var apply = function (res) {
+            t.subject = draft.subject; t.body = draft.body;
+            t.updatedAt = (res && res.updatedAt) || nowIso();
+            persist(); select(t.key); toast('保存しました：' + t.name);
+        };
+        if (API.save) post(API.save, { key: t.key, subject: draft.subject, body: draft.body }).then(apply).catch(function (er) { toast('保存に失敗しました (' + er.message + ')'); });
+        else apply();
+    });
+    $('btnRevert').addEventListener('click', function () { select(currentKey); toast('変更を取り消しました'); });
+
+    /* ================= プレビュー ================= */
+    function renderMail(text, sample) {
+        var map = {};
+        tagsFor(currentKey).forEach(function (x) { map[x[0]] = x[2]; });
+        return esc(text).replace(/%[a-z_]+%/gi, function (tok) {
+            if (!(tok in map)) return '<mark class="unknown" title="使えないタグです（つづりを確認してください）">' + tok + '</mark>';
+            return sample ? '<mark title="' + tok + '">' + esc(map[tok]) + '</mark>' : '<mark class="raw">' + tok + '</mark>';
+        });
+    }
+    function renderPreview() {
+        var t = cur();
+        if (!t || !draft) return;
+        var s = pvMode === 'sample';
+        var sampleEmail = (tagsFor(t.key).filter(function (x) { return x[0] === '%email%'; })[0] || [0, 0, 'user@example.com'])[2];
+        $('pvBody').innerHTML = (t.enabled ? '' : '<div class="pv-off">このメールは無効のため、現在は送信されません</div>') +
+            '<div class="mail' + (t.enabled ? '' : ' is-off') + '"><div class="mail-head">' +
+            '<div class="mail-subj">' + (renderMail(draft.subject, s) || '<span style="color:#cbd5e1">（件名なし）</span>') + '</div>' +
+            '<div class="mail-meta"><span>宛先</span><b>' + esc(sampleEmail) + '</b></div></div>' +
+            '<div class="mail-body">' + (renderMail(draft.body, s) || '<span style="color:#cbd5e1">（本文なし）</span>') + '</div></div>';
+        document.querySelectorAll('[data-pv]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-pv') === pvMode)); });
+    }
+    document.querySelector('.pv-tabs').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-pv]');
+        if (b) { pvMode = b.getAttribute('data-pv'); renderPreview(); }
+    });
+
+    $('btnTest').addEventListener('click', function () {
+        var to = $('testTo').value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast('テスト送信先のメールアドレスを入力してください'); $('testTo').focus(); return; }
+        var b = $('btnTest'); b.disabled = true; b.textContent = '送信中…';
+        var done = function () { toast('テスト送信しました：' + to + '（タグはサンプル値で送信）'); };
+        var p = API.test ? post(API.test, { key: currentKey, to: to, subject: draft.subject, body: draft.body }).then(done)
+            : new Promise(function (r) { setTimeout(function () { toast('プレビューのため実際には送信していません（宛先：' + to + '）'); r(); }, 600); });
+        p.catch(function (er) { toast('テスト送信に失敗しました (' + er.message + ')'); }).then(function () { b.disabled = false; b.textContent = '送信'; });
+    });
+
+    function select(key) {
+        currentKey = key;
+        var t = cur();
+        draft = { subject: t.subject || '', body: t.body || '' };
+        caret = { fSubject: null, fBody: null }; lastField = 'fBody';
+        renderList(); renderEditor(); fillForm(); renderPreview();
+    }
+    window.addEventListener('beforeunload', function (e) { if (dirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+    if (currentKey) select(currentKey);
+})();
+</script>
+</div>
+</section>
+</body>
+</html>

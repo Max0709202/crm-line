@@ -703,3 +703,64 @@ CREATE TABLE IF NOT EXISTS USER_POINT (
   UPDATED_AT DATETIME NOT NULL,
   KEY IDX_USER_POINT_POINTS (POINTS)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ユーザー詳細 › プロフィール (都道府県 / 血液型 / 星座 / 年齢 / プロフィール欄 / 写真), same fields as CHARA.
+CREATE TABLE IF NOT EXISTS USER_PROFILE (
+  USER_ID    BIGINT       NOT NULL PRIMARY KEY,
+  PREF       VARCHAR(8)   DEFAULT NULL,
+  BLOOD      VARCHAR(4)   DEFAULT NULL,
+  SIGN       VARCHAR(8)   DEFAULT NULL,
+  AGE        INT          DEFAULT NULL,
+  PROFILE    VARCHAR(500) DEFAULT NULL,
+  PHOTO_URL  VARCHAR(255) DEFAULT NULL COMMENT '/img/<HTML_IMAGE.ID>',
+  UPDATED_AT DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The キャラ a broadcast / 差分ステップ / message is sent as (or, for an inbound message, sent to).
+CREATE TABLE IF NOT EXISTS CHARA_REF (
+  ID         BIGINT      AUTO_INCREMENT PRIMARY KEY,
+  OWNER_TYPE VARCHAR(24) NOT NULL COMMENT 'BROADCAST | DIFF_STEP | DIFF_SCHEDULE_STEP | MESSAGE',
+  OWNER_ID   BIGINT      NOT NULL,
+  CHARA_ID   BIGINT      NOT NULL COMMENT 'CHARA.ID',
+  CREATED_AT DATETIME    NOT NULL,
+  UNIQUE KEY UK_CHARA_REF_OWNER (OWNER_TYPE, OWNER_ID),
+  KEY IDX_CHARA_REF_CHARA (CHARA_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 紐づきキャラ (メール): made when a user sends a message to a キャラ; removable on ユーザー詳細.
+CREATE TABLE IF NOT EXISTS USER_CHARA_LINK (
+  ID         BIGINT   AUTO_INCREMENT PRIMARY KEY,
+  USER_ID    BIGINT   NOT NULL,
+  CHARA_ID   BIGINT   NOT NULL,
+  CREATED_AT DATETIME NOT NULL,
+  UNIQUE KEY UK_USER_CHARA_LINK (USER_ID, CHARA_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- pt granted with a manual 入金 on ユーザー詳細 (no row = none recorded).
+CREATE TABLE IF NOT EXISTS PAYMENT_POINT (
+  PAYMENT_ID BIGINT   NOT NULL PRIMARY KEY,
+  POINTS     INT      NOT NULL DEFAULT 0,
+  CREATED_AT DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- リレーサーバー設定 (ユーザーごとの送信経路): priority, 対象条件 and last 疎通確認 of each RELAY_SERVER row.
+CREATE TABLE IF NOT EXISTS RELAY_ROUTE (
+  RELAY_ID      BIGINT       NOT NULL PRIMARY KEY COMMENT 'RELAY_SERVER.ID',
+  PRIORITY      INT          NOT NULL DEFAULT 0 COMMENT 'smaller = checked first',
+  FOLDERS       TEXT         DEFAULT NULL COMMENT 'JSON array of CRM_USER.FOLDER names; empty = all folders',
+  PAY_MIN       INT          DEFAULT NULL COMMENT '入金回数 以上 (NULL = 指定なし)',
+  PAY_MAX       INT          DEFAULT NULL COMMENT '入金回数 以下 (NULL = 指定なし)',
+  CHECK_STATUS  VARCHAR(16)  DEFAULT NULL COMMENT 'ok | denied | unreachable',
+  CHECK_MESSAGE VARCHAR(500) DEFAULT NULL,
+  CHECKED_AT    DATETIME     DEFAULT NULL,
+  UPDATED_AT    DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 自動ログインURL (%auto_login_url% in メールテンプレート設定): one secret token per member; the link logs
+-- the member in without typing ID / password.
+CREATE TABLE IF NOT EXISTS MEMBER_AUTO_LOGIN (
+  USER_ID    BIGINT      NOT NULL PRIMARY KEY,
+  TOKEN      VARCHAR(64) NOT NULL,
+  CREATED_AT DATETIME    NOT NULL,
+  UNIQUE KEY UK_MEMBER_AUTO_LOGIN_TOKEN (TOKEN)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

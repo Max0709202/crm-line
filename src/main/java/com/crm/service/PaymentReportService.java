@@ -96,6 +96,14 @@ public class PaymentReportService {
     private final PaymentSettingService paymentSettingService;
     private final FolderSettingService folderSettingService;
 
+    /** pt entered with a manual 入金 on ユーザー詳細 — optional so hand-built instances work without it. */
+    private com.crm.repository.PaymentPointRepository paymentPointRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPaymentPointRepository(com.crm.repository.PaymentPointRepository paymentPointRepository) {
+        this.paymentPointRepository = paymentPointRepository;
+    }
+
     public PaymentReportService(PaymentRepository paymentRepository,
                                 CrmUserRepository userRepository,
                                 LoginCountService loginCountService,
@@ -118,6 +126,12 @@ public class PaymentReportService {
         Map<String, String> folderColors = folderSettingService.colorMap();
         Map<String, List<PaymentSettingService.Method>> settingsByFolder = new HashMap<>();
         Map<Long, Integer> countByUser = new HashMap<>();
+        Map<Long, Integer> enteredPoints = new HashMap<>();
+        if (paymentPointRepository != null && !payments.isEmpty()) {
+            List<Long> ids = new ArrayList<>();
+            for (Payment p : payments) ids.add(p.getId());
+            for (com.crm.entity.PaymentPoint pp : paymentPointRepository.findAllById(ids)) enteredPoints.put(pp.getPaymentId(), pp.getPoints());
+        }
         List<Row> rows = new ArrayList<>();
         for (Payment p : payments) {
             CrmUser u = users.get(p.getUserId());
@@ -138,9 +152,11 @@ public class PaymentReportService {
             String folder = u == null || u.getFolder() == null ? "" : u.getFolder();
             List<PaymentSettingService.Method> methods =
                     settingsByFolder.computeIfAbsent(folder, paymentSettingService::getMethods);
-            r.points = pointsFor(methods, SETTING_CODE.get(p.getPaymentMethod()), r.amount);
+            // Manual 入金 stores 決済関連設定's method code itself and the pt that was entered.
+            String code = SETTING_CODE.containsKey(p.getPaymentMethod()) ? SETTING_CODE.get(p.getPaymentMethod()) : p.getPaymentMethod();
+            r.points = enteredPoints.containsKey(p.getId()) ? enteredPoints.get(p.getId()) : pointsFor(methods, code, r.amount);
             r.method = p.getPaymentMethod() == null ? "—"
-                    : METHOD_LABEL.getOrDefault(p.getPaymentMethod(), p.getPaymentMethod());
+                    : METHOD_LABEL.getOrDefault(p.getPaymentMethod(), settingLabel(methods, p.getPaymentMethod()));
             r.canceled = !Payment.STATUS_PAID.equals(p.getStatus());
             r.memo = p.getMemo() == null ? "" : p.getMemo().trim();
             rows.add(r);
@@ -169,6 +185,12 @@ public class PaymentReportService {
         if (text.length() > MEMO_MAX) throw new IllegalArgumentException("備考は" + MEMO_MAX + "文字までです");
         p.setMemo(text.isEmpty() ? null : text);
         paymentRepository.save(p);
+    }
+
+    /** Label of a 決済関連設定 method code (as customised for the folder), else the value itself. */
+    private static String settingLabel(List<PaymentSettingService.Method> methods, String code) {
+        for (PaymentSettingService.Method m : methods) if (m.getCode().equals(code)) return m.getLabel();
+        return code;
     }
 
     private static Integer pointsFor(List<PaymentSettingService.Method> methods, String code, BigDecimal amount) {

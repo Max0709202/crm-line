@@ -40,6 +40,12 @@ public class SmsInboundService {
     private final SmsSettingService smsSettingService;
     private final UserActivityService userActivityService;
 
+    /** 紐づきキャラ — optional so hand-built instances (tests) work without it. */
+    private CharaLinkService charaLinkService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
+
     public SmsInboundService(CrmUserRepository userRepository,
                               MessageRepository messageRepository,
                               SmsSettingService smsSettingService,
@@ -110,6 +116,7 @@ public class SmsInboundService {
         m.setStatus(Message.STATUS_SENT);
         if (msgId != null) m.setMessageIdHeader("byteplus-mo:" + msgId);
         messageRepository.save(m);
+        if (charaLinkService != null) charaLinkService.onInbound(m);
         // An SMS reply counts as activity (最終ログイン), same as an inbound email.
         userActivityService.touchLastLogin(user);
 

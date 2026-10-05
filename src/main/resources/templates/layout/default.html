@@ -17,11 +17,10 @@
          white while a page loads; --role-c tints it with the logged-in 権限's color. */-->
     <aside class="admin-aside w-64 bg-slate-900 text-white flex-shrink-0 p-4 flex flex-col fixed inset-y-0 left-0 overflow-y-auto z-20"
            th:style="${crmRole != null} ? '--role-c:' + ${crmRole.color}">
-        <div class="admin-brand mb-1">
+        <div class="admin-brand mb-6">
             <span class="admin-brand-crm">CRM</span>
             <span id="navRoleName" class="admin-brand-role" th:if="${crmRole != null}" th:text="${crmRole.name}">総長</span>
         </div>
-        <div id="navAdminName" class="text-xs text-slate-400 mb-6" th:if="${session.adminUserName}" th:text="${session.adminUserName}"></div>
         <!--/* Grouped nav: each section title expands its items on hover (script below);
              the section holding the current page / last-clicked item stays open via .is-open.
              Items marked 準備中 are placeholders for features not built yet. */-->
@@ -83,11 +82,12 @@
                 <div class="nav-group-items">
                     <a class="nav-link" th:href="@{/manager/settings/domain}" th:unless="${crmRole != null and crmRole.isHidden('domain')}">ドメイン設定</a>
                     <a class="nav-link" th:href="@{/manager/settings/payments}" th:unless="${crmRole != null and crmRole.isHidden('payments')}">決済関連設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/relay-servers}" th:unless="${crmRole != null and crmRole.isHidden('relayServers')}">リレーサーバー設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/mail-templates}" th:unless="${crmRole != null and crmRole.isHidden('mailTemplates')}">メールテンプレート設定</a>
                     <a class="nav-link" th:href="@{/manager/settings/home-html}" th:unless="${crmRole != null and crmRole.isHidden('homeHtml')}">本ドメイン表示設定</a>
                     <a class="nav-link" th:href="@{/manager/settings/site-design}" th:unless="${crmRole != null and crmRole.isHidden('siteDesign')}">番組デザイン設定</a>
                     <a class="nav-link" th:href="@{/manager/settings/memo-html-bulk}" th:unless="${crmRole != null and crmRole.isHidden('memoHtmlBulk')}">HTML 一括編集</a>
                     <a class="nav-link" th:href="@{/manager/settings/html-images}" th:unless="${crmRole != null and crmRole.isHidden('htmlImages')}">HTML画像管理</a>
-                    <a class="nav-link" th:href="@{/manager/settings/relay-servers}" th:unless="${crmRole != null and crmRole.isHidden('relayServers')}">リレーサーバー設定</a>
                     <a class="nav-link" th:href="@{/manager/settings/backup}" th:unless="${crmRole != null and crmRole.isHidden('backup')}">バックアップ設定</a>
                 </div>
             </div>

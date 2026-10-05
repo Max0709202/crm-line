@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,21 +62,14 @@ class RelayServerServiceTest {
     }
 
     @Test
-    void create_active_deactivatesAllOtherActiveRows() {
+    void create_active_leavesOtherActiveRowsActive() {
+        // リレーサーバー設定 (ユーザーごとの送信経路): several relays can be 使用中 at once.
         when(repo.existsByName(anyString())).thenReturn(false);
-        RelayServer existingActive1 = existing(1L, "A", true);
-        RelayServer existingActive2 = existing(2L, "B", true);
-        RelayServer existingInactive = existing(3L, "C", false);
-        when(repo.findAll()).thenReturn(Arrays.asList(existingActive1, existingActive2, existingInactive));
 
         svc.create(formActive("NEW", true));
 
-        // Both previously-active rows should be saved back as inactive; the inactive one is left alone.
-        ArgumentCaptor<RelayServer> savedCap = ArgumentCaptor.forClass(RelayServer.class);
-        verify(repo, atLeast(3)).save(savedCap.capture());
-        assertThat(savedCap.getAllValues())
-                .filteredOn(r -> r.getId() != null && (r.getId().equals(1L) || r.getId().equals(2L)))
-                .allMatch(r -> Boolean.FALSE.equals(r.getIsActive()));
+        verify(repo, never()).findAll();
+        verify(repo, times(1)).save(any(RelayServer.class));
     }
 
     @Test
@@ -89,20 +83,17 @@ class RelayServerServiceTest {
     }
 
     @Test
-    void update_promotingToActive_deactivatesAllOtherActiveRows() {
+    void update_promotingToActive_leavesOtherActiveRowsActive() {
         when(repo.findById(2L)).thenReturn(Optional.of(existing(2L, "B", false)));
         when(repo.existsByName(anyString())).thenReturn(false);
-        RelayServer existingActive = existing(1L, "A", true);
-        RelayServer subject = existing(2L, "B", false);
-        when(repo.findAll()).thenReturn(Arrays.asList(existingActive, subject));
 
         svc.update(2L, formActive("B", true));
 
+        verify(repo, never()).findAll();
         ArgumentCaptor<RelayServer> savedCap = ArgumentCaptor.forClass(RelayServer.class);
-        verify(repo, atLeast(2)).save(savedCap.capture());
-        assertThat(savedCap.getAllValues())
-                .filteredOn(r -> r.getId() != null && r.getId().equals(1L))
-                .allMatch(r -> Boolean.FALSE.equals(r.getIsActive()));
+        verify(repo, times(1)).save(savedCap.capture());
+        assertThat(savedCap.getValue().getId()).isEqualTo(2L);
+        assertThat(savedCap.getValue().getIsActive()).isTrue();
     }
 
     @Test

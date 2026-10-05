@@ -335,6 +335,9 @@
             background:#f1f5f9; border:1px solid #e2e8f0; border-radius:10px;
         }
         .wsx .dtl-img.is-empty { display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; border:1px dashed #cbd5e1; }
+        .wsx button.dtl-img { cursor:zoom-in; }
+        .wsx .dtl-img img { display:block; width:100%; height:100%; object-fit:cover; object-position:center 25%; }
+        .wsx .dtl-attrs .is-pref { color:#475569; background:#f8fafc; }
         .wsx .dtl-body { display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px 12px; min-width:0; }
         .wsx .dtl-profile { flex:0 1 152px; display:flex; flex-direction:column; gap:7px; min-width:140px; }
         .wsx .dtl-head-row { display:flex; align-items:center; gap:8px; min-width:0; }
@@ -361,8 +364,9 @@
         .wsx .dtl-links b { font-weight:700; color:#92400e; }
         .wsx .dtl-links a { color:#2563eb; text-decoration:underline; text-underline-offset:2px; }
         .wsx .dtl-links .dtl-chars { color:#334155; font-weight:600; }
+        /* 値（白）の欄は日付が収まる幅で右寄せ。項目名の欄が残りの幅を使うので、長い項目名も切れにくい（2026-10-05 依頼） */
         .wsx .dtl-table { flex:1 1 150px; min-width:0; margin:0; overflow:hidden; border:1px solid #e2e8f0; border-radius:6px; }
-        .wsx .dtl-table > div { display:grid; grid-template-columns:minmax(72px, 38%) minmax(0, 1fr); }
+        .wsx .dtl-table > div { display:grid; grid-template-columns:minmax(88px, 1fr) minmax(0, 128px); }
         .wsx .dtl-table > div + div { border-top:1px solid #edf1f5; }
         .wsx .dtl-table dt, .wsx .dtl-table dd { min-width:0; padding:3px 9px; line-height:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .wsx .dtl-table dt { font-size:11px; color:#64748b; background:#f8fafc; border-right:1px solid #edf1f5; }
@@ -400,6 +404,11 @@
         .wsx .dtl-mini > .dtl-mini-folder::before, .wsx .dtl-mini > .dtl-mini-folder + span::before { display:none; }
         .wsx .dtl-mini > .dtl-mini-folder + span { margin-left:12px; }
         .wsx .dtl-mini > .dtl-mini-staff::before { display:none; }
+        .wsx .dtl-mini > .dtl-mini-pt { margin:0 2px; padding:0 8px; font-size:13px; font-weight:800; color:#b45309; background:#fff7ed; border:1px solid #fdba74; border-radius:5px; }
+        .wsx .dtl-mini > .dtl-mini-pt::before, .wsx .dtl-mini > .dtl-mini-pt + span::before { display:none; }
+        .wsx .dtl-mini > .dtl-mini-pt + span { margin-left:6px; }
+        .wsx .dtl-chars a { color:#2563eb; text-decoration:underline; text-underline-offset:2px; }
+        .wsx .dtl-log-chara { margin-left:8px; padding:0 6px; font-size:11px; font-weight:600; color:#7c3aed; background:#f5f3ff; border-radius:4px; }
         .wsx .pane-tr > .dtl-log-head {
             flex:none; display:flex; align-items:center; gap:10px; padding:5px 8px 5px 12px;
             font-size:11px; color:#94a3b8; background:#fff; border-bottom:1px solid #edf1f5;
@@ -474,6 +483,7 @@
         }
         .thread-lightbox { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.85); align-items:center; justify-content:center; cursor:zoom-out; }
         .thread-lightbox img { max-width:92vw; max-height:92vh; box-shadow:0 4px 30px rgba(0,0,0,.5); }
+        .thread-lightbox.is-photo img { width:min(320px, 80vw); max-height:80vh; object-fit:contain; border-radius:10px; }
     </style>
 </head>
 <body>
@@ -580,7 +590,9 @@
                 <div class="dtl-body">
                     <div class="dtl-profile">
                         <div class="dtl-head-row">
-                            <span class="dtl-img is-empty">画像</span>
+                            <button type="button" class="dtl-img" th:if="${userProfile.photoUrl != null}" title="クリックで拡大"
+                                    th:attr="data-zoom=${userProfile.photoUrl}" onclick="openPhotoZoom(this.getAttribute('data-zoom'));"><img th:src="${userProfile.photoUrl}" alt=""/></button>
+                            <span class="dtl-img is-empty" th:if="${userProfile.photoUrl == null}">画像</span>
                             <div class="dtl-ident">
                                 <div class="dtl-name"><span th:text="${uname}">ユーザー</span><span th:if="${ugender == 'male'}" class="dtl-gender is-male">男性</span><span th:if="${ugender == 'female'}" class="dtl-gender is-female">女性</span></div>
                                 <a class="dtl-id" th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + ${user.id}">ID</a>
@@ -593,8 +605,11 @@
                             <span th:if="${activeMemoLabel != null}"><b>専用HTML使用中</b><br/><a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank" rel="noopener" th:text="${activeMemoLabel}">返信HTML</a></span>
                             <span th:unless="${activeMemoLabel != null}">専用HTML：未使用</span>
                             <a th:href="@{'/manager/users/' + ${user.id} + '/message-box'}" target="_blank" rel="noopener">ユーザーの受信画面を確認 ↗</a>
-                            <span class="dtl-chars" th:if="${!linkedCharNames.isEmpty()}" th:text="'紐づきキャラ' + ${linkedCharNames.size()} + '人 ' + ${#strings.arrayJoin(linkedCharNames.values().toArray(), ' / ')}">紐づきキャラ</span>
-                            <span class="dtl-chars" th:if="${linkedCharNames.isEmpty()}">紐づきキャラ なし</span>
+                            <!-- 紐づきキャラ: クリックでそのキャラとのやり取り（返信画面）を別タブで開く -->
+                            <span class="dtl-chars" th:if="${!linkedCharas.isEmpty() or !linkedCharNames.isEmpty()}">紐づきキャラ<th:block th:text="${linkedCharas.size() + linkedCharNames.size()} + '人 '"/><th:block
+                                th:each="c, it : ${linkedCharas}"><a th:href="@{'/manager/users/' + ${user.id} + '/thread'(chara=${c.id})}" target="_blank" rel="noopener" th:text="${c.name}">キャラ</a><th:block th:unless="${it.last and linkedCharNames.isEmpty()}"> / </th:block></th:block><th:block
+                                th:each="c, it : ${linkedCharNames}"><a th:href="@{'/manager/users/' + ${user.id} + '/thread'(line=${c.key})}" target="_blank" rel="noopener" th:text="${c.value} + '(LINE)'">キャラ</a><th:block th:unless="${it.last}"> / </th:block></th:block></span>
+                            <span class="dtl-chars" th:if="${linkedCharas.isEmpty() and linkedCharNames.isEmpty()}">紐づきキャラ なし</span>
                         </div>
                     </div>
                     <dl class="dtl-table">
@@ -615,18 +630,25 @@
                 <div class="dtl-body">
                     <div class="dtl-profile">
                         <div class="dtl-head-row">
-                            <span class="dtl-img is-empty">画像</span>
+                            <button type="button" class="dtl-img" th:if="${cardChara != null and cardChara.photoUrl != null}" title="クリックで拡大"
+                                    th:attr="data-zoom=${cardChara.photoUrl}" onclick="openPhotoZoom(this.getAttribute('data-zoom'));"><img th:src="${cardChara.photoUrl}" alt=""/></button>
+                            <span class="dtl-img is-empty" th:unless="${cardChara != null and cardChara.photoUrl != null}">画像</span>
                             <div class="dtl-ident">
                                 <div class="dtl-name"><span th:text="${charName} ?: 'キャラ未設定'">キャラ</span></div>
-                                <span class="dtl-id is-none">ID —</span>
+                                <span class="dtl-id is-none" th:text="${cardChara != null} ? 'ID ' + ${cardChara.id} : 'ID —'">ID —</span>
                             </div>
                         </div>
+                        <!-- 写真の下: フォルダ名 → 都道府県（未設定は「未設定」） -->
+                        <ul class="dtl-attrs" th:if="${cardChara != null}">
+                            <li class="is-folder" th:text="${cardCharaFolder} ?: '未分類'">フォルダ</li>
+                            <li class="is-pref" th:text="${cardChara.pref} ?: '未設定'">都道府県</li>
+                        </ul>
                     </div>
                     <dl class="dtl-table">
-                        <div><dt>文字入れ A</dt><dd>—</dd></div>
-                        <div><dt>文字入れ B</dt><dd>—</dd></div>
-                        <div><dt>文字入れ C</dt><dd>—</dd></div>
-                        <div><dt>文字入れ D</dt><dd>—</dd></div>
+                        <div><dt>登録日時</dt><dd th:text="${cardChara != null and cardChara.createdAt != null} ? ${#temporals.format(cardChara.createdAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
+                        <div><dt>血液型</dt><dd th:text="${cardChara != null and cardChara.blood != null} ? ${cardChara.blood} : '—'">—</dd></div>
+                        <div><dt>星座</dt><dd th:text="${cardChara != null and cardChara.sign != null} ? ${cardChara.sign} : '—'">—</dd></div>
+                        <div><dt>年齢</dt><dd th:text="${cardChara != null and cardChara.age != null} ? ${cardChara.age} + '歳' : '—'">—</dd></div>
                         <div><dt>文字入れ E</dt><dd>—</dd></div>
                     </dl>
                 </div>
@@ -642,12 +664,16 @@
             <span><a th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + ${user.id}">ID</a></span>
             <span th:if="${user.folder != null and !#strings.isEmpty(user.folder)}" class="dtl-mini-folder" th:style="${folderColors.get(user.folder) != null} ? 'background:' + ${folderColors.get(user.folder)}" th:text="${user.folder}">フォルダ</span>
             <span><i>広告コード</i><th:block th:text="${user.adCode != null and !#strings.isEmpty(user.adCode)} ? ${user.adCode} : '—'"/></span>
+            <span><i>都道府県</i><th:block th:text="${userProfile.pref} ?: '未設定'"/></span>
+            <span><i>年齢</i><th:block th:text="${userProfile.age != null} ? ${userProfile.age} + '歳' : '未設定'"/></span>
+            <span class="dtl-mini-pt" th:text="${#numbers.formatInteger(userPoints, 1, 'COMMA')} + 'pt'">0pt</span>
             <span><i>入金額</i><th:block th:text="${#numbers.formatDecimal(totalPaid, 1, 'COMMA', 0, 'POINT')} + '円'"/></span>
             <span class="dtl-mini-staff"><b th:text="${charName} ?: 'キャラ未設定'">キャラ</b></span>
         </div>
 
         <div class="dtl-log-head" th:data-gender="${ugender}">
             <span class="dtl-log-title">やり取り履歴</span>
+            <span class="dtl-log-chara" th:if="${viewChara != null}" th:text="'キャラ「' + ${viewChara.name} + '」とのやり取りのみ'">キャラ</span>
             <span class="dtl-log-count" th:text="'受信 ' + ${threadInCount} + '・送信 ' + ${threadOutCount}">受信 0・送信 0</span>
             <span class="dtl-log-legend"><span><i class="lg-in"></i>左：ユーザー</span><span><i class="lg-out"></i>右：キャラ</span></span>
             <button type="button" class="dtl-toggle" id="dtlToggleCards" aria-expanded="true" aria-controls="dtlCards">情報を閉じる</button>
@@ -743,6 +769,8 @@
           <div class="cmp-layout">
             <form method="post" th:action="@{'/manager/users/' + ${user.id} + '/messages'}" th:object="${form}" class="cmp-form">
                 <input type="hidden" th:field="*{replyToMessageId}"/>
+                <input type="hidden" name="charaId" th:if="${cardChara != null}" th:value="${cardChara.id}"/>
+                <input type="hidden" name="charaView" value="1" th:if="${viewChara != null}"/>
 
                 <div>
                     <input type="text" id="subject" th:field="*{subject}" placeholder="件名"/>
@@ -763,7 +791,8 @@
                     <select th:if="${#maps.size(linkedCharNames) > 1}" name="lineAccountId"
                             title="LINE返信を送るキャラ"
                             style="font-size:.72rem;padding:3px 4px;border:1px solid #06C755;border-radius:4px;max-width:12em;">
-                        <option th:each="c : ${linkedCharNames}" th:value="${c.key}" th:text="${c.value}">キャラ</option>
+                        <option th:each="c : ${linkedCharNames}" th:value="${c.key}" th:text="${c.value}"
+                                th:selected="${selectedLineAccountId != null and selectedLineAccountId == c.key}">キャラ</option>
                     </select>
                     <button type="submit" th:if="${hasLineLink}"
                             th:formaction="@{'/manager/users/' + ${user.id} + '/messages/line'}"
@@ -788,7 +817,7 @@
                 <div style="margin-top:2px;border-top:1px solid #e2e8f0;padding-top:2px;">
                     <label class="text-xs text-slate-500" style="font-weight:600;">個別メモ <span class="text-slate-400 font-normal">(管理者用)</span></label>
                     <div class="memo-row">
-                        <textarea id="userInternalMemo" th:text="${user.internalMemo}" placeholder="このユーザーに関する社内メモ"></textarea>
+                        <textarea id="userInternalMemo" th:text="${user.internalMemo}"></textarea>
                         <button type="button" class="btn-mini" id="btnInternalMemoSave"
                                 th:attr="data-user-id=${user.id}">保存</button>
                     </div>
@@ -1443,8 +1472,15 @@ function openThreadLightbox(src) {
     var lb = document.getElementById('threadLightbox');
     var im = document.getElementById('threadLightboxImg');
     if (!lb || !im) return;
+    lb.classList.remove('is-photo');
     im.src = src;
     lb.style.display = 'flex';
+}
+/** ユーザー / キャラ の写真: 少し大きく表示（クリック・Escで閉じる） */
+function openPhotoZoom(src) {
+    openThreadLightbox(src);
+    var lb = document.getElementById('threadLightbox');
+    if (lb) lb.classList.add('is-photo');
 }
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {

@@ -90,11 +90,12 @@ public class AdminRoleService {
             new MenuGroup("サイト構成",
                     new MenuItem("domain", "ドメイン設定", "/manager/settings/domain"),
                     new MenuItem("payments", "決済関連設定", "/manager/settings/payments"),
+                    new MenuItem("relayServers", "リレーサーバー設定", "/manager/settings/relay-servers"),
+                    new MenuItem("mailTemplates", "メールテンプレート設定", "/manager/settings/mail-templates"),
                     new MenuItem("homeHtml", "本ドメイン表示設定", "/manager/settings/home-html"),
                     new MenuItem("siteDesign", "番組デザイン設定", "/manager/settings/site-design"),
                     new MenuItem("memoHtmlBulk", "HTML 一括編集", "/manager/settings/memo-html-bulk"),
                     new MenuItem("htmlImages", "HTML画像管理", "/manager/settings/html-images"),
-                    new MenuItem("relayServers", "リレーサーバー設定", "/manager/settings/relay-servers"),
                     new MenuItem("backup", "バックアップ設定", "/manager/settings/backup"))));
 
     /** Items the top role can never hide (lock-out prevention). */

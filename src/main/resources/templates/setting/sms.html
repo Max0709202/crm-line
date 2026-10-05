@@ -147,9 +147,22 @@
                 「Webhook settings &gt; Message group を選択 &gt; SMS webhook URL &gt; Inbound message webhook endpoint」に登録してください
                 (Delivery receipt / Short URL click / Template review の各欄は空欄のままで構いません)。
             </p>
-            <input type="text" readonly class="tw-input bg-white text-xs" th:value="${inboundWebhookUrl}"
-                   onclick="this.select()"/>
+            <th:block th:if="${inboundWebhookUrl != null}">
+                <input type="text" readonly class="tw-input bg-white text-xs" th:value="${inboundWebhookUrl}"
+                       onclick="this.select()"/>
+            </th:block>
+            <p th:if="${inboundWebhookUrl == null}" class="font-semibold">
+                受信用URLは削除されています (ユーザーからのSMS返信は受け付けません)。
+            </p>
         </div>
+        <label th:if="${inboundWebhookUrl != null}" class="mb-2 inline-flex items-center text-sm text-red-700">
+            <input type="checkbox" name="inboundUrl" value="delete" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/>
+            受信用URLを削除する (保存すると削除され、SMS返信を受け付けなくなります)
+        </label>
+        <label th:if="${inboundWebhookUrl == null}" class="mb-2 inline-flex items-center text-sm text-slate-700">
+            <input type="checkbox" name="inboundUrl" value="reissue" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/>
+            受信用URLを新しく発行する
+        </label>
 
         <div class="flex items-center gap-3 mt-6">
             <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>

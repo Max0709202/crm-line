@@ -114,6 +114,12 @@ public class InboundMailService {
         this.supportDeskService = supportDeskService;
     }
 
+    /** 紐づきキャラ — optional so hand-built instances (tests) work without it. */
+    private CharaLinkService charaLinkService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
+
     public InboundMailService(InboundMailLogRepository logRepository,
                               CarrierAddressPoolRepository poolRepository,
                               CrmUserRepository userRepository,
@@ -328,6 +334,7 @@ public class InboundMailService {
         msg.setStatus(Message.STATUS_SENT);
         msg.setSentAt(LocalDateTime.now());
         messageRepository.save(msg);
+        if (charaLinkService != null) charaLinkService.onInbound(msg);
 
         userActivityService.touchLastLogin(user);
 
@@ -438,6 +445,7 @@ public class InboundMailService {
         msg.setStatus(Message.STATUS_SENT);
         msg.setSentAt(java.time.LocalDateTime.now());
         messageRepository.save(msg);
+        if (charaLinkService != null) charaLinkService.onInbound(msg);
 
         userActivityService.touchLastLogin(user);
 

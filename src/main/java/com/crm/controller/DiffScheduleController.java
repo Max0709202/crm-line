@@ -35,19 +35,25 @@ public class DiffScheduleController {
     private final com.crm.service.CrmUserService crmUserService;
     private final com.crm.service.LineAccountService lineAccountService;
     private final com.crm.service.HtmlImageService htmlImageService;
+    private final com.crm.service.CharaLinkService charaLinkService;
+    private final com.crm.service.CharaService charaService;
 
     public DiffScheduleController(DiffScheduleService scheduleService,
                                    DiffDefinitionService definitionService,
                                    FolderSettingService folderSettingService,
                                    com.crm.service.CrmUserService crmUserService,
                                    com.crm.service.LineAccountService lineAccountService,
-                                   com.crm.service.HtmlImageService htmlImageService) {
+                                   com.crm.service.HtmlImageService htmlImageService,
+                                   com.crm.service.CharaLinkService charaLinkService,
+                                   com.crm.service.CharaService charaService) {
         this.scheduleService = scheduleService;
         this.definitionService = definitionService;
         this.folderSettingService = folderSettingService;
         this.crmUserService = crmUserService;
         this.lineAccountService = lineAccountService;
         this.htmlImageService = htmlImageService;
+        this.charaLinkService = charaLinkService;
+        this.charaService = charaService;
     }
 
     /** Parents + their children, flattened, for the LINE-account picker — mirrors
@@ -238,6 +244,16 @@ public class DiffScheduleController {
         model.addAttribute("builtinTags", PlaceholderService.BUILTIN_TAGS);
         model.addAttribute("lineAccounts", allLineAccountsFlat());
         model.addAttribute("htmlImages", htmlImageService.listAll());
+        // 送信キャラ (EMAIL / SMS のメッセージステップ): フォルダ → キャラ
+        java.util.List<Long> stepIds = new java.util.ArrayList<>();
+        for (com.crm.entity.DiffStep st : definitionService.listSteps(id)) stepIds.add(st.getId());
+        model.addAttribute("stepCharaIds", charaLinkService.charaIdsOf(com.crm.entity.CharaRef.OWNER_DIFF_STEP, stepIds));
+        model.addAttribute("charaFolders", charaService.folders());
+        java.util.List<com.crm.entity.Chara> charas = charaService.list();
+        java.util.Map<Long, String> charaNames = new java.util.HashMap<>();
+        for (com.crm.entity.Chara c : charas) charaNames.put(c.getId(), c.getName());
+        model.addAttribute("charas", charas);
+        model.addAttribute("charaNames", charaNames);
         return "setting/diff-schedule-steps";
     }
 
@@ -254,10 +270,12 @@ public class DiffScheduleController {
                            @RequestParam(required = false) Integer memoSlot,
                            @RequestParam(required = false) Long lineAccountId,
                            @RequestParam(required = false) Long imageId,
+                           @RequestParam(required = false) Long charaId,
                            RedirectAttributes ra) {
         try {
-            definitionService.addStep(id, offsetMode, offsetMinutes, offsetDays, offsetClockTime,
+            com.crm.entity.DiffStep added = definitionService.addStep(id, offsetMode, offsetMinutes, offsetDays, offsetClockTime,
                     stepType, channel, subject, body, memoSlot, lineAccountId, imageId);
+            charaLinkService.assign(com.crm.entity.CharaRef.OWNER_DIFF_STEP, added.getId(), stepCharaId(added, charaId));
             ra.addFlashAttribute("flashSuccess", "ステップを追加しました");
         } catch (IllegalArgumentException | DiffDefinitionService.TooManyStepsException
                  | DiffDefinitionService.NotFoundException e) {
@@ -280,10 +298,13 @@ public class DiffScheduleController {
                               @RequestParam(required = false) Integer memoSlot,
                               @RequestParam(required = false) Long lineAccountId,
                               @RequestParam(required = false) Long imageId,
+                              @RequestParam(required = false) Long charaId,
                               RedirectAttributes ra) {
         try {
-            boolean ok = definitionService.updateStep(stepId, offsetMode, offsetMinutes, offsetDays,
-                    offsetClockTime, stepType, channel, subject, body, memoSlot, lineAccountId, imageId).isPresent();
+            java.util.Optional<com.crm.entity.DiffStep> updated = definitionService.updateStep(stepId, offsetMode, offsetMinutes, offsetDays,
+                    offsetClockTime, stepType, channel, subject, body, memoSlot, lineAccountId, imageId);
+            updated.ifPresent(st -> charaLinkService.assign(com.crm.entity.CharaRef.OWNER_DIFF_STEP, st.getId(), stepCharaId(st, charaId)));
+            boolean ok = updated.isPresent();
             ra.addFlashAttribute(ok ? "flashSuccess" : "flashError", ok ? "ステップを更新しました" : "ステップが見つかりません");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
@@ -291,9 +312,19 @@ public class DiffScheduleController {
         return "redirect:/manager/settings/diff-schedule/definitions/" + diffDefinitionId + "/steps";
     }
 
+    /** 送信キャラ only applies to EMAIL / SMS message steps (not HTML切替, not LINE). */
+    private static Long stepCharaId(com.crm.entity.DiffStep step, Long charaId) {
+        boolean message = com.crm.entity.DiffStep.STEP_MESSAGE.equals(step.getStepType())
+                || com.crm.entity.DiffStep.STEP_MESSAGE_IMAGE.equals(step.getStepType());
+        boolean mailOrSms = com.crm.entity.DiffStep.CHANNEL_EMAIL.equals(step.getChannel())
+                || com.crm.entity.DiffStep.CHANNEL_SMS.equals(step.getChannel());
+        return message && mailOrSms ? charaId : null;
+    }
+
     @PostMapping("/steps/{stepId}/delete")
     public String deleteStep(@PathVariable Long stepId, @RequestParam Long diffDefinitionId, RedirectAttributes ra) {
         definitionService.deleteStep(stepId);
+        charaLinkService.assign(com.crm.entity.CharaRef.OWNER_DIFF_STEP, stepId, null);
         ra.addFlashAttribute("flashSuccess", "ステップを削除しました");
         return "redirect:/manager/settings/diff-schedule/definitions/" + diffDefinitionId + "/steps";
     }

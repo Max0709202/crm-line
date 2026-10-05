@@ -2,11 +2,9 @@ package com.crm.controller;
 
 import com.crm.dto.DomainSettingForm;
 import com.crm.dto.MessageTemplateForm;
-import com.crm.dto.RelayServerForm;
 import com.crm.dto.ReplyPageSettingForm;
 import com.crm.dto.SmsSettingForm;
 import com.crm.entity.MessageTemplate;
-import com.crm.entity.RelayServer;
 import com.crm.interceptor.AuthInterceptor;
 import com.crm.service.AdminAuthService;
 import com.crm.service.AuditLogService;
@@ -41,7 +39,6 @@ public class SettingController {
     private final AuditLogService auditLog;
     private final DomainSettingService domainSettingService;
     private final com.crm.service.FolderSettingService folderSettingService;
-    private final com.crm.service.HttpRelayOutboundMailService httpRelayOutboundMailService;
     private final com.crm.service.HomeHtmlService homeHtmlService;
     private final com.crm.service.CrmUserService crmUserService;
     private final com.crm.service.ReplyHtmlSlotService replyHtmlSlotService;
@@ -62,7 +59,6 @@ public class SettingController {
                              AuditLogService auditLog,
                              DomainSettingService domainSettingService,
                              com.crm.service.FolderSettingService folderSettingService,
-                             org.springframework.beans.factory.ObjectProvider<com.crm.service.HttpRelayOutboundMailService> httpRelayProvider,
                              com.crm.service.HomeHtmlService homeHtmlService,
                              com.crm.service.CrmUserService crmUserService,
                              com.crm.service.ReplyHtmlSlotService replyHtmlSlotService,
@@ -82,7 +78,6 @@ public class SettingController {
         this.auditLog = auditLog;
         this.domainSettingService = domainSettingService;
         this.folderSettingService = folderSettingService;
-        this.httpRelayOutboundMailService = httpRelayProvider.getIfAvailable();
         this.homeHtmlService = homeHtmlService;
         this.crmUserService = crmUserService;
         this.replyHtmlSlotService = replyHtmlSlotService;
@@ -582,115 +577,7 @@ public class SettingController {
         return "redirect:/manager/settings/external-link-domains";
     }
 
-    // ====== Relay servers ======
-    @GetMapping("/relay-servers")
-    public String relayList(Model model) {
-        model.addAttribute("relays", relayServerService.listAll());
-        // Active relay host = the one HttpRelayOutboundMailService is configured to talk to.
-        // Used by the template to badge the "in-use" row. May be empty if the relay adapter
-        // isn't active (e.g. stub mode in dev).
-        model.addAttribute("activeRelayHost",
-                httpRelayOutboundMailService == null ? "" : httpRelayOutboundMailService.getActiveRelayHost());
-        model.addAttribute("useRelay", domainSettingService.isOutboundUseRelay());
-        return "setting/relay-list";
-    }
-
-    @PostMapping("/relay-servers/toggle")
-    public String relayToggle(@RequestParam(name = "useRelay", required = false) String useRelay,
-                              RedirectAttributes ra) {
-        boolean enabled = "true".equalsIgnoreCase(useRelay) || "on".equalsIgnoreCase(useRelay) || "1".equals(useRelay);
-        domainSettingService.setOutboundUseRelay(enabled);
-        ra.addFlashAttribute("flashSuccess", enabled
-                ? "リレー (転送機) を使用する設定に切り替えました"
-                : "リレーを使用しない設定に切り替えました (登録済みカウントの SMTP で直接送信されます)");
-        return "redirect:/manager/settings/relay-servers";
-    }
-
-    @GetMapping("/relay-servers/new")
-    public String relayCreateForm(Model model) {
-        model.addAttribute("form", new RelayServerForm());
-        model.addAttribute("editing", false);
-        return "setting/relay-form";
-    }
-
-    @PostMapping("/relay-servers")
-    public String relayCreate(@Valid @ModelAttribute("form") RelayServerForm form,
-                              BindingResult br, RedirectAttributes ra, Model model) {
-        if (br.hasErrors()) {
-            model.addAttribute("editing", false);
-            return "setting/relay-form";
-        }
-        try {
-            relayServerService.create(form);
-            ra.addFlashAttribute("flashSuccess", "リレーサーバーを追加しました");
-            return "redirect:/manager/settings/relay-servers";
-        } catch (RelayServerService.DuplicateNameException e) {
-            br.rejectValue("name", "duplicate", "この名前は既に登録されています");
-            model.addAttribute("editing", false);
-            return "setting/relay-form";
-        }
-    }
-
-    @GetMapping("/relay-servers/{id}/edit")
-    public String relayEditForm(@PathVariable Long id, Model model, RedirectAttributes ra) {
-        Optional<RelayServer> r = relayServerService.findById(id);
-        if (!r.isPresent()) {
-            ra.addFlashAttribute("flashError", "リレーサーバーが見つかりません");
-            return "redirect:/manager/settings/relay-servers";
-        }
-        model.addAttribute("form", RelayServerForm.from(r.get()));
-        model.addAttribute("relayId", id);
-        model.addAttribute("editing", true);
-        return "setting/relay-form";
-    }
-
-    @PostMapping("/relay-servers/{id}")
-    public String relayUpdate(@PathVariable Long id,
-                              @Valid @ModelAttribute("form") RelayServerForm form,
-                              BindingResult br, RedirectAttributes ra, Model model) {
-        if (br.hasErrors()) {
-            model.addAttribute("relayId", id);
-            model.addAttribute("editing", true);
-            return "setting/relay-form";
-        }
-        try {
-            relayServerService.update(id, form);
-            ra.addFlashAttribute("flashSuccess", "リレーサーバーを更新しました");
-            return "redirect:/manager/settings/relay-servers";
-        } catch (RelayServerService.DuplicateNameException e) {
-            br.rejectValue("name", "duplicate", "この名前は既に登録されています");
-            model.addAttribute("relayId", id);
-            model.addAttribute("editing", true);
-            return "setting/relay-form";
-        } catch (RelayServerService.NotFoundException e) {
-            ra.addFlashAttribute("flashError", "リレーサーバーが見つかりません");
-            return "redirect:/manager/settings/relay-servers";
-        }
-    }
-
-    @PostMapping("/relay-servers/{id}/delete")
-    public String relayDelete(@PathVariable Long id, RedirectAttributes ra) {
-        relayServerService.delete(id);
-        ra.addFlashAttribute("flashSuccess", "リレーサーバーを削除しました");
-        return "redirect:/manager/settings/relay-servers";
-    }
-
-    /** Bulk-delete from the relay-servers list page (checkbox + 選択削除 pattern). */
-    @PostMapping("/relay-servers/bulk-delete")
-    public String relayBulkDelete(@RequestParam(name = "ids", required = false) java.util.List<Long> ids,
-                                  RedirectAttributes ra) {
-        if (ids == null || ids.isEmpty()) {
-            ra.addFlashAttribute("flashError", "削除対象が選択されていません");
-            return "redirect:/manager/settings/relay-servers";
-        }
-        int n = 0;
-        for (Long id : ids) {
-            if (id == null) continue;
-            try { relayServerService.delete(id); n++; } catch (Exception ignored) {}
-        }
-        ra.addFlashAttribute("flashSuccess", n + " 件のリレーサーバーを削除しました");
-        return "redirect:/manager/settings/relay-servers";
-    }
+    // ====== Relay servers: RelayServerController (リレーサーバー設定) ======
 
     // ====== Message templates ======
     @GetMapping("/message-templates")
@@ -951,14 +838,15 @@ public class SettingController {
         model.addAttribute("form", form);
         String base = domainSettingService.getReplyBaseUrl();
         String token = smsSettingService.getOrCreateInboundToken();
-        model.addAttribute("inboundWebhookUrl",
-                (base == null || base.trim().isEmpty() ? "" : base.trim()) + "/api/inbound/sms/" + token);
+        model.addAttribute("inboundWebhookUrl", token == null ? null
+                : (base == null || base.trim().isEmpty() ? "" : base.trim()) + "/api/inbound/sms/" + token);
         return "setting/sms";
     }
 
     @PostMapping("/sms")
     public String smsSave(@ModelAttribute("form") SmsSettingForm form,
                           @RequestParam(value = "clearCredentials", required = false) String clearCredentials,
+                          @RequestParam(value = "inboundUrl", required = false) String inboundUrl,
                           RedirectAttributes ra) {
         String fixedListError = com.crm.service.SmsSettingService.validateFixedList(form.getSenderNameFixedList());
         if (fixedListError != null) {
@@ -979,6 +867,12 @@ public class SettingController {
                 form.getRatePerMinute());
         smsSettingService.setReplyUrlClipLength(
                 form.getReplyUrlClipLength() == null ? 15 : form.getReplyUrlClipLength());
+        // 受信設定: delete the webhook URL / issue a new one
+        if ("delete".equals(inboundUrl)) {
+            smsSettingService.deleteInboundToken();
+        } else if ("reissue".equals(inboundUrl)) {
+            smsSettingService.reissueInboundToken();
+        }
         // A blank password keeps the stored one, so clearing the credentials needs its own switch.
         if ("true".equals(clearCredentials)) {
             smsSettingService.clearCredentials();

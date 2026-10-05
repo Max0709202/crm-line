@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+<title>リレーサーバー設定</title>
+<!--/* サイト構成 › リレーサーバー設定 — the client-approved design (relay_servers.html), styles scoped to .rsw. Data: RelayServerController. */-->
+<style>
+  main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; }
+  /* ===== 共通（他の設定画面と同じ色合い） ===== */
+
+  .rsw {
+    margin: 0; color: #334155; background: #f8fafc; font-size: 13px; line-height: 1.5;
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+  }
+  .rsw [hidden] { display: none !important; }
+  .rsw button, .rsw input, .rsw textarea, .rsw select { font: inherit; color: inherit; }
+  .rsw code { padding: 0 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: rgba(255, 255, 255, .6); border-radius: 3px; }
+  .rsw .card { background: #fff; border: 1px solid #f1f5f9; border-radius: 8px; box-shadow: 0 1px 2px rgba(15, 23, 42, .05); }
+  .rsw .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 14px;
+    font-size: 13px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+    transition: background-color .12s, border-color .12s;
+  }
+  .rsw .btn-primary { color: #fff; background: #2563eb; }
+  .rsw .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+  .rsw .btn-outline { color: #475569; background: #fff; border-color: #cbd5e1; }
+  .rsw .btn-outline:hover:not(:disabled) { background: #f8fafc; }
+  .rsw .btn-danger { color: #fff; background: #dc2626; }
+  .rsw .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+  .rsw .btn:disabled { color: #fff; background: #cbd5e1; border-color: transparent; cursor: not-allowed; }
+  .rsw .btn-sm { padding: 3px 10px; font-size: 12px; }
+  .rsw .btn:focus-visible, .rsw .input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .2); }
+  .rsw .input {
+    width: 100%; box-sizing: border-box; padding: 6px 10px; font-size: 13px; color: #1e293b;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+  }
+  .rsw .input.is-err { border-color: #f87171; }
+  .rsw .chk { width: 14px; height: 14px; margin: 0; accent-color: #2563eb; cursor: pointer; }
+  .rsw .card-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
+  .rsw .card-title { font-size: 14px; font-weight: 700; color: #1e293b; white-space: nowrap; }
+  .rsw .card-sub { font-size: 11.5px; color: #94a3b8; white-space: nowrap; }
+
+  /* 送信方式・対象ユーザー・疎通結果のラベル */
+  .rsw .tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; font-size: 11px; font-weight: 600; line-height: 17px; white-space: nowrap; border-radius: 4px; }
+  .rsw .tag-smtp { color: #1d4ed8; background: #eff6ff; }
+  .rsw .tag-api { color: #6d28d9; background: #f5f3ff; }
+  .rsw .tag-folder { color: #334155; background: #f1f5f9; border: 1px solid #e2e8f0; }
+  .rsw .tag-pay { color: #047857; background: #ecfdf5; border: 1px solid #d1fae5; }
+  .rsw .tag-all { color: #b45309; background: #fffbeb; border: 1px solid #fde68a; }
+  .rsw .ck { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .rsw .ck::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .rsw .ck-ok { color: #059669; }
+  .rsw .ck-denied { color: #d97706; }
+  .rsw .ck-unreachable { color: #dc2626; }
+  .rsw .ck-none { color: #94a3b8; font-weight: 500; }
+  .rsw .ck-run { color: #2563eb; }
+  .rsw .ck-run::before { width: 10px; height: 10px; background: none; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* スイッチ */
+  .rsw .sw { position: relative; display: inline-block; flex: none; width: 36px; height: 20px; vertical-align: middle; }
+  .rsw .sw input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+  .rsw .sw span { position: absolute; inset: 0; background: #cbd5e1; border-radius: 10px; transition: background-color .15s; pointer-events: none; }
+  .rsw .sw span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: transform .15s; }
+  .rsw .sw input:checked + span { background: #34d399; }
+  .rsw .sw input:checked + span::after { transform: translateX(16px); }
+  .rsw .sw input:focus-visible + span { box-shadow: 0 0 0 3px rgba(59, 130, 246, .3); }
+
+  /* ===== 画面全体 ===== */
+  .rsw .rs { display: flex; flex-direction: column; height: 100vh; padding: 12px 16px 16px; box-sizing: border-box; gap: 12px; }
+  .rsw .rs-head { display: flex; align-items: center; gap: 14px; flex: none; }
+  .rsw .rs-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: #1e293b; }
+  .rsw .rs-chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 12px; font-size: 12px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; }
+  .rsw .rs-chip b { color: #1e293b; }
+  .rsw .rs-head .btn-primary { margin-left: auto; }
+
+  .rsw .rs-top { flex: none; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; }
+  .rsw .rule { padding: 10px 14px; font-size: 12.5px; color: #0c4a6e; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; }
+  .rsw .rule b.ttl { display: block; margin-bottom: 4px; font-size: 13px; }
+  .rsw .rule ol { margin: 0; padding-left: 18px; }
+  .rsw .rule li { margin: 1px 0; }
+  .rsw .rule small { color: #0369a1; }
+
+  .rsw .sim { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; }
+  .rsw .sim-ttl { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1e293b; }
+  .rsw .sim-ttl small { font-weight: 400; color: #94a3b8; }
+  .rsw .sim-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .rsw .sim-row label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
+  .rsw .sim-row select.input { width: 150px; padding: 4px 8px; }
+  .rsw .sim-row input.input { width: 70px; padding: 4px 8px; }
+  .rsw .sim-res { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 5px 10px; font-size: 12.5px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; }
+  .rsw .sim-res .arrow { color: #94a3b8; }
+  .rsw .sim-res b { color: #1e293b; }
+
+  .rsw .rs-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; }
+  .rsw .rs-main > .card { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+
+  /* ===== 左：一覧 ===== */
+  .rsw .ls-scroll { flex: 1; min-height: 0; overflow: auto; }
+  .rsw .rt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+  .rsw .rt th {
+    position: sticky; top: 0; z-index: 1; padding: 7px 10px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-align: left;
+    color: #64748b; white-space: nowrap; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+  }
+  .rsw .rt td { padding: 9px 10px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; }
+  .rsw .rt .c-chk { width: 1%; padding-left: 14px; padding-right: 2px; }
+  .rsw .rt .c-pri { width: 1%; white-space: nowrap; }
+  .rsw .rt .c-addr { width: 1%; white-space: nowrap; }
+  .rsw .rt .c-on { width: 1%; text-align: center; }
+  .rsw .rt .c-ck { width: 1%; white-space: nowrap; }
+  .rsw .rt .c-op { width: 1%; white-space: nowrap; text-align: right; padding-right: 14px; }
+  .rsw .rrow:hover td { background: #fbfcfe; }
+  .rsw .rrow.is-off td { background: #fcfcfd; }
+  .rsw .rrow.is-off .r-name, .rsw .rrow.is-off .addr, .rsw .rrow.is-off .tgt { opacity: .55; }
+  .rsw .rrow.is-editing td { background: #eff6ff; }
+  .rsw .rrow.is-editing td:first-child { box-shadow: inset 3px 0 0 #3b82f6; }
+  .rsw .rrow.is-moved td { animation: moved 1s ease-out; }
+  @keyframes moved { 0% { background: #fef9c3; } 100% { background: transparent; } }
+
+  .rsw .pri { display: inline-flex; align-items: center; gap: 6px; }
+  .rsw .pri-no {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; font-size: 12px; font-weight: 800;
+    color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 50%; font-variant-numeric: tabular-nums;
+  }
+  .rsw .rrow.is-off .pri-no { color: #94a3b8; background: #f8fafc; border-color: #e2e8f0; }
+  .rsw .pri-btns { display: inline-flex; flex-direction: column; gap: 2px; }
+  .rsw .pri-btns button {
+    width: 22px; height: 15px; padding: 0; font-size: 9px; line-height: 1; color: #64748b; background: #fff;
+    border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;
+  }
+  .rsw .pri-btns button:hover:not(:disabled) { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+  .rsw .pri-btns button:disabled { color: #e2e8f0; cursor: default; }
+  .rsw .r-name { font-size: 13px; font-weight: 700; color: #1e293b; }
+  .rsw .r-memo { max-width: 260px; overflow: hidden; font-size: 11px; color: #94a3b8; text-overflow: ellipsis; white-space: nowrap; }
+  .rsw .addr { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: #1e293b; }
+  .rsw .addr small { color: #94a3b8; }
+  .rsw .addr-sub { margin-top: 2px; }
+  .rsw .tgt { display: flex; flex-wrap: wrap; gap: 4px; }
+  .rsw .ck-time { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 400; color: #94a3b8; }
+  .rsw .ck-cell { display: flex; align-items: center; gap: 8px; }
+  .rsw .ck-cell .btn { padding: 2px 9px; font-size: 11.5px; }
+  .rsw .op { display: inline-flex; gap: 4px; }
+  .rsw .op button { padding: 2px 9px; font-size: 11.5px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer; }
+  .rsw .op button:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+  .rsw .op button.del:hover { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+  .rsw .fb td { color: #64748b; background: #f8fafc; border-bottom: 0; }
+  .rsw .fb .pri-no { color: #64748b; background: #fff; border-color: #cbd5e1; border-style: dashed; font-size: 10px; }
+  .rsw .ls-empty td { padding: 30px 10px; text-align: center; color: #94a3b8; }
+
+  .rsw .card-foot { flex: none; display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
+  .rsw .card-foot .sel { margin-left: auto; font-size: 12px; font-weight: 600; color: #475569; }
+
+  /* ===== 右：登録・編集 ===== */
+  .rsw .fm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .rsw .fm-head { flex: none; padding: 12px 16px 10px; border-bottom: 1px solid #f1f5f9; }
+  .rsw .fm-head .card-title { display: flex; align-items: center; gap: 8px; }
+  .rsw .fm-mode { padding: 1px 8px; font-size: 11px; font-weight: 700; color: #fff; background: #2563eb; border-radius: 4px; }
+  .rsw .fm-mode.is-edit { background: #f59e0b; }
+  .rsw .fm-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 4px; }
+  .rsw .fm-sec { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #e2e8f0; }
+  .rsw .fm-sec:last-child { border-bottom: 0; }
+  .rsw .fm-sec h3 { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #1e293b; }
+  .rsw .fm-sec h3 small { margin-left: 6px; font-size: 11px; font-weight: 400; color: #94a3b8; }
+  .rsw .fm-row { margin-bottom: 9px; }
+  .rsw .fm-grid { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 10px; }
+  .rsw .fm-label { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11.5px; font-weight: 700; color: #475569; }
+  .rsw .fm-label .req { padding: 0 5px; font-size: 10px; line-height: 15px; color: #fff; background: #ef4444; border-radius: 3px; }
+  .rsw .fm-label .opt { font-weight: 400; color: #94a3b8; }
+  .rsw .fm-err { margin-top: 3px; font-size: 11.5px; color: #dc2626; }
+  .rsw .fm-help { margin-top: 3px; font-size: 11px; color: #94a3b8; }
+  .rsw .fd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rsw .fd-chips label { position: relative; cursor: pointer; }
+  .rsw .fd-chips input { position: absolute; opacity: 0; pointer-events: none; }
+  .rsw .fd-chips span {
+    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #475569;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; transition: all .12s;
+  }
+  .rsw .fd-chips span::before { content: ""; width: 12px; height: 12px; border: 1.5px solid #cbd5e1; border-radius: 3px; box-sizing: border-box; }
+  .rsw .fd-chips input:checked + span { color: #1d4ed8; background: #eff6ff; border-color: #3b82f6; }
+  .rsw .fd-chips input:checked + span::before { background: #3b82f6 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2.5 6.2 2.3 2.3 4.7-5'/%3E%3C/svg%3E") center / 10px no-repeat; border-color: #3b82f6; }
+  .rsw .fd-chips input:focus-visible + span { box-shadow: 0 0 0 3px rgba(59, 130, 246, .25); }
+  .rsw .pay { display: flex; align-items: center; gap: 6px; }
+  .rsw .pay .input { width: 76px; text-align: right; }
+  .rsw .pay span { font-size: 12px; color: #475569; white-space: nowrap; }
+  .rsw .presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .rsw .presets button { padding: 2px 9px; font-size: 11.5px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; cursor: pointer; }
+  .rsw .presets button:hover { color: #047857; border-color: #a7f3d0; background: #ecfdf5; }
+  .rsw .tgt-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; padding: 6px 9px; font-size: 12px; color: #475569; background: #f8fafc; border-radius: 6px; }
+  .rsw .route { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; }
+  .rsw .on-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #334155; }
+  .rsw .fm-ck { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 7px 10px; font-size: 12px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px; }
+  .rsw .fm-ck .ck { flex: 1; min-width: 0; white-space: normal; }
+  .rsw #fMemo { height: 60px; resize: vertical; }
+  .rsw .fm-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 16px 12px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
+  .rsw .fm-foot .btn-primary { flex: 1; padding: 8px 14px; }
+
+
+  /* ===== 本サーバからの直接配信の警告 ===== */
+  .rsw .warn {
+    flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 14px; font-size: 12.5px;
+    color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-left: 5px solid #f59e0b; border-radius: 8px;
+  }
+  .rsw .warn.is-danger { color: #991b1b; background: #fef2f2; border-color: #fca5a5; border-left-color: #dc2626; }
+  .rsw .warn-ico {
+    flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+    font-size: 16px; font-weight: 900; color: #fff; background: #f59e0b; border-radius: 50%;
+  }
+  .rsw .warn.is-danger .warn-ico { background: #dc2626; animation: warnPulse 1.8s ease-in-out infinite; }
+  @keyframes warnPulse { 50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, .15); } }
+  .rsw .warn-txt { flex: 1; min-width: 0; }
+  .rsw .warn-txt b { display: block; font-size: 13.5px; }
+  .rsw .warn .btn { flex: none; }
+  .rsw .warn.is-danger .btn-primary { background: #dc2626; }
+  .rsw .warn.is-danger .btn-primary:hover { background: #b91c1c; }
+  .rsw .rule li.is-warn { color: #92400e; }
+  .rsw .rule li.is-warn b { color: #b45309; }
+  .rsw .fb.is-warn td { color: #92400e; background: #fffbeb; }
+  .rsw .fb.is-warn td:first-child { box-shadow: inset 4px 0 0 #f59e0b; }
+  .rsw .fb.is-danger td { color: #991b1b; background: #fef2f2; }
+  .rsw .fb.is-danger td:first-child { box-shadow: inset 4px 0 0 #dc2626; }
+  .rsw .fb.is-warn .r-name, .rsw .fb.is-danger .r-name { color: inherit !important; }
+  .rsw .fb.is-warn .pri-no { color: #b45309; border-color: #f59e0b; }
+  .rsw .fb.is-danger .pri-no { color: #dc2626; border-color: #dc2626; }
+  .rsw .fb.is-safe td { color: #94a3b8; }
+  .rsw .fb .r-memo { max-width: none; white-space: normal; }
+  .rsw .fd-empty { font-size: 11.5px; color: #94a3b8; }
+  .rsw .fb-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 0 7px; font-size: 11px; font-weight: 700; line-height: 18px; color: #fff; background: #f59e0b; border-radius: 4px; vertical-align: 1px; }
+  .rsw .fb.is-danger .fb-badge { background: #dc2626; }
+  .rsw .sim-res.is-warn { color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; }
+  .rsw .sim-res.is-warn b { color: #92400e; }
+
+  .rsw .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 70; max-width: 90vw; padding: 9px 18px; font-size: 12.5px; color: #fff;
+    background: rgba(30, 41, 59, .94); border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, .2);
+    transform: translateX(-50%); transition: opacity .2s, transform .2s;
+  }
+  .rsw .toast.is-hide { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
+
+  @media (max-width: 1450px) {
+    .rsw .rs-main { grid-template-columns: minmax(0, 1fr) 340px; }
+    .rsw .r-memo { max-width: 180px; }
+    .rsw .rs-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<section layout:fragment="content">
+<div class="rsw">
+<div class="rs">
+
+  <!-- ===== 見出し ===== -->
+  <header class="rs-head">
+    <h1>リレーサーバー設定</h1>
+    <span class="rs-chip">登録 <b id="cntAll">0</b>件 ／ 使用中 <b id="cntOn">0</b>件</span>
+    <span class="rs-chip">このサーバーの送信元IP <b><code id="ourIp"></code></b></span>
+    <button type="button" class="btn btn-primary" id="btnNew">＋ 新規追加</button>
+  </header>
+
+  <!-- ===== 本サーバからの直接配信の警告（状況に応じて表示） ===== -->
+  <div class="warn" id="directWarn" role="alert" hidden></div>
+
+  <!-- ===== 送信経路のルール／振り分けの確認 ===== -->
+  <div class="rs-top">
+    <div class="rule">
+      <b class="ttl">送信経路の決定ルール（ユーザーごと）</b>
+      <ol>
+        <li>「使用中」のリレーを <b>優先順位の上から順</b> に見て、ユーザーが <b>対象条件（フォルダ・入金回数）に当てはまる最初のリレー</b> で送信します。条件なしのリレーは <b>全対象</b> です。</li>
+        <li class="is-warn">⚠ どのリレーにも当てはまらない／使用中が0件 → <b>本サーバの postfix から直接配信</b>（MX ルックアップ）。迷惑メール判定・到達率低下のおそれがあります。</li>
+        <li><small>リレーのIPが <code id="bridgeIp"></code>（HTTP-bridge転送機）なら SSH+HTTP API 方式、それ以外は直接 SMTP で配送します。</small></li>
+      </ol>
+    </div>
+    <div class="card sim">
+      <div class="sim-ttl">振り分けの確認 <small>ユーザーの条件を入れると、どのリレーで送られるか分かります</small></div>
+      <div class="sim-row">
+        <label>フォルダ <select class="input" id="simFolder"></select></label>
+        <label>入金回数 <input type="number" class="input" id="simPay" min="0" value="0"/>回</label>
+      </div>
+      <div class="sim-res" id="simRes"></div>
+    </div>
+  </div>
+
+  <div class="rs-main">
+
+    <!-- ===== 左：一覧（上ほど優先） ===== -->
+    <section class="card" aria-label="一覧">
+      <div class="card-head">
+        <span class="card-title">一覧</span><span class="card-sub">上ほど優先・▲▼で順位を変更</span>
+        <button type="button" class="btn btn-outline btn-sm" id="btnCheckAll" style="margin-left:auto">使用中をまとめて疎通確認</button>
+      </div>
+      <div class="ls-scroll">
+        <table class="rt">
+          <thead>
+            <tr>
+              <th class="c-chk"><input type="checkbox" class="chk" id="checkAll" title="全選択"/></th>
+              <th class="c-pri">優先</th>
+              <th>リレー名</th>
+              <th class="c-addr">接続先</th>
+              <th>対象ユーザー</th>
+              <th class="c-on">使用中</th>
+              <th class="c-ck">疎通確認</th>
+              <th class="c-op">操作</th>
+            </tr>
+          </thead>
+          <tbody id="rtBody"></tbody>
+        </table>
+      </div>
+      <div class="card-foot">
+        <span class="sel" id="selCount"></span>
+        <button type="button" class="btn btn-danger btn-sm" id="btnBulkDelete" disabled>選択削除</button>
+      </div>
+    </section>
+
+    <!-- ===== 右：登録・編集 ===== -->
+    <section class="card" aria-label="リレーの登録・編集">
+      <form class="fm" id="rsForm" autocomplete="off" novalidate>
+        <div class="fm-head">
+          <div class="card-title"><span class="fm-mode" id="fmMode">新規登録</span><span id="fmTitle">リレーサーバーを追加</span></div>
+        </div>
+        <div class="fm-body">
+          <div class="fm-sec">
+            <h3>接続先</h3>
+            <div class="fm-row">
+              <div class="fm-label">名前 <span class="req">必須</span></div>
+              <input type="text" class="input" id="fName" maxlength="30" placeholder="例: VIP専用リレー"/>
+              <div class="fm-err" id="errName" hidden>名前を入力してください</div>
+            </div>
+            <div class="fm-grid">
+              <div class="fm-row">
+                <div class="fm-label">IPアドレス <span class="req">必須</span></div>
+                <input type="text" class="input" id="fIp" maxlength="64" placeholder="例: 157.7.89.36" spellcheck="false"/>
+              </div>
+              <div class="fm-row">
+                <div class="fm-label">ポート</div>
+                <input type="number" class="input" id="fPort" min="1" max="65535" value="25"/>
+              </div>
+            </div>
+            <div class="fm-err" id="errIp" hidden></div>
+            <div class="route">送信方式（IPで自動判定） <span id="fRoute"></span></div>
+          </div>
+
+          <div class="fm-sec">
+            <h3>対象ユーザー<small>指定がなければ全対象</small></h3>
+            <div class="fm-row">
+              <div class="fm-label">フォルダ <span class="opt">（複数選択可・選ばない＝すべてのフォルダ）</span></div>
+              <div class="fd-chips" id="fFolders"></div>
+            </div>
+            <div class="fm-row">
+              <div class="fm-label">入金回数 <span class="opt">（空欄＝指定なし）</span></div>
+              <div class="pay">
+                <input type="number" class="input" id="fPayMin" min="0" placeholder="—"/><span>回以上</span>
+                <span>〜</span>
+                <input type="number" class="input" id="fPayMax" min="0" placeholder="—"/><span>回以下</span>
+              </div>
+              <div class="presets">
+                <button type="button" data-pay="0,0">未入金（0回）</button>
+                <button type="button" data-pay="1,1">初回（1回）</button>
+                <button type="button" data-pay="2,4">2〜4回</button>
+                <button type="button" data-pay="5,">5回以上</button>
+                <button type="button" data-pay=",">指定なし</button>
+              </div>
+              <div class="fm-err" id="errPay" hidden>「以上」は「以下」より小さい数にしてください</div>
+            </div>
+            <div class="tgt-sum" id="fSummary"></div>
+          </div>
+
+          <div class="fm-sec">
+            <h3>使用・疎通確認</h3>
+            <div class="on-row"><span class="sw"><input type="checkbox" id="fActive" checked/><span></span></span><span id="fActiveLabel">使用中（このリレーで配信する）</span></div>
+            <div class="fm-ck"><span class="ck ck-none" id="fCheck">まだ確認していません</span><button type="button" class="btn btn-outline btn-sm" id="btnFormCheck">この設定で疎通確認</button></div>
+            <div class="fm-help">送信先に接続し、このサーバーのIPからの送信が許可されているかを確認します。</div>
+          </div>
+
+          <div class="fm-sec">
+            <h3>メモ</h3>
+            <textarea class="input" id="fMemo" maxlength="200" placeholder="用途・契約先など"></textarea>
+          </div>
+        </div>
+        <div class="fm-foot">
+          <button type="submit" class="btn btn-primary" id="btnSave">登録する</button>
+          <button type="button" class="btn btn-outline" id="btnCancel" hidden>キャンセル</button>
+        </div>
+      </form>
+    </section>
+
+  </div>
+</div>
+
+<div class="toast is-hide" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ===== データ（サーバーから出力） ===== -->
+<!-- 設定値：このサーバーの送信元IP（ourIp）、HTTP-bridge 転送機のIP（bridgeIp）、ユーザーのフォルダ名一覧（folders：例 ["フォルダA", "フォルダB"]） -->
+<script type="application/json" id="rsConfig" th:utext="${configJson}">{}</script>
+<!-- リレー：優先順位の順（上ほど優先）。folders＝対象フォルダ（空＝すべて）、payMin/payMax＝入金回数（null＝指定なし）、active＝使用中 -->
+<script type="application/json" id="rsRelays" th:utext="${relaysJson}">{}</script>
+
+<script>
+// リレーサーバー設定：ユーザーごとの送信経路（優先順位・対象条件）、使用中、登録・編集・削除、疎通確認
+(function () {
+    'use strict';
+
+    /* ===== 設定 ===================================================== */
+    // 送信先。null のままだとプレビュー動作（このブラウザ内だけに保存。疎通確認は模擬結果）。
+    // 設定すると FormData を POST します（CSRF は管理画面共通の fetch パッチで付与）。
+    var API = {
+        save: '/manager/settings/relay-servers/save',        // 例: '/manager/settings/relay-servers/save'    … id（新規は空）, name, ip, port, folders[], payMin, payMax, active, memo → JSON { id }
+        remove: '/manager/settings/relay-servers/bulk-delete',      // 例: '/manager/settings/relay-servers/bulk-delete' … ids[]
+        reorder: '/manager/settings/relay-servers/reorder',     // 例: '/manager/settings/relay-servers/reorder'  … ids[]（上から優先順）
+        toggle: '/manager/settings/relay-servers/active',      // 例: '/manager/settings/relay-servers/active'   … id, active(1/0)
+        check: '/manager/settings/relay-servers/check'        // 例: '/manager/settings/relay-servers/check'    … id, ip, port → JSON { status: ok|denied|unreachable, message, checkedAt }
+    };
+    /* ================================================================ */
+
+    var $ = function (id) { return document.getElementById(id); };
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function nowIso() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function fmt(iso) { if (!iso) return ''; var p = iso.split(/[-T:]/).map(Number); return p[1] + '/' + p[2] + ' ' + p[3] + ':' + pad(p[4]); }
+    function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+    function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } }
+    function post(url, fields) {
+        var fd = new FormData();
+        Object.keys(fields).forEach(function (k) { [].concat(fields[k]).forEach(function (v) { if (v != null) fd.append(k, v); }); });
+        return fetch(url, { method: 'POST', credentials: 'same-origin', body: fd }).then(function (r) {
+            // サーバーのエラー（{ error }）をそのまま表示する
+            if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('HTTP ' + r.status)); });
+            return r.json().catch(function () { return {}; });
+        });
+    }
+    var toastTimer = null;
+    function toast(msg) {
+        var t = $('toast'); t.textContent = msg; t.classList.remove('is-hide');
+        clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.add('is-hide'); }, 2600);
+    }
+
+    /* ---- データ ---- */
+    var CFG = JSON.parse($('rsConfig').textContent || '{}');
+    var preview = !API.save;
+    var relays = (preview && load('rsRelaysV2')) || JSON.parse($('rsRelays').textContent || '[]');
+    function persist() { if (preview) store('rsRelaysV2', relays); }
+    var checked = new Set();
+    var editingId = null;
+
+    $('ourIp').textContent = CFG.ourIp;
+    $('bridgeIp').textContent = CFG.bridgeIp;
+
+    /* ---- 表示用 ---- */
+    function isApi(ip) { return ip === CFG.bridgeIp; }
+    function routeTag(ip) { return isApi(ip) ? '<span class="tag tag-api">SSH+HTTP API</span>' : '<span class="tag tag-smtp">SMTP 直接配送</span>'; }
+    function payLabel(min, max) {
+        if (min == null && max == null) return '';
+        if (min != null && max != null && min === max) return min === 0 ? '未入金（0回）' : '入金 ' + min + '回';
+        if (max == null) return '入金 ' + min + '回以上';
+        if (min == null) return '入金 ' + max + '回以下';
+        return '入金 ' + min + '〜' + max + '回';
+    }
+    function targetTags(r) {
+        var t = r.folders.map(function (f) { return '<span class="tag tag-folder">' + esc(f) + '</span>'; });
+        var p = payLabel(r.payMin, r.payMax);
+        if (p) t.push('<span class="tag tag-pay">' + esc(p) + '</span>');
+        return t.length ? t.join('') : '<span class="tag tag-all">全対象</span>';
+    }
+    var CK = { ok: ['ck-ok', '許可OK'], denied: ['ck-denied', 'IP未許可'], unreachable: ['ck-unreachable', '接続不可'], run: ['ck-run', '確認中…'] };
+    function checkHtml(c, withTime) {
+        if (!c || !c.status) return '<span class="ck ck-none">未確認</span>';
+        var k = CK[c.status] || CK.unreachable;
+        return '<span class="ck ' + k[0] + '" title="' + esc(c.message || '') + '"><span>' + k[1] + (withTime && c.at ? '<span class="ck-time">' + fmt(c.at) + '</span>' : '') + '</span></span>';
+    }
+
+    /* ---- 本サーバからの直接配信の危険度 ---- */
+    function isAll(r) { return !r.folders.length && r.payMin == null && r.payMax == null; }
+    function severity(list) {
+        var on = list.filter(function (r) { return r.active; });
+        if (!on.length) return 2;
+        return on.some(isAll) ? 0 : 1;
+    }
+    var RISK_MSG = {
+        1: '条件に当てはまらないユーザーが、本サーバ（postfix）から直接配信になります。',
+        2: '使用中のリレーが0件になり、すべてのユーザーが本サーバ（postfix）から直接配信になります。'
+    };
+    // 変更で直接配信が増えるときは確認する
+    function confirmRisk(after) {
+        var b = severity(relays), a = severity(after);
+        if (a <= b) return true;
+        return confirm('⚠ ' + RISK_MSG[a] + '\n直接配信は迷惑メール判定・到達率低下のおそれがあります。\n\nこのまま変更しますか?');
+    }
+    function renderWarn(sev) {
+        var w = $('directWarn');
+        w.hidden = sev === 0;
+        w.classList.toggle('is-danger', sev === 2);
+        if (sev === 2) {
+            w.innerHTML = '<span class="warn-ico">!</span><span class="warn-txt"><b>使用中のリレーがありません — すべてのユーザーに本サーバ（postfix）から直接配信されています</b>' +
+                '直接配信は迷惑メール判定や到達率低下の原因になります。リレーを登録して「使用中」にしてください。</span>' +
+                '<button type="button" class="btn btn-primary btn-sm" data-warn-add>＋ リレーを追加</button>';
+        } else if (sev === 1) {
+            w.innerHTML = '<span class="warn-ico">!</span><span class="warn-txt"><b>一部のユーザーが本サーバ（postfix）から直接配信になります</b>' +
+                'どのリレーの条件にも当てはまらないユーザーが対象です。条件なし（全対象）のリレーを一番下に置くと、直接配信を防げます。</span>' +
+                '<button type="button" class="btn btn-primary btn-sm" data-warn-add>＋ 全対象のリレーを追加</button>';
+        }
+    }
+
+    /* ================= 一覧 ================= */
+    var running = {};   // 疎通確認中の id
+    function render() {
+        $('cntAll').textContent = relays.length;
+        $('cntOn').textContent = relays.filter(function (r) { return r.active; }).length;
+        var n = 0;
+        var rows = relays.map(function (r, i) {
+            var no = r.active ? ++n : '–';
+            var ck = running[r.id] ? checkHtml({ status: 'run' }) : checkHtml(r.check, true);
+            return '<tr class="rrow' + (r.active ? '' : ' is-off') + (editingId === r.id ? ' is-editing' : '') + '" data-id="' + esc(r.id) + '">' +
+                '<td class="c-chk"><input type="checkbox" class="chk row-chk" aria-label="選択"' + (checked.has(r.id) ? ' checked' : '') + '/></td>' +
+                '<td class="c-pri"><span class="pri"><span class="pri-no" title="' + (r.active ? '優先順位 ' + no : '使用していません') + '">' + no + '</span>' +
+                '<span class="pri-btns"><button type="button" data-move="-1" aria-label="優先順位を上げる"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+                '<button type="button" data-move="1" aria-label="優先順位を下げる"' + (i === relays.length - 1 ? ' disabled' : '') + '>▼</button></span></span></td>' +
+                '<td><div class="r-name">' + esc(r.name) + '</div>' + (r.memo ? '<div class="r-memo" title="' + esc(r.memo) + '">' + esc(r.memo) + '</div>' : '') + '</td>' +
+                '<td class="c-addr"><div class="addr">' + esc(r.ip) + '<small>:' + esc(r.port) + '</small></div><div class="addr-sub">' + routeTag(r.ip) + '</div></td>' +
+                '<td><div class="tgt">' + targetTags(r) + '</div></td>' +
+                '<td class="c-on"><span class="sw" title="' + (r.active ? '使用中' : '停止中') + '"><input type="checkbox" data-toggle' + (r.active ? ' checked' : '') + ' aria-label="使用中"/><span></span></span></td>' +
+                '<td class="c-ck"><div class="ck-cell">' + ck + '<button type="button" class="btn btn-outline" data-check' + (running[r.id] ? ' disabled' : '') + '>疎通確認</button></div></td>' +
+                '<td class="c-op"><span class="op"><button type="button" data-edit>編集</button><button type="button" class="del" data-del>削除</button></span></td>' +
+                '</tr>';
+        }).join('');
+        if (!relays.length) rows = '<tr class="ls-empty"><td colspan="8">リレーサーバーは登録されていません</td></tr>';
+        var sev = severity(relays);
+        var fbTxt = sev === 2 ? '⚠ すべてのユーザーがここで配信されています（使用中のリレーなし）'
+            : sev === 1 ? '⚠ 上のどのリレーにも当てはまらないユーザーがここで配信されます'
+            : '現在は使われません（全対象のリレーで配信されます）';
+        rows += '<tr class="fb ' + (sev === 2 ? 'is-danger' : sev === 1 ? 'is-warn' : 'is-safe') + '"><td class="c-chk"></td><td class="c-pri"><span class="pri"><span class="pri-no" title="最後">最後</span></span></td>' +
+            '<td colspan="2"><div class="r-name" style="color:#475569">本サーバ（postfix）から直接配信' + (sev ? '<span class="fb-badge">注意</span>' : '') + '</div><div class="r-memo">MX ルックアップで配送' + (sev ? '・迷惑メール判定／到達率低下のおそれ' : '') + '</div></td>' +
+            '<td colspan="4" style="font-size:12px;font-weight:' + (sev ? 700 : 400) + '">' + fbTxt + '</td></tr>';
+        renderWarn(sev);
+        $('rtBody').innerHTML = rows;
+        renderSelection();
+        simulate();
+    }
+    function renderSelection() {
+        var all = relays.length, n = checked.size;
+        $('selCount').textContent = n ? n + ' 件選択中' : '';
+        $('btnBulkDelete').disabled = n === 0;
+        $('checkAll').checked = all > 0 && n === all;
+        $('checkAll').indeterminate = n > 0 && n < all;
+    }
+    function byId(id) { return relays.filter(function (r) { return r.id === id; })[0]; }
+
+    $('checkAll').addEventListener('change', function (e) {
+        checked = new Set(e.target.checked ? relays.map(function (r) { return r.id; }) : []);
+        render();
+    });
+    $('rtBody').addEventListener('change', function (e) {
+        var tr = e.target.closest('.rrow');
+        if (!tr) return;
+        var r = byId(tr.getAttribute('data-id'));
+        if (e.target.classList.contains('row-chk')) {
+            if (e.target.checked) checked.add(r.id); else checked.delete(r.id);
+            renderSelection();
+            return;
+        }
+        if (e.target.hasAttribute('data-toggle')) {
+            var on = e.target.checked;
+            var after = relays.map(function (x) { return x === r ? Object.assign({}, x, { active: on }) : x; });
+            if (!confirmRisk(after)) { e.target.checked = !on; return; }
+            var apply = function () { r.active = on; persist(); render(); if (editingId === r.id) { $('fActive').checked = on; activeLabel(); } toast(r.name + ' を' + (on ? '使用中にしました' : '停止しました')); };
+            if (API.toggle) post(API.toggle, { id: r.id, active: on ? '1' : '0' }).then(apply).catch(function (er) { e.target.checked = !on; toast('変更に失敗しました (' + er.message + ')'); });
+            else apply();
+        }
+    });
+    $('rtBody').addEventListener('click', function (e) {
+        var tr = e.target.closest('.rrow');
+        if (!tr) return;
+        var r = byId(tr.getAttribute('data-id'));
+        var mv = e.target.closest('[data-move]');
+        if (mv && !mv.disabled) {
+            var i = relays.indexOf(r), j = i + Number(mv.getAttribute('data-move'));
+            relays.splice(i, 1); relays.splice(j, 0, r);
+            var ids = relays.map(function (x) { return x.id; });
+            var done = function () {
+                persist(); render();
+                var row = document.querySelector('.rrow[data-id="' + r.id + '"]');
+                if (row) { row.classList.add('is-moved'); var b = row.querySelector('[data-move="' + mv.getAttribute('data-move') + '"]'); if (b && !b.disabled) b.focus(); }
+            };
+            if (API.reorder) post(API.reorder, { ids: ids }).then(done).catch(function (er) { relays.splice(j, 1); relays.splice(i, 0, r); render(); toast('並べ替えに失敗しました (' + er.message + ')'); });
+            else done();
+            return;
+        }
+        if (e.target.closest('[data-check]')) { runCheck(r); return; }
+        if (e.target.closest('[data-edit]')) { startEdit(r); return; }
+        if (e.target.closest('[data-del]')) { removeRelays([r.id]); }
+    });
+    $('btnBulkDelete').addEventListener('click', function () { removeRelays(Array.from(checked)); });
+
+    function removeRelays(ids) {
+        if (!ids.length) return;
+        var after = relays.filter(function (r) { return ids.indexOf(r.id) === -1; });
+        var risk = severity(after) > severity(relays);
+        if (!confirm(ids.length + ' 件のリレーサーバーを削除します。' + (risk ? '\n\n⚠ ' + RISK_MSG[severity(after)] + '\n直接配信は迷惑メール判定・到達率低下のおそれがあります。' : '') + '\nよろしいですか?')) return;
+        var done = function () {
+            relays = relays.filter(function (r) { return ids.indexOf(r.id) === -1; });
+            ids.forEach(function (id) { checked.delete(id); });
+            if (ids.indexOf(editingId) !== -1) resetForm();
+            persist(); render(); toast(ids.length + ' 件を削除しました');
+        };
+        if (API.remove) post(API.remove, { ids: ids }).then(done).catch(function (er) { toast('削除に失敗しました (' + er.message + ')'); });
+        else done();
+    }
+
+    /* ================= 疎通確認 ================= */
+    // 送信先に接続して、このサーバーのIPからの送信が許可されているかを確認（実際の確認はサーバー側）
+    function doCheck(id, ip, port) {
+        if (API.check) {
+            return post(API.check, { id: id || '', ip: ip, port: port }).then(function (res) {
+                return { status: res.status || 'unreachable', message: res.message || '', at: res.checkedAt || nowIso() };
+            });
+        }
+        // プレビュー用の模擬結果
+        return new Promise(function (resolve) {
+            setTimeout(function () {
+                var last = Number(String(ip).split('.').pop()) || String(ip).length;
+                var res = ip === CFG.bridgeIp ? { status: 'ok', message: 'SSH接続・HTTP API 応答OK' }
+                    : last % 5 === 0 ? { status: 'unreachable', message: '接続できません（' + ip + ':' + port + ' タイムアウト）' }
+                    : last % 3 === 1 ? { status: 'denied', message: '接続OK・送信拒否：554 Relay access denied（' + CFG.ourIp + ' が未許可）' }
+                    : { status: 'ok', message: '接続OK・送信許可（250 OK）' };
+                res.at = nowIso();
+                resolve(res);
+            }, 800 + Math.random() * 700);
+        });
+    }
+    function runCheck(r) {
+        running[r.id] = true; render();
+        return doCheck(r.id, r.ip, r.port).then(function (res) {
+            r.check = res; persist();
+            toast(r.name + '：' + (CK[res.status] || CK.unreachable)[1] + (res.message ? '（' + res.message + '）' : ''));
+        }).catch(function (er) {
+            r.check = { status: 'unreachable', message: '確認できませんでした (' + er.message + ')', at: nowIso() };
+        }).then(function () { delete running[r.id]; render(); if (editingId === r.id) showFormCheck(r.check); });
+    }
+    $('btnCheckAll').addEventListener('click', function () {
+        var list = relays.filter(function (r) { return r.active; });
+        if (!list.length) { toast('使用中のリレーがありません'); return; }
+        list.forEach(runCheck);
+    });
+
+    /* ================= 振り分けの確認 ================= */
+    function matches(r, folder, pay) {
+        if (r.folders.length && r.folders.indexOf(folder) === -1) return false;
+        if (r.payMin != null && pay < r.payMin) return false;
+        if (r.payMax != null && pay > r.payMax) return false;
+        return true;
+    }
+    $('simFolder').innerHTML = CFG.folders.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('') + '<option value="">（フォルダなし）</option>';
+    function simulate() {
+        var folder = $('simFolder').value, pay = Math.max(0, parseInt($('simPay').value, 10) || 0);
+        var n = 0, hit = null, rank = 0;
+        relays.forEach(function (r) { if (!r.active) return; n++; if (!hit && matches(r, folder, pay)) { hit = r; rank = n; } });
+        $('simRes').classList.toggle('is-warn', !hit);
+        $('simRes').innerHTML = '<span class="arrow">→</span>' + (hit
+            ? '<span class="pri-no" style="width:20px;height:20px;font-size:11px">' + rank + '</span><b>' + esc(hit.name) + '</b><span class="addr">' + esc(hit.ip) + '</span>' + routeTag(hit.ip)
+            : '<b>⚠ 本サーバ（postfix）から直接配信</b><span>当てはまるリレーなし・迷惑メール判定／到達率低下のおそれ</span>');
+    }
+    $('simFolder').addEventListener('change', simulate);
+    $('simPay').addEventListener('input', simulate);
+
+    /* ================= 登録・編集フォーム ================= */
+    $('fFolders').innerHTML = CFG.folders.map(function (f) {
+        return '<label><input type="checkbox" value="' + esc(f) + '"/><span>' + esc(f) + '</span></label>';
+    }).join('') || '<div class="fd-empty">フォルダはまだありません（ユーザーのフォルダ名がここに並びます）</div>';
+    var formCheck = null;   // フォームで行った疎通確認の結果 { ip, port, res }
+
+    function intOrNull(v) { v = String(v).trim(); return v === '' ? null : Math.max(0, parseInt(v, 10) || 0); }
+    function formFolders() { return Array.prototype.slice.call(document.querySelectorAll('#fFolders input:checked')).map(function (i) { return i.value; }); }
+    function summary() {
+        var r = { folders: formFolders(), payMin: intOrNull($('fPayMin').value), payMax: intOrNull($('fPayMax').value) };
+        $('fSummary').innerHTML = '対象：' + targetTags(r);
+        $('fRoute').innerHTML = $('fIp').value.trim() ? routeTag($('fIp').value.trim()) : '<span class="ck ck-none">IPを入力すると表示</span>';
+    }
+    function activeLabel() { $('fActiveLabel').textContent = $('fActive').checked ? '使用中（このリレーで配信する）' : '停止中（登録だけしておく）'; }
+    function showFormCheck(res) {
+        var el = $('fCheck');
+        if (!res) { el.className = 'ck ck-none'; el.textContent = 'まだ確認していません'; return; }
+        var k = CK[res.status] || CK.unreachable;
+        el.className = 'ck ' + k[0];
+        el.textContent = k[1] + (res.message ? '：' + res.message : '') + (res.at ? '（' + fmt(res.at) + '）' : '');
+    }
+    ['fFolders', 'fPayMin', 'fPayMax', 'fIp'].forEach(function (id) {
+        $(id).addEventListener(id === 'fFolders' ? 'change' : 'input', function () {
+            summary();
+            if (id === 'fIp') { $('fIp').classList.remove('is-err'); $('errIp').hidden = true; }
+            if (id === 'fPayMin' || id === 'fPayMax') $('errPay').hidden = true;
+        });
+    });
+    $('fName').addEventListener('input', function () { $('fName').classList.remove('is-err'); $('errName').hidden = true; });
+    $('fActive').addEventListener('change', activeLabel);
+    document.querySelector('.presets').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-pay]');
+        if (!b) return;
+        var p = b.getAttribute('data-pay').split(',');
+        $('fPayMin').value = p[0]; $('fPayMax').value = p[1];
+        $('errPay').hidden = true;
+        summary();
+    });
+
+    function validIp(v) {
+        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) return v.split('.').every(function (n) { return Number(n) <= 255; });
+        return /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(v);
+    }
+    function validate() {
+        var ok = true;
+        if (!$('fName').value.trim()) { $('errName').hidden = false; $('fName').classList.add('is-err'); ok = false; }
+        var ip = $('fIp').value.trim(), port = parseInt($('fPort').value, 10);
+        if (!validIp(ip)) { $('errIp').textContent = 'IPアドレス（またはホスト名）を正しく入力してください'; $('errIp').hidden = false; $('fIp').classList.add('is-err'); ok = false; }
+        else if (!(port >= 1 && port <= 65535)) { $('errIp').textContent = 'ポートは 1〜65535 で入力してください'; $('errIp').hidden = false; ok = false; }
+        var mn = intOrNull($('fPayMin').value), mx = intOrNull($('fPayMax').value);
+        if (mn != null && mx != null && mn > mx) { $('errPay').hidden = false; ok = false; }
+        return ok;
+    }
+
+    $('btnFormCheck').addEventListener('click', function () {
+        var ip = $('fIp').value.trim(), port = parseInt($('fPort').value, 10) || 25;
+        if (!validIp(ip)) { $('errIp').textContent = '先にIPアドレスを正しく入力してください'; $('errIp').hidden = false; $('fIp').classList.add('is-err'); return; }
+        var b = $('btnFormCheck'); b.disabled = true;
+        $('fCheck').className = 'ck ck-run'; $('fCheck').textContent = '確認中…';
+        doCheck(editingId, ip, port).then(function (res) { formCheck = { ip: ip, port: port, res: res }; showFormCheck(res); })
+            .catch(function (er) { showFormCheck({ status: 'unreachable', message: '確認できませんでした (' + er.message + ')' }); })
+            .then(function () { b.disabled = false; });
+    });
+
+    function resetForm() {
+        editingId = null; formCheck = null;
+        $('rsForm').reset();
+        $('fPort').value = 25; $('fActive').checked = true;
+        $('fmMode').textContent = '新規登録'; $('fmMode').classList.remove('is-edit');
+        $('fmTitle').textContent = 'リレーサーバーを追加';
+        $('btnSave').textContent = '登録する'; $('btnCancel').hidden = true;
+        ['errName', 'errIp', 'errPay'].forEach(function (id) { $(id).hidden = true; });
+        ['fName', 'fIp'].forEach(function (id) { $(id).classList.remove('is-err'); });
+        showFormCheck(null); activeLabel(); summary();
+    }
+    function startEdit(r) {
+        resetForm();
+        editingId = r.id;
+        $('fName').value = r.name; $('fIp').value = r.ip; $('fPort').value = r.port; $('fMemo').value = r.memo || '';
+        document.querySelectorAll('#fFolders input').forEach(function (i) { i.checked = r.folders.indexOf(i.value) !== -1; });
+        $('fPayMin').value = r.payMin == null ? '' : r.payMin; $('fPayMax').value = r.payMax == null ? '' : r.payMax;
+        $('fActive').checked = r.active;
+        $('fmMode').textContent = '編集'; $('fmMode').classList.add('is-edit');
+        $('fmTitle').textContent = r.name;
+        $('btnSave').textContent = '更新する'; $('btnCancel').hidden = false;
+        showFormCheck(r.check); activeLabel(); summary(); render();
+        $('fName').focus();
+    }
+    $('btnCancel').addEventListener('click', function () { resetForm(); render(); });
+    $('btnNew').addEventListener('click', function () { resetForm(); render(); $('fName').focus(); });
+    $('directWarn').addEventListener('click', function (e) {
+        if (!e.target.closest('[data-warn-add]')) return;
+        resetForm(); render();
+        $('fName').focus();
+        toast('対象ユーザーを指定しないと「全対象」になります');
+    });
+
+    $('rsForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!validate()) { toast('入力内容を確認してください'); return; }
+        var r = editingId ? byId(editingId) : null;
+        var data = {
+            name: $('fName').value.trim(), ip: $('fIp').value.trim(), port: parseInt($('fPort').value, 10) || 25,
+            folders: formFolders(), payMin: intOrNull($('fPayMin').value), payMax: intOrNull($('fPayMax').value),
+            active: $('fActive').checked, memo: $('fMemo').value.trim()
+        };
+        var after = relays.map(function (x) { return x === r ? Object.assign({}, x, data) : x; });
+        if (!r) after.push(Object.assign({ id: '_new' }, data));
+        if (!confirmRisk(after)) return;
+        var apply = function (res) {
+            res = res || {};
+            var isNew = !r;
+            if (isNew) { r = { id: String(res.id || ('r' + Date.now())), check: null }; relays.push(r); }   // 新規は一番下（優先順位が最も低い）に追加
+            var addrChanged = r.ip !== data.ip || r.port !== data.port;
+            Object.keys(data).forEach(function (k) { r[k] = data[k]; });
+            if (formCheck && formCheck.ip === r.ip && formCheck.port === r.port) {
+                r.check = formCheck.res;
+                // 新規登録前に行った疎通確認は、登録後のIDで確認し直してサーバーにも保存する
+                if (isNew && API.check) post(API.check, { id: r.id, ip: r.ip, port: r.port }).catch(function () { /* 一覧の表示はそのまま */ });
+            }
+            else if (addrChanged && !isNew) r.check = null;   // 接続先を変えたら確認し直し
+            persist();
+            var name = r.name;
+            resetForm(); render();
+            var row = document.querySelector('.rrow[data-id="' + r.id + '"]');
+            if (row) { row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); row.classList.add('is-moved'); }
+            toast((isNew ? '追加しました：' : '更新しました：') + name + (isNew ? '（優先順位は一番下。▲で上げられます）' : ''));
+        };
+        if (API.save) {
+            post(API.save, { id: r ? r.id : '', name: data.name, ip: data.ip, port: data.port, folders: data.folders,
+                payMin: data.payMin, payMax: data.payMax, active: data.active ? '1' : '0', memo: data.memo })
+                .then(apply).catch(function (er) { toast('保存に失敗しました (' + er.message + ')'); });
+        } else apply();
+    });
+
+    /* ---- 初期表示 ---- */
+    resetForm();
+    render();
+})();
+</script>
+</div>
+</section>
+</body>
+</html>

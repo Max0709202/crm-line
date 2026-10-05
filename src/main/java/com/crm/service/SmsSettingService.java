@@ -26,6 +26,8 @@ public class SmsSettingService {
     /** Shared secret sent as X-Relay-Token to the relay's /api/sms/send (see sms-relay.py on the relay host). */
     public static final String KEY_RELAY_TOKEN     = "sms.relay_token";
     public static final String KEY_INBOUND_TOKEN   = "sms.inbound_token";
+    /** "true" once the operator deleted the 受信 URL — no token is issued again until 再発行. */
+    public static final String KEY_INBOUND_DELETED = "sms.inbound_deleted";
 
     // Sender-name generation (2026-07-10): BytePlus rejects/silently drops SMS whose "From"
     // is kanji/Japanese-only — the sender ID must be ASCII alphanumeric, <=10 chars. These
@@ -207,12 +209,29 @@ public class SmsSettingService {
      */
     @Transactional
     public String getOrCreateInboundToken() {
+        if (isInboundDeleted()) return null;   // deleted on the settings page → webhook rejected
         String existing = get(KEY_INBOUND_TOKEN);
         if (existing != null && !existing.trim().isEmpty()) return existing;
         String token = java.util.UUID.randomUUID().toString().replace("-", "")
                 + java.util.UUID.randomUUID().toString().replace("-", "");
         save(KEY_INBOUND_TOKEN, token);
         return token;
+    }
+
+    public boolean isInboundDeleted() { return getBool(KEY_INBOUND_DELETED, false); }
+
+    /** Deletes the 受信 webhook URL: the token is cleared and inbound calls are rejected (403). */
+    @Transactional
+    public void deleteInboundToken() {
+        save(KEY_INBOUND_TOKEN, "");
+        save(KEY_INBOUND_DELETED, "true");
+    }
+
+    /** Issues a new 受信 webhook URL after {@link #deleteInboundToken()}. */
+    @Transactional
+    public String reissueInboundToken() {
+        save(KEY_INBOUND_DELETED, "false");
+        return getOrCreateInboundToken();
     }
 
     /**

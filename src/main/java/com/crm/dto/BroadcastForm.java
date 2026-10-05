@@ -57,6 +57,12 @@ public class BroadcastForm {
      *  linked to that specific account are deliverable. */
     private Long lineAccountId;
 
+    /** 送信キャラ (キャラ登録), one; null = 指定なし. EMAIL / SMS only. */
+    private Long charaId;
+
+    public Long getCharaId() { return charaId; }
+    public void setCharaId(Long charaId) { this.charaId = charaId; }
+
     public java.util.List<Long> getTargetUserIds() { return targetUserIds; }
     public void setTargetUserIds(java.util.List<Long> targetUserIds) { this.targetUserIds = targetUserIds; }
     public String getChannel() { return channel; }

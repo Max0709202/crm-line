@@ -18,6 +18,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>, JpaSpec
 
     long countByStatus(String status);
 
+    /** 入金回数 — the user's paid payments (リレーサーバー設定 routing). */
+    long countByUserIdAndStatus(Long userId, String status);
+
     @Query("SELECT COUNT(p) FROM Payment p WHERE p.status = 'OVERDUE' " +
            "OR (p.status = 'PENDING' AND p.dueDate < :today)")
     long countOverdue(@Param("today") java.time.LocalDate today);

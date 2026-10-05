@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/* 送信キャラ (キャラ登録) — 1名だけ選択。フォルダを選ぶとそのフォルダのキャラだけが候補になる。
+     Needs ${charaFolders} / ${charas} in the model. Used by 一斉送信・SMS配信 and 差分ステップ. */-->
+<div th:fragment="picker(fieldName, selectedId)" class="chara-picker" data-chara-picker
+     style="display:flex; flex-direction:column; gap:3px;">
+    <label style="font-size:.78rem; color:#475569; font-weight:600;">送信キャラ
+        <span style="font-weight:400; color:#94a3b8;">(フォルダを選ぶとその中から選べます・1名のみ)</span></label>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <select data-chara-folder style="flex:0 1 11em; min-width:8em;" title="キャラのフォルダ">
+            <option value="">全フォルダ</option>
+            <option th:each="f : ${charaFolders}" th:value="${f.id}" th:text="${f.name}">フォルダ</option>
+            <option value="none">未分類</option>
+        </select>
+        <select th:name="${fieldName}" data-chara-select style="flex:1 1 12em; min-width:10em;" title="送信キャラ">
+            <option value="">指定なし</option>
+            <option th:each="c : ${charas}" th:value="${c.id}"
+                    th:attr="data-folder=${c.folderId != null} ? ${c.folderId} : 'none'"
+                    th:selected="${selectedId != null and selectedId == c.id}"
+                    th:text="${c.name} + (${c.gender == 'female'} ? '（女性）' : '（男性）')">キャラ</option>
+        </select>
+    </div>
+    <script>
+    (function () {
+        // Runs once per page; sets up every picker not yet set up.
+        if (!window.initCharaPickers) {
+            window.initCharaPickers = function () {
+                document.querySelectorAll('[data-chara-picker]:not([data-ready])').forEach(function (box) {
+                    box.setAttribute('data-ready', '1');
+                    var folder = box.querySelector('[data-chara-folder]');
+                    var select = box.querySelector('[data-chara-select]');
+                    var all = Array.prototype.slice.call(select.options, 1).map(function (o) {
+                        return { value: o.value, text: o.text, folder: o.getAttribute('data-folder') };
+                    });
+                    function render() {
+                        var keep = select.value;
+                        while (select.options.length > 1) select.remove(1);
+                        all.forEach(function (c) {
+                            if (folder.value && c.folder !== folder.value) return;
+                            var o = new Option(c.text, c.value);
+                            o.setAttribute('data-folder', c.folder);
+                            select.add(o);
+                        });
+                        select.value = keep;
+                        if (select.value !== keep) select.value = '';
+                    }
+                    // A saved choice opens on its folder.
+                    var chosen = all.filter(function (c) { return c.value === select.value; })[0];
+                    if (chosen) folder.value = chosen.folder;
+                    render();
+                    folder.addEventListener('change', render);
+                });
+            };
+        }
+        window.initCharaPickers();
+    })();
+    </script>
+</div>
+</body>
+</html>

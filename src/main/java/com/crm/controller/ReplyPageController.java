@@ -63,6 +63,12 @@ public class ReplyPageController {
     private final com.crm.service.MessageBoxService messageBoxService;
     private final com.crm.service.DomainSettingService domainSettingService;
 
+    /** 紐づきキャラ — optional so hand-built instances (tests) work without it. */
+    private com.crm.service.CharaLinkService charaLinkService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCharaLinkService(com.crm.service.CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
+
     public ReplyPageController(ReplyPageService replyPageService,
                                CrmUserRepository userRepository,
                                MessageRepository messageRepository,
@@ -350,6 +356,7 @@ public class ReplyPageController {
         }
         msg.setReplyToMessageId(effectiveReplyTo);
         Message savedMsg = messageRepository.save(msg);
+        if (charaLinkService != null) charaLinkService.onInbound(savedMsg);
 
         // Save each uploaded image with message_id = saved.id so the thread view can show
         // the attachments next to this specific received reply. Individual file failures

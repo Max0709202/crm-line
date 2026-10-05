@@ -57,6 +57,9 @@
                                       th:classappend="${s.channel == 'SMS'} ? 'text-yellow-800' : 'text-blue-700'"></span>
                                 <span th:if="${s.stepType == 'MESSAGE_IMAGE'}" th:text="'送信 (' + ${s.channel} + '・画像付き)'" class="font-semibold text-blue-700"></span>
                                 <span th:if="${s.stepType == 'HTML_SWITCH'}" th:text="'ユーザーHTML切替 → スロット' + ${s.memoSlot}" class="font-semibold text-amber-700"></span>
+                                <span th:if="${stepCharaIds.get(s.id) != null and charaNames.get(stepCharaIds.get(s.id)) != null}"
+                                      class="ml-1 px-1.5 rounded bg-violet-50 text-violet-700 font-semibold"
+                                      th:text="'送信キャラ: ' + ${charaNames.get(stepCharaIds.get(s.id))}"></span>
                             </div>
                             <div th:if="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'}" class="text-sm text-slate-700">
                                 <div th:if="${s.channel == 'EMAIL' and s.subject != null and !s.subject.isEmpty()}" class="font-semibold" th:text="${s.subject}"></div>
@@ -136,6 +139,9 @@
                                         ※「紐づきアカ」は発動時点で紐づいているアカウントから配信されます。1人の顧客が複数のLINEアカウントに
                                         友だち追加している場合は、LINE設定で優先順位が高い（数字が小さい）アカウントから、1通のみ配信されます。
                                     </p>
+                                </div>
+                                <div th:id="'charaBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL' or s.channel == 'SMS'} ? '' : 'display:none;'">
+                                    <div th:replace="~{fragment/chara-picker :: picker('charaId', ${stepCharaIds.get(s.id)})}"></div>
                                 </div>
                                 <div th:id="'imageToggleBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL' or s.channel == 'LINE'} ? '' : 'display:none;'">
                                     <label class="text-xs text-slate-600">
@@ -240,6 +246,9 @@
                             友だち追加している場合は、LINE設定で優先順位が高い（数字が小さい）アカウントから、1通のみ配信されます。
                         </p>
                     </div>
+                    <div id="charaBoxnew" class="mb-2">
+                        <div th:replace="~{fragment/chara-picker :: picker('charaId', null)}"></div>
+                    </div>
                     <div id="imageToggleBoxnew" class="mb-2">
                         <label class="text-xs text-slate-600">
                             <input type="checkbox" id="imageTogglenew" onchange="toggleImageStep('new')"/> 画像を挿入する
@@ -318,6 +327,8 @@
             if (box) box.style.display = (channel === 'EMAIL') ? 'block' : 'none';
             var lineBox = document.getElementById('lineAccountBox' + id);
             if (lineBox) lineBox.style.display = (channel === 'LINE') ? 'block' : 'none';
+            var charaBox = document.getElementById('charaBox' + id);
+            if (charaBox) charaBox.style.display = (channel === 'EMAIL' || channel === 'SMS') ? 'block' : 'none';
             var imgToggleBox = document.getElementById('imageToggleBox' + id);
             var imgAllowed = (channel === 'EMAIL' || channel === 'LINE');
             if (imgToggleBox) imgToggleBox.style.display = imgAllowed ? 'block' : 'none';

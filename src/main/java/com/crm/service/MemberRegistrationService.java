@@ -64,24 +64,22 @@ public class MemberRegistrationService {
     private final MemberConfirmTokenRepository tokenRepository;
     private final MemberLoginIdService loginIdService;
     private final PasswordEncoder passwordEncoder;
-    private final LocalPostfixOutboundMailService mailService;
-    private final SiteDesignService siteDesignService;
     private final PointSettingService pointSettingService;
     private final UserPointService userPointService;
+    private final MailTemplateService mailTemplateService;
     private final Map<String, Deque<Long>> recentByIp = new ConcurrentHashMap<>();
 
     public MemberRegistrationService(CrmUserRepository userRepository, MemberConfirmTokenRepository tokenRepository,
                                      MemberLoginIdService loginIdService, PasswordEncoder passwordEncoder,
-                                     LocalPostfixOutboundMailService mailService, SiteDesignService siteDesignService,
-                                     PointSettingService pointSettingService, UserPointService userPointService) {
+                                     PointSettingService pointSettingService, UserPointService userPointService,
+                                     MailTemplateService mailTemplateService) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.loginIdService = loginIdService;
         this.passwordEncoder = passwordEncoder;
-        this.mailService = mailService;
-        this.siteDesignService = siteDesignService;
         this.pointSettingService = pointSettingService;
         this.userPointService = userPointService;
+        this.mailTemplateService = mailTemplateService;
     }
 
     /**
@@ -138,7 +136,8 @@ public class MemberRegistrationService {
         t.setExpiresAt(LocalDateTime.now().plusHours(TOKEN_VALID_HOURS));
         tokenRepository.save(t);
 
-        sendConfirmMail(u, confirmBaseUrl + "?token=" + t.getToken());
+        // メールテンプレート設定 › 仮登録通知 (the built-in text while it is unwritten)
+        mailTemplateService.sendProvisional(u, confirmBaseUrl + "?token=" + t.getToken(), t.getExpiresAt());
         return u;
     }
 
@@ -164,32 +163,8 @@ public class MemberRegistrationService {
         int initial = pointSettingService.getInitialPoints();
         if (initial > 0 && userPointService.get(u.getId()) == 0) userPointService.set(u.getId(), initial);
         log.info("member confirmed: user={} loginId={}", u.getId(), LogSafe.of(u.getLoginId()));
+        mailTemplateService.sendRegistered(u);   // メールテンプレート設定 › 本登録通知
         return new Confirmation(ConfirmResult.CONFIRMED, u);
-    }
-
-    private void sendConfirmMail(CrmUser u, String url) {
-        String from = siteDesignService.getContactEmail();
-        if (from == null) {
-            log.warn("member registration mail not sent (no main domain / お問い合わせ address): user={}", u.getId());
-            return;
-        }
-        String site = siteDesignService.getSiteName();
-        String subject = "【" + site + "】本登録のご案内";
-        String body = site + "へのご登録ありがとうございます。\n"
-                + "\n"
-                + "下記のURLをクリックして、本登録を完了してください。\n"
-                + url + "\n"
-                + "\n"
-                + "ログインID：" + u.getLoginId() + "\n"
-                + "パスワード：ご登録時に入力されたパスワード\n"
-                + "\n"
-                + "※URLの有効期限は" + TOKEN_VALID_HOURS + "時間です。期限が切れた場合は、もう一度ご登録ください。\n"
-                + "※このメールにお心当たりがない場合は、お手数ですが破棄してください。\n";
-        OutboundMailService.SendResult res = mailService.send(new OutboundMailService.OutboundRequest(
-                from, u.getEmail(), subject, body, "127.0.0.1", 25, null, null));
-        if (!res.success) {
-            log.warn("member registration mail failed: user={} error={}", u.getId(), LogSafe.of(res.errorMessage));
-        }
     }
 
     private boolean allow(String ip) {

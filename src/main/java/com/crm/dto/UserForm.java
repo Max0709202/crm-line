@@ -71,6 +71,24 @@ public class UserForm {
     @Size(max = 500) private String fullAddress;  // %full_address%
     @Size(max = 500) private String dateJp;       // %date_jp% (blank = auto-resolve to today)
 
+    // プロフィール (USER_PROFILE; saved by UserProfileService, not on CRM_USER)
+    private String pref;
+    private String blood;
+    private String sign;
+    private String age;
+    @Size(max = 500, message = "プロフィールは500文字までです") private String profile;
+
+    public String getPref() { return pref; }
+    public void setPref(String pref) { this.pref = pref; }
+    public String getBlood() { return blood; }
+    public void setBlood(String blood) { this.blood = blood; }
+    public String getSign() { return sign; }
+    public void setSign(String sign) { this.sign = sign; }
+    public String getAge() { return age; }
+    public void setAge(String age) { this.age = age; }
+    public String getProfile() { return profile; }
+    public void setProfile(String profile) { this.profile = profile; }
+
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 

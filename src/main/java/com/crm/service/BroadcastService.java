@@ -44,6 +44,12 @@ public class BroadcastService {
     private final LineUserRepository lineUserRepository;
     private final LineAccountService lineAccountService;
 
+    /** 送信キャラ — optional so hand-built instances (tests) work without it. */
+    private CharaLinkService charaLinkService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
+
     public BroadcastService(BroadcastRepository broadcastRepository,
                             CrmUserRepository userRepository,
                             CarrierAddressPoolRepository poolRepository,
@@ -189,6 +195,8 @@ public class BroadcastService {
         b.setScheduledAt(form.getScheduledAt());
         b.setStatus(startAt.isAfter(now) ? Broadcast.STATUS_SCHEDULED : Broadcast.STATUS_SENDING);
         Broadcast saved = broadcastRepository.save(b);
+        // 送信キャラ (一斉送信 / SMS配信 / 差分ステップ で選択)
+        if (charaLinkService != null) charaLinkService.assign(com.crm.entity.CharaRef.OWNER_BROADCAST, saved.getId(), form.getCharaId());
 
         long intervalMs = 60_000L / b.getRatePerMinute();
         for (int i = 0; i < deliverable.size(); i++) {
@@ -297,6 +305,8 @@ public class BroadcastService {
         b.setScheduledAt(form.getScheduledAt());
         b.setStatus(startAt.isAfter(now) ? Broadcast.STATUS_SCHEDULED : Broadcast.STATUS_SENDING);
         Broadcast saved = broadcastRepository.save(b);
+        // 送信キャラ (一斉送信 / SMS配信 / 差分ステップ で選択)
+        if (charaLinkService != null) charaLinkService.assign(com.crm.entity.CharaRef.OWNER_BROADCAST, saved.getId(), form.getCharaId());
 
         long intervalMs = 60_000L / b.getRatePerMinute();
         for (int i = 0; i < deliverable.size(); i++) {

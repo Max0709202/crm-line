@@ -55,6 +55,19 @@ public class DiffScheduleService {
     private final LineAccountService lineAccountService;
     private final com.crm.repository.AdminUserRepository adminUserRepository;
 
+    /** 送信キャラ of a 差分ステップ — optional so hand-built instances (tests) work without it. */
+    private CharaLinkService charaLinkService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
+
+    /** The step's 送信キャラ goes with its snapshot, so later edits of the step don't change it. */
+    private void copyChara(DiffStep step, DiffScheduleStep ss) {
+        if (charaLinkService == null || ss.getId() == null) return;
+        Long charaId = charaLinkService.charaIdOf(com.crm.entity.CharaRef.OWNER_DIFF_STEP, step.getId());
+        if (charaId != null) charaLinkService.assign(com.crm.entity.CharaRef.OWNER_DIFF_SCHEDULE_STEP, ss.getId(), charaId);
+    }
+
     public DiffScheduleService(DiffScheduleRepository scheduleRepository,
                                 DiffScheduleStepRepository scheduleStepRepository,
                                 DiffDefinitionRepository definitionRepository,
@@ -141,6 +154,7 @@ public class DiffScheduleService {
             ss.setImageIdSnapshot(step.getImageId());
             ss.setStatus(DiffScheduleStep.STATUS_PENDING);
             scheduleStepRepository.save(ss);
+            copyChara(step, ss);
         }
 
         auditLog.record(AuditLogService.ACTION_DIFF_SCHEDULE_CREATE, "DiffSchedule", saved.getId(),
@@ -261,6 +275,7 @@ public class DiffScheduleService {
                     ss.setImageIdSnapshot(step.getImageId());
                     ss.setStatus(DiffScheduleStep.STATUS_PENDING);
                     scheduleStepRepository.save(ss);
+                    copyChara(step, ss);
                 }
                 created++;
                 log.info("[DIFF] registration steps applied: user={} diff={} steps={}",
@@ -494,6 +509,9 @@ public class DiffScheduleService {
         form.setSubject(DiffStep.CHANNEL_EMAIL.equals(step.getChannel()) ? step.getSubjectSnapshot() : null);
         form.setBody(bodyWithImageSpliced(step));
         form.setLineAccountId(step.getLineAccountId());
+        if (charaLinkService != null) {
+            form.setCharaId(charaLinkService.charaIdOf(com.crm.entity.CharaRef.OWNER_DIFF_SCHEDULE_STEP, step.getId()));
+        }
         form.setRatePerMinute(DiffStep.CHANNEL_LINE.equals(step.getChannel())
                 ? domainSettingService.getLineRatePerMinute() : 60);
         try {

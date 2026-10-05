@@ -40,6 +40,7 @@ public class BroadcastController {
     private final com.crm.service.ReplyPageSettingService replyPageSettingService;
     private final com.crm.service.LineAccountService lineAccountService;
     private final com.crm.repository.LineUserRepository lineUserRepository;
+    private final com.crm.service.CharaService charaService;
 
     public BroadcastController(BroadcastService broadcastService,
                                MessageTemplateService templateService,
@@ -52,7 +53,8 @@ public class BroadcastController {
                                com.crm.service.AuditLogService auditLog,
                                com.crm.service.ReplyPageSettingService replyPageSettingService,
                                com.crm.service.LineAccountService lineAccountService,
-                               com.crm.repository.LineUserRepository lineUserRepository) {
+                               com.crm.repository.LineUserRepository lineUserRepository,
+                               com.crm.service.CharaService charaService) {
         this.broadcastService = broadcastService;
         this.templateService = templateService;
         this.userService = userService;
@@ -65,6 +67,7 @@ public class BroadcastController {
         this.replyPageSettingService = replyPageSettingService;
         this.lineAccountService = lineAccountService;
         this.lineUserRepository = lineUserRepository;
+        this.charaService = charaService;
     }
 
     /** Email-domain choices for the broadcast filter (replaces old carrierCode dropdown). */
@@ -311,7 +314,14 @@ public class BroadcastController {
         model.addAttribute("history", history);
         model.addAttribute("lineAccounts", allLineAccountsFlat());
         model.addAttribute("lineMaxBodyLength", settingService.getLineMaxBodyLength());
+        addCharaChoices(model);
         return "message/broadcast-form";
+    }
+
+    /** 送信キャラ picker (フォルダ → キャラ) on the 一斉送信 / SMS配信 form. */
+    private void addCharaChoices(Model model) {
+        model.addAttribute("charaFolders", charaService.folders());
+        model.addAttribute("charas", charaService.list());
     }
 
     /** Parents + their children, flattened, for the LINE-account picker — a broadcast can
@@ -341,6 +351,7 @@ public class BroadcastController {
         model.addAttribute("templateActivePages", templateService.listActivePageNumbers());
             model.addAttribute("lineAccounts", allLineAccountsFlat());
             model.addAttribute("lineMaxBodyLength", settingService.getLineMaxBodyLength());
+            addCharaChoices(model);
             return "message/broadcast-form";
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);

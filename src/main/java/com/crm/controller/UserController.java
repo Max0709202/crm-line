@@ -63,6 +63,11 @@ public class UserController {
     private final com.crm.repository.LineUserRepository lineUserRepository;
     private final com.crm.repository.LineAccountRepository lineAccountRepository;
     private final com.crm.service.UserPointService userPointService;
+    private final com.crm.service.UserProfileService userProfileService;
+    private final com.crm.service.CharaLinkService charaLinkService;
+    private final com.crm.service.PaymentSettingService paymentSettingService;
+    private final com.crm.repository.PaymentPointRepository paymentPointRepository;
+    private final com.crm.service.MailTemplateService mailTemplateService;
 
     public UserController(CrmUserService service,
                           CarrierBindingService bindingService,
@@ -82,7 +87,12 @@ public class UserController {
                           com.crm.service.DiffScheduleService diffScheduleService,
                           com.crm.repository.LineUserRepository lineUserRepository,
                           com.crm.repository.LineAccountRepository lineAccountRepository,
-                          com.crm.service.UserPointService userPointService) {
+                          com.crm.service.UserPointService userPointService,
+                          com.crm.service.UserProfileService userProfileService,
+                          com.crm.service.CharaLinkService charaLinkService,
+                          com.crm.service.PaymentSettingService paymentSettingService,
+                          com.crm.repository.PaymentPointRepository paymentPointRepository,
+                          com.crm.service.MailTemplateService mailTemplateService) {
         this.service = service;
         this.bindingService = bindingService;
         this.placeholderService = placeholderService;
@@ -102,6 +112,11 @@ public class UserController {
         this.lineUserRepository = lineUserRepository;
         this.lineAccountRepository = lineAccountRepository;
         this.userPointService = userPointService;
+        this.userProfileService = userProfileService;
+        this.charaLinkService = charaLinkService;
+        this.paymentSettingService = paymentSettingService;
+        this.paymentPointRepository = paymentPointRepository;
+        this.mailTemplateService = mailTemplateService;
     }
 
     /** Active ad-code choices for autocomplete on the user-detail form. */
@@ -612,11 +627,48 @@ public class UserController {
         }
         model.addAttribute("user", user.get());
         // Form for inline-editing on the detail page (eliminates the separate /edit route).
+        com.crm.entity.UserProfile profile = userProfileService.get(id);
         if (!model.containsAttribute("form")) {
-            model.addAttribute("form", UserForm.from(user.get()));
+            UserForm f = UserForm.from(user.get());
+            f.setPref(profile.getPref());
+            f.setBlood(profile.getBlood());
+            f.setSign(profile.getSign());
+            f.setAge(profile.getAge() == null ? null : String.valueOf(profile.getAge()));
+            f.setProfile(profile.getProfile());
+            model.addAttribute("form", f);
         }
         model.addAttribute("userId", id);
-        model.addAttribute("payments", paymentService.listForUser(id));
+        model.addAttribute("userProfile", profile);
+        model.addAttribute("userPoints", userPointService.get(id));
+        model.addAttribute("prefChoices", com.crm.service.CharaService.PREFS);
+        model.addAttribute("bloodChoices", com.crm.service.CharaService.BLOODS);
+        model.addAttribute("signChoices", com.crm.service.CharaService.SIGNS);
+        model.addAttribute("linkedCharas", charaLinkService.linkedCharas(id));
+        java.util.List<Payment> payments = paymentService.listForUser(id);
+        model.addAttribute("payments", payments);
+        java.util.Map<Long, Integer> paymentPoints = new java.util.HashMap<>();
+        java.util.List<Long> paymentIds = new java.util.ArrayList<>();
+        for (Payment p : payments) paymentIds.add(p.getId());
+        for (com.crm.entity.PaymentPoint pp : paymentPointRepository.findAllById(paymentIds)) {
+            paymentPoints.put(pp.getPaymentId(), pp.getPoints());
+        }
+        model.addAttribute("paymentPoints", paymentPoints);
+        // 方法 = 決済関連設定 の決済種類 (this user's folder, else 共通); older entries keep their label.
+        java.util.List<com.crm.service.PaymentSettingService.Method> settingMethods =
+                paymentSettingService.getMethods(user.get().getFolder());
+        java.util.Map<String, String> methodLabels = new java.util.LinkedHashMap<>(LEGACY_METHOD_LABELS);
+        for (com.crm.service.PaymentSettingService.Method m : settingMethods) methodLabels.put(m.getCode(), m.getLabel());
+        java.util.Map<String, String> methodPlans = new java.util.HashMap<>();   // code → "金額:pt,…"
+        for (com.crm.service.PaymentSettingService.Method m : settingMethods) {
+            java.util.List<String> pairs = new java.util.ArrayList<>();
+            for (com.crm.service.PaymentSettingService.Plan plan : m.getPlans()) {
+                if (plan.getAmount() != null && plan.getPoints() != null) pairs.add(plan.getAmount() + ":" + plan.getPoints());
+            }
+            methodPlans.put(m.getCode(), String.join(",", pairs));
+        }
+        model.addAttribute("settingMethods", settingMethods);
+        model.addAttribute("methodPlans", methodPlans);
+        model.addAttribute("paymentMethodLabels", methodLabels);
         // Access log (アクセスログ) — recent link-click history, newest first, capped at 20 rows.
         model.addAttribute("accessLogs", userAccessLogRepository.findByUserIdOrderByCreatedAtDesc(
                 id, org.springframework.data.domain.PageRequest.of(0, 20)));
@@ -634,8 +686,6 @@ public class UserController {
         }
         model.addAttribute("linkedCharNames", linkedCharNames);
         model.addAttribute("paymentForm", paymentFormFor(id));
-        model.addAttribute("paymentMethods", PAYMENT_METHODS);
-        model.addAttribute("paymentStatuses", PAYMENT_STATUSES);
         // User stats for detail sidebar
         model.addAttribute("statTotalOut",   messageRepository.countByUserIdAndDirection(id, com.crm.entity.Message.DIR_OUT));
         model.addAttribute("statTotalIn",    messageRepository.countByUserIdAndDirection(id, com.crm.entity.Message.DIR_IN));
@@ -866,12 +916,31 @@ public class UserController {
         return body;
     }
 
-    private static final List<String> PAYMENT_METHODS = Arrays.asList(
-            Payment.METHOD_BANK_TRANSFER, Payment.METHOD_CREDIT_CARD, Payment.METHOD_CASH);
-    /** PAID listed first so the most-common selection is the default in dropdowns. */
-    private static final List<String> PAYMENT_STATUSES = Arrays.asList(
-            Payment.STATUS_PAID, Payment.STATUS_PENDING, Payment.STATUS_OVERDUE,
-            Payment.STATUS_REFUNDED, Payment.STATUS_CANCELLED);
+    /** 決済入金通知 for a 入金 that is now 入金済 (skipped while the template is 無効 / unwritten). */
+    private void sendPaymentMail(Payment p, int points) {
+        if (p == null || !Payment.STATUS_PAID.equals(p.getStatus())) return;
+        service.findById(p.getUserId()).ifPresent(u -> {
+            String method = p.getPaymentMethod();
+            String label = method == null ? "" : LEGACY_METHOD_LABELS.get(method);
+            if (method != null && label == null) {
+                label = method;
+                for (com.crm.service.PaymentSettingService.Method m : paymentSettingService.getMethods(u.getFolder())) {
+                    if (m.getCode().equals(method)) label = m.getLabel();
+                }
+            }
+            mailTemplateService.sendPayment(u, p.getAmount(), points, label, p.getPaidAt(), p.getId());
+        });
+    }
+
+    /** Labels of the PAYMENT_METHOD values used before 決済関連設定's codes. */
+    private static final java.util.Map<String, String> LEGACY_METHOD_LABELS;
+    static {
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        m.put(Payment.METHOD_CREDIT_CARD, "クレジットカード");
+        m.put(Payment.METHOD_BANK_TRANSFER, "銀行振込");
+        m.put(Payment.METHOD_CASH, "現金");
+        LEGACY_METHOD_LABELS = java.util.Collections.unmodifiableMap(m);
+    }
 
     private PaymentForm paymentFormFor(Long userId) {
         PaymentForm f = new PaymentForm();
@@ -883,8 +952,20 @@ public class UserController {
     @PostMapping("/{id}/payments")
     public String addPayment(@PathVariable Long id,
                               @Valid @ModelAttribute("paymentForm") PaymentForm form,
-                              BindingResult br, RedirectAttributes ra) {
+                              BindingResult br,
+                              @RequestParam(name = "points", required = false) String pointsRaw,
+                              RedirectAttributes ra) {
         form.setUserId(id);
+        // 手動入金: always 入金済; 状態 was replaced by pt (added to the member's 所持ポイント).
+        form.setStatus(Payment.STATUS_PAID);
+        int points = 0;
+        if (pointsRaw != null && !pointsRaw.trim().isEmpty()) {
+            try { points = Integer.parseInt(pointsRaw.trim()); } catch (NumberFormatException e) { points = -1; }
+            if (points < 0 || points > com.crm.service.UserPointService.MAX_POINTS) {
+                ra.addFlashAttribute("flashError", "ptは0〜" + com.crm.service.UserPointService.MAX_POINTS + "で入力してください");
+                return "redirect:/manager/users/" + id;
+            }
+        }
         if (br.hasErrors()) {
             String msg = br.getAllErrors().stream()
                     .map(e -> e.getDefaultMessage())
@@ -895,16 +976,25 @@ public class UserController {
             return "redirect:/manager/users/" + id;
         }
         com.crm.entity.Payment created = paymentService.create(form);
+        if (created != null && points > 0) {
+            com.crm.entity.PaymentPoint pp = new com.crm.entity.PaymentPoint();
+            pp.setPaymentId(created.getId());
+            pp.setPoints(points);
+            paymentPointRepository.save(pp);
+            userPointService.set(id, userPointService.get(id) + points);
+        }
         auditLog.record(com.crm.service.AuditLogService.ACTION_PAYMENT_CREATE,
                 "Payment", created == null ? null : created.getId(),
-                "userId=" + id + " amount=" + form.getAmount());
-        ra.addFlashAttribute("flashSuccess", "入金を登録しました");
+                "userId=" + id + " amount=" + form.getAmount() + " pt=" + points);
+        if (created != null) sendPaymentMail(created, points);   // メールテンプレート設定 › 決済入金通知
+        ra.addFlashAttribute("flashSuccess", points > 0 ? "入金を登録し、" + String.format("%,d", points) + "ptを付与しました" : "入金を登録しました");
         return "redirect:/manager/users/" + id;
     }
 
     @PostMapping("/{id}/payments/{pid}/mark-paid")
     public String markPaymentPaid(@PathVariable Long id, @PathVariable Long pid, RedirectAttributes ra) {
-        paymentService.markPaid(pid);
+        Payment paid = paymentService.markPaid(pid);
+        sendPaymentMail(paid, paymentPointRepository.findById(pid).map(com.crm.entity.PaymentPoint::getPoints).orElse(0));
         auditLog.record(com.crm.service.AuditLogService.ACTION_PAYMENT_MARK_PAID,
                 "Payment", pid, "userId=" + id);
         ra.addFlashAttribute("flashSuccess", "入金済にしました");
@@ -922,12 +1012,56 @@ public class UserController {
             ra.addFlashAttribute("flashError", "入金削除には管理者パスワードの確認が必要です");
             return "redirect:/manager/users/" + id;
         }
+        // pt granted with this 入金 is taken back (once — not again for an already cancelled one)
+        Optional<Payment> before = paymentService.findById(pid);
+        Optional<com.crm.entity.PaymentPoint> granted = paymentPointRepository.findById(pid);
         boolean cancelled = paymentService.delete(pid);
+        if (before.isPresent() && granted.isPresent() && !Payment.STATUS_CANCELLED.equals(before.get().getStatus())) {
+            Long owner = before.get().getUserId();
+            userPointService.set(owner, Math.max(0, userPointService.get(owner) - granted.get().getPoints()));
+        }
+        if (!cancelled) granted.ifPresent(paymentPointRepository::delete);
         auditLog.record(com.crm.service.AuditLogService.ACTION_PAYMENT_DELETE,
                 "Payment", pid, "userId=" + id + (cancelled ? " status=CANCELLED" : ""));
         ra.addFlashAttribute("flashSuccess", cancelled
                 ? "入金をキャンセル済にしました（入金レポートにはキャンセル済として表示されます）"
                 : "入金を削除しました");
+        return "redirect:/manager/users/" + id;
+    }
+
+    /** プロフィール写真 (resized in the browser like キャラ登録) — saved right away, JSON reply. */
+    @PostMapping("/{id}/profile-photo")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<java.util.Map<String, Object>> uploadProfilePhoto(
+            @PathVariable Long id, @RequestParam(name = "photo", required = false) MultipartFile photo, HttpSession session) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        if (!service.findById(id).isPresent()) {
+            body.put("error", "ユーザーが見つかりません");
+            return org.springframework.http.ResponseEntity.badRequest().body(body);
+        }
+        try {
+            Object admin = session.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_NAME);
+            body.put("url", userProfileService.savePhoto(id, photo, admin == null ? null : String.valueOf(admin)));
+            return org.springframework.http.ResponseEntity.ok(body);
+        } catch (com.crm.service.UserProfileService.ProfileException e) {
+            body.put("error", e.getMessage());
+            return org.springframework.http.ResponseEntity.badRequest().body(body);
+        }
+    }
+
+    @PostMapping("/{id}/profile-photo/delete")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public java.util.Map<String, Object> deleteProfilePhoto(@PathVariable Long id) {
+        userProfileService.removePhoto(id);
+        return java.util.Collections.<String, Object>singletonMap("deleted", true);
+    }
+
+    /** 紐づきキャラ (メール) の削除 — the user is linked again when they next write to the キャラ. */
+    @PostMapping("/{id}/chara-links/{charaId}/delete")
+    public String deleteCharaLink(@PathVariable Long id, @PathVariable Long charaId, RedirectAttributes ra) {
+        charaLinkService.unlink(id, charaId);
+        auditLog.record(com.crm.service.AuditLogService.ACTION_SETTINGS_UPDATE, "CrmUser", id, "紐づきキャラを削除: charaId=" + charaId);
+        ra.addFlashAttribute("flashSuccess", "紐づきキャラを削除しました");
         return "redirect:/manager/users/" + id;
     }
 
@@ -995,6 +1129,13 @@ public class UserController {
         }
         try {
             service.update(id, form);
+            try {
+                userProfileService.save(id, form.getPref(), form.getBlood(), form.getSign(), form.getAge(), form.getProfile());
+            } catch (com.crm.service.UserProfileService.ProfileException e) {
+                ra.addFlashAttribute("flashError", "ユーザーを更新しましたが、プロフィールを保存できませんでした: " + e.getMessage());
+                ra.addFlashAttribute("form", form);
+                return "redirect:/manager/users/" + id;
+            }
             ra.addFlashAttribute("flashSuccess", "ユーザーを更新しました");
             return "redirect:/manager/users/" + id;
         } catch (CrmUserService.DuplicateEmailException e) {

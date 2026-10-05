@@ -34,11 +34,7 @@ public class RelayServerService {
         }
         RelayServer r = new RelayServer();
         form.applyTo(r);
-        RelayServer saved = repository.save(r);
-        if (Boolean.TRUE.equals(saved.getIsActive())) {
-            deactivateAllExcept(saved.getId());
-        }
-        return saved;
+        return repository.save(r);
     }
 
     @Transactional
@@ -50,27 +46,7 @@ public class RelayServerService {
             throw new DuplicateNameException(newName);
         }
         form.applyTo(r);
-        RelayServer saved = repository.save(r);
-        if (Boolean.TRUE.equals(saved.getIsActive())) {
-            deactivateAllExcept(saved.getId());
-        }
-        return saved;
-    }
-
-    /**
-     * Enforce single-active invariant: when one row is being saved as active, demote every
-     * other active row to inactive. The dispatcher in HttpRelayOutboundMailService picks the
-     * first active row alphabetically, so two-rows-active was ambiguous from the operator's
-     * point of view — fix that here.
-     */
-    private void deactivateAllExcept(Long keepId) {
-        for (RelayServer other : repository.findAll()) {
-            if (other.getId().equals(keepId)) continue;
-            if (Boolean.TRUE.equals(other.getIsActive())) {
-                other.setIsActive(false);
-                repository.save(other);
-            }
-        }
+        return repository.save(r);
     }
 
     @Transactional

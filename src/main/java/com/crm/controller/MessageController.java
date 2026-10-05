@@ -47,6 +47,11 @@ public class MessageController {
     private final com.crm.service.ThreadLayoutService threadLayoutService;
     private final com.crm.service.ThreadPanelService threadPanelService;
     private final com.crm.service.FolderSettingService folderSettingService;
+    private final com.crm.service.CharaLinkService charaLinkService;
+    private final com.crm.repository.CharaRepository charaRepository;
+    private final com.crm.repository.CharaFolderRepository charaFolderRepository;
+    private final com.crm.service.UserProfileService userProfileService;
+    private final com.crm.service.UserPointService userPointService;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -65,7 +70,12 @@ public class MessageController {
                              com.crm.service.ReplyHtmlSlotService replyHtmlSlotService,
                              com.crm.service.ThreadLayoutService threadLayoutService,
                              com.crm.service.ThreadPanelService threadPanelService,
-                             com.crm.service.FolderSettingService folderSettingService) {
+                             com.crm.service.FolderSettingService folderSettingService,
+                             com.crm.service.CharaLinkService charaLinkService,
+                             com.crm.repository.CharaRepository charaRepository,
+                             com.crm.repository.CharaFolderRepository charaFolderRepository,
+                             com.crm.service.UserProfileService userProfileService,
+                             com.crm.service.UserPointService userPointService) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -84,6 +94,11 @@ public class MessageController {
         this.threadLayoutService = threadLayoutService;
         this.threadPanelService = threadPanelService;
         this.folderSettingService = folderSettingService;
+        this.charaLinkService = charaLinkService;
+        this.charaRepository = charaRepository;
+        this.charaFolderRepository = charaFolderRepository;
+        this.userProfileService = userProfileService;
+        this.userPointService = userPointService;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -158,6 +173,8 @@ public class MessageController {
     @GetMapping("/manager/users/{userId}/thread")
     public String thread(@PathVariable Long userId,
                          @RequestParam(name = "replyTo", required = false) Long replyTo,
+                         @RequestParam(name = "chara", required = false) Long charaParam,
+                         @RequestParam(name = "line", required = false) Long lineParam,
                          Model model, RedirectAttributes ra, HttpSession session) {
         Optional<CrmUser> user = userService.findById(userId);
         if (!user.isPresent()) {
@@ -167,6 +184,15 @@ public class MessageController {
         // Mark inbound as read when admin opens the thread (drives dashboard unread-count)
         messageService.markThreadAsRead(userId);
         List<Message> thread = messageService.threadFor(userId);
+        // 紐づきキャラ をクリック → ?chara=ID: this user × キャラ only (messages sent as / to it),
+        // and replies go out as that キャラ.
+        com.crm.entity.Chara viewChara = charaParam == null ? null : charaRepository.findById(charaParam).orElse(null);
+        if (viewChara != null) {
+            java.util.Map<Long, Long> charaOf = charaLinkService.charaIdsOfMessages(thread);
+            List<Message> only = new java.util.ArrayList<>();
+            for (Message m : thread) if (viewChara.getId().equals(charaOf.get(m.getId()))) only.add(m);
+            thread = only;
+        }
         // Compute per-user thread stats for pane-tr header
         long threadWebReply = 0, threadMailReply = 0, threadOut = 0;
         for (com.crm.entity.Message m : thread) {
@@ -263,6 +289,8 @@ public class MessageController {
             for (Long id : ids) linkedCharNames.put(id, names.getOrDefault(id, "不明"));
         }
         model.addAttribute("linkedCharNames", linkedCharNames);
+        // ?line=ID (LINE の紐づきキャラ をクリック): that character is preselected as the LINE sender.
+        model.addAttribute("selectedLineAccountId", lineParam != null && linkedCharNames.containsKey(lineParam) ? lineParam : null);
         // 専用HTML (使用中) — the reply-page HTML this character is showing the customer; its
         // title is linked directly above the exchange so the operator notices it while
         // replying (2026-09-29/30 client request). Only when the in-use slot has content.
@@ -326,9 +354,21 @@ public class MessageController {
         model.addAttribute("directOutIds", directOutIds);
         com.crm.entity.CarrierAddressPool boundPool = bindingService.firstBoundFor(userId).orElse(null);
         model.addAttribute("userHasPool", boundPool != null && !Boolean.FALSE.equals(boundPool.getIsActive()));
-        // キャラ card: キャラ are not defined yet, so the card shows the LINE character the user
-        // talks to (if any) and its やり取りメモ is kept under キャラ ID 0 for now.
-        model.addAttribute("charName", linkedCharNames.isEmpty() ? null : linkedCharNames.values().iterator().next());
+        // キャラ card: the キャラ of ?chara=, else the user's newest 紐づきキャラ (メール); replies from
+        // this page go out as that キャラ. Without one, the LINE character the user talks to (if any).
+        // Its やり取りメモ is still kept under キャラ ID 0.
+        List<com.crm.entity.Chara> linkedCharas = charaLinkService.linkedCharas(userId);
+        com.crm.entity.Chara cardChara = viewChara != null ? viewChara : (linkedCharas.isEmpty() ? null : linkedCharas.get(0));
+        model.addAttribute("linkedCharas", linkedCharas);
+        model.addAttribute("viewChara", viewChara);
+        model.addAttribute("cardChara", cardChara);
+        model.addAttribute("cardCharaFolder", cardChara == null || cardChara.getFolderId() == null ? null
+                : charaFolderRepository.findById(cardChara.getFolderId()).map(com.crm.entity.CharaFolder::getName).orElse(null));
+        String lineCharName = linkedCharNames.isEmpty() ? null
+                : (lineParam != null && linkedCharNames.containsKey(lineParam) ? linkedCharNames.get(lineParam) : linkedCharNames.values().iterator().next());
+        model.addAttribute("charName", cardChara != null ? cardChara.getName() : lineCharName);
+        model.addAttribute("userProfile", userProfileService.get(userId));
+        model.addAttribute("userPoints", userPointService.get(userId));
         model.addAttribute("memberMemo", threadPanelService.getMemo(userId, com.crm.entity.ThreadMemo.TARGET_MEMBER, 0L));
         model.addAttribute("staffMemo", threadPanelService.getMemo(userId, com.crm.entity.ThreadMemo.TARGET_STAFF, 0L));
         model.addAttribute("memoMax", com.crm.service.ThreadPanelService.MEMO_MAX);
@@ -378,6 +418,8 @@ public class MessageController {
     @PostMapping("/manager/users/{userId}/messages")
     public String sendMessage(@PathVariable Long userId,
                               @RequestParam(name = "returnTo", required = false) String returnTo,
+                              @RequestParam(name = "charaId", required = false) Long charaId,
+                              @RequestParam(name = "charaView", required = false) String charaView,
                               @Valid @ModelAttribute("form") MessageComposeForm form,
                               BindingResult br,
                               HttpSession session,
@@ -390,23 +432,26 @@ public class MessageController {
             // branch only ever set 5 of them, so Thymeleaf raised a raw 500 on the missing
             // ones instead of showing the validation message.
             ra.addFlashAttribute("flashError", "メール本文を入力してください");
-            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
         try {
             Message sent = messageService.compose(userId, adminId, form);
+            charaLinkService.assign(com.crm.entity.CharaRef.OWNER_MESSAGE, sent.getId(), charaId);
             String kind = Message.STATUS_QUEUED.equals(sent.getStatus()) ? "予約送信" : "送信";
             ra.addFlashAttribute("flashSuccess", "メッセージを" + kind + "しました");
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }
-        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
     }
 
     /** SMS reply from the thread page — only available for users with a registered phone number. */
     @PostMapping("/manager/users/{userId}/messages/sms")
     public String sendSms(@PathVariable Long userId,
                           @RequestParam(name = "returnTo", required = false) String returnTo,
+                          @RequestParam(name = "charaId", required = false) Long charaId,
+                          @RequestParam(name = "charaView", required = false) String charaView,
                           @Valid @ModelAttribute("smsForm") com.crm.dto.SmsComposeForm form,
                           BindingResult br,
                           HttpSession session,
@@ -414,22 +459,25 @@ public class MessageController {
                           Model model) {
         if (br.hasErrors()) {
             ra.addFlashAttribute("flashError", "SMS本文を入力してください");
-            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
         try {
             Message sent = messageService.composeSms(userId, adminId, form);
+            charaLinkService.assign(com.crm.entity.CharaRef.OWNER_MESSAGE, sent.getId(), charaId);
             String kind = Message.STATUS_QUEUED.equals(sent.getStatus()) ? "予約送信" : "送信";
             ra.addFlashAttribute("flashSuccess", "SMSを" + kind + "しました");
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }
-        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
     }
 
     @PostMapping("/manager/users/{userId}/messages/line")
     public String sendLine(@PathVariable Long userId,
                            @RequestParam(name = "returnTo", required = false) String returnTo,
+                           @RequestParam(name = "charaId", required = false) Long charaId,
+                           @RequestParam(name = "charaView", required = false) String charaView,
                            @Valid @ModelAttribute("lineForm") com.crm.dto.LineComposeForm form,
                            BindingResult br,
                            HttpSession session,
@@ -437,24 +485,31 @@ public class MessageController {
                            Model model) {
         if (br.hasErrors()) {
             ra.addFlashAttribute("flashError", "本文を入力してください");
-            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
         try {
             Message sent = messageService.composeLine(userId, adminId, form);
+            charaLinkService.assign(com.crm.entity.CharaRef.OWNER_MESSAGE, sent.getId(), charaId);
             String kind = Message.STATUS_QUEUED.equals(sent.getStatus()) ? "予約送信" : "送信";
             auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_SEND, "Message", sent.getId(), "channel=LINE");
             ra.addFlashAttribute("flashSuccess", "LINEメッセージを" + kind + "しました");
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }
-        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo);
+        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
     }
 
     /** メッセージボックス per-item reply forms post with returnTo=message-box so the admin
      *  lands back on the message-box preview instead of the default thread view. */
     private static String redirectSuffixFor(String returnTo) {
         return "message-box".equals(returnTo) ? "/message-box" : "/thread";
+    }
+
+    /** Same, but back on the user × キャラ page (?chara=) when the reply was sent from one. */
+    private static String redirectSuffixFor(String returnTo, String charaView, Long charaId) {
+        String suffix = redirectSuffixFor(returnTo);
+        return "/thread".equals(suffix) && "1".equals(charaView) && charaId != null ? suffix + "?chara=" + charaId : suffix;
     }
 
     /**

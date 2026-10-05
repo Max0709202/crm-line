@@ -51,16 +51,48 @@ public class PublicSiteController {
     private final MemberPageService memberPageService;
     private final CrmUserRepository userRepository;
     private final UserPointService userPointService;
+    private final com.crm.service.MemberAutoLoginService autoLoginService;
 
     public PublicSiteController(SiteDesignService siteDesignService, PublicSiteService publicSiteService,
                                 MemberRegistrationService registrationService, MemberPageService memberPageService,
-                                CrmUserRepository userRepository, UserPointService userPointService) {
+                                CrmUserRepository userRepository, UserPointService userPointService,
+                                com.crm.service.MemberAutoLoginService autoLoginService) {
         this.siteDesignService = siteDesignService;
         this.publicSiteService = publicSiteService;
         this.registrationService = registrationService;
         this.memberPageService = memberPageService;
         this.userRepository = userRepository;
         this.userPointService = userPointService;
+        this.autoLoginService = autoLoginService;
+    }
+
+    /**
+     * 自動ログインURL ({@code %auto_login_url%} in a mail): logs the member in without ID / password.
+     * The session cookie is SameSite=Strict, and a redirect straight from a mail link would still
+     * count as cross-site, so the browser would not send the new cookie on it. This page therefore
+     * moves on to the member page itself (same-site), where the session is seen. Unknown token or a
+     * member that isn't 本登録済み → the top page's ログイン.
+     */
+    @GetMapping(com.crm.service.MemberAutoLoginService.PATH)
+    public ResponseEntity<String> autoLogin(@RequestParam(name = "t", required = false) String token,
+                                            HttpServletRequest request) {
+        Optional<CrmUser> user = autoLoginService.resolve(token);
+        String next = "/#login";
+        if (user.isPresent()) {
+            // New session ID (no session fixation) but the same session: the admin screens share this
+            // cookie, so an operator opening a member's link must not be logged out of 管理画面.
+            HttpSession session = request.getSession(true);
+            if (!session.isNew()) request.changeSessionId();
+            session.setAttribute(SESSION_MEMBER_ID, user.get().getId());
+            next = PublicSiteService.PROFILE_URL;
+        }
+        String html = "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
+                + "<meta name=\"robots\" content=\"noindex\">"
+                + "<meta http-equiv=\"refresh\" content=\"0;url=" + next + "\"><title>ログイン</title></head>"
+                + "<body><script>location.replace('" + next + "');</script>"
+                + "<p><a href=\"" + next + "\">ログインしています…</a></p></body></html>";
+        return ResponseEntity.ok().header("Content-Type", "text/html; charset=UTF-8")
+                .header("Cache-Control", "no-store").header("Referrer-Policy", "no-referrer").body(html);
     }
 
     @GetMapping("/page/{code}")
@@ -74,7 +106,9 @@ public class PublicSiteController {
         }
         addCommon(model);
         model.addAttribute("pageTitle", title);
-        model.addAttribute("pageHtml", siteDesignService.getPageHtml(code));
+        // %sitename% in the page body → the ドメイン設定 site name, as on the top page
+        model.addAttribute("pageHtml", siteDesignService.getPageHtml(code)
+                .replace("%sitename%", HtmlUtils.htmlEscape(siteDesignService.getSiteName(), "UTF-8")));
         return "member/page";
     }
 

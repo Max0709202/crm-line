@@ -74,11 +74,25 @@ public class DirectSmtpRelayOutboundMailService {
             byte[] rawMime = buildRawMime(req, displayName, replyToAddress);
             MimeMessage msg = new MimeMessage(session, new ByteArrayInputStream(rawMime));
             // Don't call saveChanges — that would re-encode and undo our explicit transfer-encoding choices.
-            Transport.send(msg);
-            log.info("[DIRECT SMTP] sent: from={} ({}) to={} via={}:{} subject=[{}]",
+            // Sent on an explicit transport (same as Transport.send) so the relay's final reply —
+            // e.g. "250 2.0.0 Ok: queued as 4ABC123" — can be logged: that queue ID is what to look
+            // up in the relay's own mail log when a mail it accepted doesn't arrive.
+            String relayReply = null;
+            msg.saveChanges();   // exactly what Transport.send(msg) did before this explicit transport
+            Transport transport = session.getTransport("smtp");
+            try {
+                transport.connect();
+                transport.sendMessage(msg, msg.getAllRecipients());
+                if (transport instanceof com.sun.mail.smtp.SMTPTransport) {
+                    relayReply = ((com.sun.mail.smtp.SMTPTransport) transport).getLastServerResponse();
+                }
+            } finally {
+                transport.close();
+            }
+            log.info("[DIRECT SMTP] sent: from={} ({}) to={} via={}:{} subject=[{}] relay-reply=[{}]",
                     LogSafe.of(req.fromAddress), LogSafe.of(displayName),
                     LogSafe.of(req.toAddress),
-                    relayHost, relayPort, LogSafe.of(req.subject));
+                    relayHost, relayPort, LogSafe.of(req.subject), LogSafe.of(relayReply == null ? "" : relayReply.trim()));
             return OutboundMailService.SendResult.ok();
         } catch (MessagingException e) {
             log.warn("[DIRECT SMTP] failed: from={} to={} via={}:{} error={}",

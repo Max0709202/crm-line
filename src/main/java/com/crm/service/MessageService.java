@@ -66,6 +66,12 @@ public class MessageService {
     /** Lazy reference — broadcast counter update is optional and avoids a circular dependency. */
     private final org.springframework.context.ApplicationContext ctx;
 
+    /** 紐づきキャラ — optional so hand-built instances (tests) work without it. */
+    private CharaLinkService charaLinkService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
+
     public MessageService(MessageRepository messageRepository,
                           CrmUserRepository userRepository,
                           CarrierAddressPoolRepository poolRepository,
@@ -371,6 +377,12 @@ public class MessageService {
     @org.springframework.transaction.annotation.Transactional
     public int deleteByIds(java.util.List<Long> ids) {
         if (ids == null || ids.isEmpty()) return 0;
+        // 紐づきキャラ: a deleted message from the user unlinks the キャラ it was sent to
+        if (charaLinkService != null) {
+            java.util.List<Long> existing = new java.util.ArrayList<>();
+            for (Long id : ids) if (id != null) existing.add(id);
+            charaLinkService.onMessagesDeleted(messageRepository.findAllById(existing));
+        }
         int n = 0;
         for (Long id : ids) {
             if (id == null) continue;
@@ -436,6 +448,7 @@ public class MessageService {
             if (uid == null) continue;
             for (Message m : messageRepository.findByUserIdOrderByCreatedAtAsc(uid)) {
                 if (Message.DIR_IN.equals(m.getDirection())) {
+                    if (charaLinkService != null) charaLinkService.onMessagesDeleted(java.util.Collections.singletonList(m));
                     try { messageRepository.delete(m); total++; } catch (Exception ignored) {}
                 }
             }

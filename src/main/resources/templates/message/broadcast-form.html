@@ -215,6 +215,11 @@
                     </p>
                 </div>
 
+                <!-- 送信キャラ（一斉送信・SMS配信）: フォルダ → キャラを1名 -->
+                <div th:if="${form.channel != 'LINE'}">
+                    <div th:replace="~{fragment/chara-picker :: picker('charaId', ${form.charaId})}"></div>
+                </div>
+
                 <!-- Targeting lock-in: when admin came in via "選択一斉送信", show the picked
                      users explicitly and pin the targetUserIds[] so filters won't widen the list. -->
                 <!-- Selected-users summary. The address list itself is intentionally NOT

@@ -109,6 +109,12 @@ public class HttpRelayOutboundMailService implements OutboundMailService {
         this.directSmtp = directSmtp;
     }
 
+    /** ユーザーごとの送信経路 — optional so hand-built instances (tests) keep the single-active pick. */
+    private RelayRoutingService relayRoutingService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRelayRoutingService(RelayRoutingService relayRoutingService) { this.relayRoutingService = relayRoutingService; }
+
     /** Hostname (or IP) portion of the configured relay URL — used by the settings UI to flag
      *  which RELAY_SERVER row is the one currently being talked to. */
     public String getActiveRelayHost() { return hostFromUrl(endpointUrl); }
@@ -169,7 +175,9 @@ public class HttpRelayOutboundMailService implements OutboundMailService {
         //     SSH+POST bridge (existing behaviour, kept for the 133.88.116.190 deployment).
         //   • Other IP → direct SMTP to that host:port (e.g. AMG 157.7.89.36).
         //   • No active row → host's local postfix delivers directly via MX lookup.
-        com.crm.entity.RelayServer activeRelay = pickActiveRelay();
+        //   (リレーサーバー設定: the first 使用中 relay, in priority order, whose 対象条件 the recipient matches)
+        com.crm.entity.RelayServer activeRelay = relayRoutingService != null
+                ? relayRoutingService.pickFor(effective.toAddress) : pickActiveRelay();
         if (activeRelay == null) {
             log.info("[OUTBOUND] no active RELAY_SERVER → local postfix for to={}",
                     LogSafe.of(effective.toAddress));

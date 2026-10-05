@@ -37,9 +37,15 @@
               class="bg-white rounded-lg shadow-sm border border-slate-100 p-5 flex flex-col gap-4"
               onsubmit="return maybeConfirmEmailChange(this);">
 
-            <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 flex items-baseline gap-3">
+            <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 flex items-center gap-3">
                 基本情報
                 <span class="text-xs font-normal text-slate-500">ユーザーID: <span class="font-semibold text-slate-700 tabular-nums" th:text="${user.id}">0</span></span>
+                <!-- 所持ポイント（目立つ枠） -->
+                <span class="ml-auto inline-flex items-baseline gap-1 px-3 py-1 rounded-md border-2 border-amber-400 bg-amber-50 text-amber-700"
+                      title="所持ポイント">
+                    <span class="text-lg font-bold tabular-nums leading-none" th:text="${#numbers.formatInteger(userPoints, 1, 'COMMA')}">0</span>
+                    <span class="text-xs font-bold">pt</span>
+                </span>
             </h2>
 
             <div class="grid grid-cols-2 gap-3">
@@ -109,6 +115,56 @@
                         <option th:each="ac : ${adCodeChoices}" th:value="${ac.code}" th:text="${ac.name} + ' (' + ${ac.code} + ')'"></option>
                     </datalist>
                 </div>
+            </div>
+
+            <!-- プロフィール（キャラ登録と同じ項目）。写真は選ぶとすぐ保存、それ以外は「保存」で保存。 -->
+            <div class="border border-slate-200 rounded-md p-3">
+                <div class="text-xs font-semibold text-slate-600 mb-2">プロフィール</div>
+                <div class="flex gap-3 items-start">
+                    <div class="flex flex-col items-center gap-1" style="flex:none;">
+                        <!-- 約2.5cm角の正方形（px固定・トリミング表示なので画面の拡大縮小でも歪まない） -->
+                        <div id="upPhotoBox" class="up-photo" th:classappend="${userProfile.photoUrl == null} ? 'is-empty'"
+                             th:attr="data-user-id=${user.id}" title="クリックで拡大">
+                            <img id="upPhotoImg" th:if="${userProfile.photoUrl != null}" th:src="${userProfile.photoUrl}" alt=""/>
+                            <span id="upPhotoEmpty" th:if="${userProfile.photoUrl == null}">写真なし</span>
+                        </div>
+                        <label class="px-2 py-0.5 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded cursor-pointer">写真を選ぶ<input type="file" id="upPhotoFile" accept="image/*" hidden/></label>
+                        <button type="button" id="upPhotoRemove" class="px-2 py-0.5 text-xs border border-red-300 text-red-600 hover:bg-red-50 rounded"
+                                th:style="${userProfile.photoUrl == null} ? 'display:none;'">写真を削除</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 flex-1 min-w-0">
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">都道府県</label>
+                            <select class="tw-input" th:field="*{pref}">
+                                <option value="">未設定</option>
+                                <option th:each="v : ${prefChoices}" th:value="${v}" th:text="${v}"></option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">血液型</label>
+                            <select class="tw-input" th:field="*{blood}">
+                                <option value="">未設定</option>
+                                <option th:each="v : ${bloodChoices}" th:value="${v}" th:text="${v}"></option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">星座</label>
+                            <select class="tw-input" th:field="*{sign}">
+                                <option value="">未設定</option>
+                                <option th:each="v : ${signChoices}" th:value="${v}" th:text="${v}"></option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">年齢 <span class="text-slate-400">(18〜80)</span></label>
+                            <input type="number" class="tw-input" th:field="*{age}" min="18" max="80" placeholder="例: 30"/>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="block text-xs text-slate-500 mb-1">プロフィール欄 <span class="text-slate-400">(500文字まで)</span></label>
+                    <textarea class="tw-input" rows="3" th:field="*{profile}" maxlength="500"></textarea>
+                </div>
+                <p id="upPhotoInfo" class="mt-1 text-xs text-slate-500" style="display:none;"></p>
             </div>
 
             <!-- Ten reply-page HTML slots — operator picks one as 使用中. The public reply
@@ -192,6 +248,7 @@
                         var lb = document.getElementById('attachLightbox');
                         var im = document.getElementById('attachLightboxImg');
                         if (!lb || !im) return;
+                        im.style.width = '';
                         im.src = src;
                         lb.style.display = 'flex';
                     }
@@ -296,9 +353,8 @@
             </script>
 
             <div>
-                <label class="block text-xs text-slate-500 mb-1">個別メモ <span class="text-slate-400 normal-case">(管理者用、返信画面には表示されません)</span></label>
-                <textarea class="tw-input" rows="3" th:field="*{internalMemo}"
-                          placeholder="このユーザーに関する社内メモ"></textarea>
+                <label class="block text-xs text-slate-500 mb-1">個別メモ <span class="text-slate-400 normal-case">(管理者用、ユーザーの返信画面には表示しません)</span></label>
+                <textarea class="tw-input" rows="3" th:field="*{internalMemo}"></textarea>
             </div>
 
             <!-- Tag values are edited on the right panel; these hidden inputs carry the values. -->
@@ -317,7 +373,6 @@
                    th:classappend="${form.activeMemoSlot == i} ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-bold'"
                    th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'(slot=${i})}" target="_blank"
                    th:text="${circledNumbers.get(i - 1)}"></a>
-                <span class="ml-auto text-xs text-slate-500">ID: <code th:text="${user.id}"></code></span>
             </div>
         </form>
 
@@ -328,14 +383,15 @@
                  these should be visible on the user detail page above the user-specific
                  (editable) tags panel so the operator can see the full tag vocabulary at
                  once when composing a message. -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
             <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
                 <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 mb-3">デフォルトの置き換えタグ</h2>
                 <p class="text-xs text-slate-500 mb-3">メッセージ送信時に自動的に差し替えられます。編集不可。</p>
                 <div class="grid grid-cols-1 gap-2">
-                    <div th:each="b : ${builtinTags}" class="grid grid-cols-12 gap-2 items-center">
-                        <code class="col-span-3 bg-emerald-50 text-emerald-700 px-2 py-1 rounded text-sm text-center"
+                    <div th:each="b : ${builtinTags}" class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <code class="shrink-0 whitespace-nowrap bg-emerald-50 text-emerald-700 px-2 py-1 rounded text-sm"
                               th:text="${b.token}"></code>
-                        <span class="col-span-9 text-sm text-slate-600" th:text="${b.description}"></span>
+                        <span class="text-sm text-slate-600 min-w-0" th:text="${b.description}"></span>
                     </div>
                 </div>
             </div>
@@ -346,41 +402,53 @@
                 <p class="text-xs text-slate-500 mb-3">
                     値を編集して <strong>左の「保存」ボタン</strong> を押してください（左フォームと一体で送信されます）。
                 </p>
+                <!-- 半分の幅なのでタグ名の下に入力欄。例は返信画面と同じく枠内に薄く表示（placeholder）。 -->
                 <form id="tagMirrorForm" onsubmit="return false;">
                     <div class="grid grid-cols-1 gap-2">
-                        <div class="grid grid-cols-12 gap-2 items-center">
-                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%amount%</code>
-                            <input type="text" class="col-span-9 tw-input" th:value="${form.amount}" data-mirror="amount"/>
+                        <div>
+                            <code class="inline-block bg-slate-100 px-2 py-0.5 rounded text-sm mb-1">%amount%</code>
+                            <input type="text" class="tw-input" th:value="${form.amount}" data-mirror="amount" placeholder="例:1,200"/>
                         </div>
-                        <div class="grid grid-cols-12 gap-2 items-center">
-                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%product%</code>
-                            <input type="text" class="col-span-9 tw-input" th:value="${form.product}" data-mirror="product"/>
+                        <div>
+                            <code class="inline-block bg-slate-100 px-2 py-0.5 rounded text-sm mb-1">%product%</code>
+                            <input type="text" class="tw-input" th:value="${form.product}" data-mirror="product" placeholder="例:ご注文商品"/>
                         </div>
-                        <div class="grid grid-cols-12 gap-2 items-center">
-                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%full_address%</code>
-                            <input th:unless="${@roleMask.masks('address')}" type="text" class="col-span-9 tw-input" th:value="${form.fullAddress}" data-mirror="fullAddress"/>
-                            <input th:if="${@roleMask.masks('address')}" type="text" class="col-span-9 tw-input bg-slate-100 text-slate-500" readonly
+                        <div>
+                            <code class="inline-block bg-slate-100 px-2 py-0.5 rounded text-sm mb-1">%full_address%</code>
+                            <input th:unless="${@roleMask.masks('address')}" type="text" class="tw-input" th:value="${form.fullAddress}" data-mirror="fullAddress" placeholder="例:東京都..."/>
+                            <input th:if="${@roleMask.masks('address')}" type="text" class="tw-input bg-slate-100 text-slate-500" readonly
                                    th:value="${@roleMask.address(form.fullAddress)}" title="この権限では伏せ字で表示されます"/>
                         </div>
-                        <div class="grid grid-cols-12 gap-2 items-center">
-                            <code class="col-span-3 bg-slate-100 px-2 py-1 rounded text-sm text-center">%date_jp%</code>
-                            <input type="text" class="col-span-9 tw-input" th:value="${form.dateJp}" data-mirror="dateJp"
+                        <div>
+                            <code class="inline-block bg-slate-100 px-2 py-0.5 rounded text-sm mb-1">%date_jp%</code>
+                            <input type="text" class="tw-input" th:value="${form.dateJp}" data-mirror="dateJp"
                                    placeholder="空欄なら送信時の日付"/>
                         </div>
                     </div>
                 </form>
             </div>
+            </div>
 
             <!-- 紐づきキャラ: LINE accounts (characters) this customer is friends with. -->
-            <div th:if="${!linkedCharNames.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
+            <!-- 紐づきキャラ: ユーザーがキャラへメールを1通でも送ると紐づく（LINEは友だち追加で紐づく）。
+                 キャラ名クリックでそのキャラとの返信画面を別タブで開く。 -->
+            <div th:if="${!linkedCharNames.empty or !linkedCharas.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
                 <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 mb-3">
-                    紐づきキャラ（LINE）
-                    <span class="text-xs font-normal text-slate-500" th:text="'(' + ${#lists.size(linkedCharNames)} + ' 人)'">(0 人)</span>
+                    紐づきキャラ
+                    <span class="text-xs font-normal text-slate-500" th:text="'(' + ${#lists.size(linkedCharas) + #lists.size(linkedCharNames)} + ' 人)'">(0 人)</span>
                 </h2>
                 <div class="flex flex-wrap gap-2">
+                    <span th:each="c : ${linkedCharas}" class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+                        <a class="hover:underline" th:href="@{'/manager/users/' + ${user.id} + '/thread'(chara=${c.id})}" target="_blank" rel="noopener"
+                           title="このキャラとの返信画面を開く" th:text="${c.name}">キャラ名</a>
+                        <form method="post" class="inline" th:action="@{'/manager/users/' + ${user.id} + '/chara-links/' + ${c.id} + '/delete'}"
+                              onsubmit="return confirm('この紐づきキャラを削除します。よろしいですか?');">
+                            <button type="submit" class="px-1 text-violet-400 hover:text-red-600" title="紐づきを削除">×</button>
+                        </form>
+                    </span>
                     <span th:each="n : ${linkedCharNames}"
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                          style="background:#d9f7e6;color:#046c3a;" th:text="${n}">キャラ名</span>
+                          style="background:#d9f7e6;color:#046c3a;" th:text="${n} + '（LINE）'">キャラ名</span>
                 </div>
             </div>
 
@@ -498,7 +566,7 @@
                     <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider"
                            style="position:sticky;top:0;z-index:1;">
                     <tr>
-                        <th class="px-3 py-2 text-left">金額</th><th class="px-3 py-2 text-left">状態</th>
+                        <th class="px-3 py-2 text-left">金額</th><th class="px-3 py-2 text-left">pt</th>
                         <th class="px-3 py-2 text-left">方法</th><th class="px-3 py-2 text-left">入金日時</th>
                         <th class="px-3 py-2 text-right">操作</th>
                     </tr>
@@ -509,14 +577,14 @@
                     </tr>
                     <tr th:each="p : ${payments}">
                         <td class="px-3 py-2 font-medium" th:text="'¥' + ${#numbers.formatInteger(p.amount, 1, 'COMMA')}"></td>
-                        <td class="px-3 py-2">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                                  th:classappend="${p.status == 'PAID'} ? 'bg-emerald-100 text-emerald-700'
-                                                   : (${p.status == 'PENDING'} ? 'bg-amber-100 text-amber-800'
-                                                   : (${p.status == 'OVERDUE'} ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'))"
-                                  th:text="${p.status}"></span>
+                        <td class="px-3 py-2 text-xs whitespace-nowrap">
+                            <span class="font-semibold text-amber-700 tabular-nums" th:if="${paymentPoints.get(p.id) != null}"
+                                  th:text="${#numbers.formatInteger(paymentPoints.get(p.id), 1, 'COMMA')} + 'pt'"></span>
+                            <span class="text-slate-400" th:if="${paymentPoints.get(p.id) == null}">-</span>
+                            <span th:if="${p.status == 'CANCELLED'}" class="ml-1 px-1 rounded bg-slate-100 text-slate-500">取消</span>
+                            <span th:if="${p.status == 'PENDING' or p.status == 'OVERDUE'}" class="ml-1 px-1 rounded bg-amber-100 text-amber-800">未入金</span>
                         </td>
-                        <td class="px-3 py-2 text-xs text-slate-600" th:text="${p.paymentMethod}"></td>
+                        <td class="px-3 py-2 text-xs text-slate-600" th:text="${p.paymentMethod == null} ? '-' : ${paymentMethodLabels.getOrDefault(p.paymentMethod, p.paymentMethod)}"></td>
                         <td class="px-3 py-2 text-xs text-slate-500">
                             <span th:if="${p.paidAt}" th:text="${#temporals.format(p.paidAt, 'yyyy-MM-dd HH:mm')}"></span>
                             <span th:unless="${p.paidAt}" class="text-slate-400">-</span>
@@ -543,14 +611,14 @@
                       class="p-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
                     <div><label class="block text-xs text-slate-500 mb-1">金額 *</label>
                         <input type="number" step="1" class="tw-input" th:field="*{amount}" placeholder="1200"/></div>
-                    <div><label class="block text-xs text-slate-500 mb-1">状態</label>
-                        <select class="tw-input" th:field="*{status}">
-                            <option th:each="s : ${paymentStatuses}" th:value="${s}" th:text="${s}"></option>
-                        </select></div>
+                    <div><label class="block text-xs text-slate-500 mb-1">pt <span class="text-slate-400">(所持ポイントに加算)</span></label>
+                        <input type="number" step="1" min="0" class="tw-input" name="points" id="payPoints" placeholder="1000"/></div>
                     <div><label class="block text-xs text-slate-500 mb-1">方法</label>
-                        <select class="tw-input" th:field="*{paymentMethod}">
+                        <select class="tw-input" th:field="*{paymentMethod}" id="payMethod">
                             <option value="">指定なし</option>
-                            <option th:each="m : ${paymentMethods}" th:value="${m}" th:text="${m}"></option>
+                            <!-- 決済関連設定の決済種類。data-plans = 金額:pt（金額がプランと一致すれば pt を自動入力） -->
+                            <option th:each="m : ${settingMethods}" th:value="${m.code}" th:text="${m.label}"
+                                    th:attr="data-plans=${methodPlans.get(m.code)}"></option>
                         </select></div>
                     <button type="submit" class="inline-flex justify-center items-center px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md">入金追加</button>
                 </form>
@@ -576,7 +644,124 @@
     </div>
     <p class="text-xs text-slate-500 mt-1">※ユーザー削除・メールアドレス変更には管理者パスワードの確認が必要です。</p>
 
+    <style>
+        .up-photo { width:96px; height:96px; flex:none; overflow:hidden; border-radius:8px; border:1px solid #e2e8f0; background:#f1f5f9; cursor:zoom-in; }
+        .up-photo img { display:block; width:100%; height:100%; object-fit:cover; object-position:center 25%; }
+        .up-photo.is-empty { display:flex; align-items:center; justify-content:center; font-size:11px; color:#94a3b8; border-style:dashed; cursor:default; }
+    </style>
     <script>
+    // プロフィール写真: キャラ登録と同じ縮小（長辺640px・約200KB）をしてから保存。クリックで拡大。
+    (function () {
+        var PHOTO = { maxSide: 640, quality: 0.85, maxBytes: 200 * 1024, maxInputBytes: 20 * 1024 * 1024 };
+        var box = document.getElementById('upPhotoBox');
+        var fileInput = document.getElementById('upPhotoFile');
+        var removeBtn = document.getElementById('upPhotoRemove');
+        var info = document.getElementById('upPhotoInfo');
+        if (!box || !fileInput) return;
+        var userId = box.getAttribute('data-user-id');
+        function csrf() { var i = document.querySelector('input[name="_csrf"]'); return i ? i.value : ''; }
+        function setInfo(msg, isErr) {
+            info.textContent = msg || ''; info.style.display = msg ? '' : 'none';
+            info.style.color = isErr ? '#dc2626' : '';
+        }
+        function show(url) {
+            box.innerHTML = '';
+            if (url) {
+                var img = document.createElement('img'); img.src = url; img.alt = ''; img.id = 'upPhotoImg';
+                box.appendChild(img); box.classList.remove('is-empty'); removeBtn.style.display = '';
+            } else {
+                var sp = document.createElement('span'); sp.textContent = '写真なし';
+                box.appendChild(sp); box.classList.add('is-empty'); removeBtn.style.display = 'none';
+            }
+        }
+        function resize(file) {
+            return new Promise(function (resolve, reject) {
+                if (!/^image\//.test(file.type)) return reject(new Error('画像ファイルを選んでください'));
+                if (file.size > PHOTO.maxInputBytes) return reject(new Error('元の画像が大きすぎます（20MBまで）'));
+                var url = URL.createObjectURL(file);
+                var img = new Image();
+                img.onload = function () {
+                    URL.revokeObjectURL(url);
+                    var r = Math.min(1, PHOTO.maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+                    var cw = Math.round(img.naturalWidth * r), ch = Math.round(img.naturalHeight * r);
+                    var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+                    var ctx = c.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, cw, ch);
+                    var q = PHOTO.quality;
+                    (function attempt() {
+                        c.toBlob(function (blob) {
+                            if (!blob) return reject(new Error('画像を変換できませんでした'));
+                            if (blob.size > PHOTO.maxBytes && q > 0.45) { q = Math.round((q - 0.1) * 100) / 100; return attempt(); }
+                            resolve(blob);
+                        }, 'image/jpeg', q);
+                    })();
+                };
+                img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('この画像は読み込めません（HEICはJPEG/PNGに変換してください）')); };
+                img.src = url;
+            });
+        }
+        fileInput.addEventListener('change', function () {
+            var file = fileInput.files[0];
+            fileInput.value = '';
+            if (!file) return;
+            setInfo('写真を縮小して保存しています…');
+            resize(file).then(function (blob) {
+                var fd = new FormData();
+                fd.append('_csrf', csrf());
+                fd.append('photo', blob, 'photo.jpg');
+                return fetch('/manager/users/' + userId + '/profile-photo', { method: 'POST', credentials: 'same-origin', body: fd })
+                    .then(function (r) { return r.json(); });
+            }).then(function (json) {
+                if (json.error) throw new Error(json.error);
+                show(json.url);
+                setInfo('写真を保存しました');
+            }).catch(function (e) { setInfo(e.message, true); });
+        });
+        removeBtn.addEventListener('click', function () {
+            if (!confirm('プロフィール写真を削除します。よろしいですか?')) return;
+            var fd = new FormData();
+            fd.append('_csrf', csrf());
+            fetch('/manager/users/' + userId + '/profile-photo/delete', { method: 'POST', credentials: 'same-origin', body: fd })
+                .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); show(null); setInfo('写真を削除しました'); })
+                .catch(function (e) { setInfo('削除に失敗しました: ' + e.message, true); });
+        });
+        box.addEventListener('click', function () {
+            var img = box.querySelector('img');
+            if (!img) return;
+            var lb = document.getElementById('attachLightbox');
+            var im = document.getElementById('attachLightboxImg');
+            if (!lb || !im) return;
+            im.src = img.src;
+            im.style.width = 'min(320px, 80vw)';
+            lb.style.display = 'flex';
+        });
+    })();
+
+    // 入金: 方法の決済種類のプランに金額が一致したら pt を自動入力（手入力した値は上書きしない）
+    (function () {
+        var amount = document.querySelector('form[action$="/payments"] input[name="amount"]');
+        var method = document.getElementById('payMethod');
+        var points = document.getElementById('payPoints');
+        if (!amount || !method || !points) return;
+        var auto = true;
+        points.addEventListener('input', function () { auto = points.value === ''; });
+        function fill() {
+            if (!auto) return;
+            var opt = method.options[method.selectedIndex];
+            var plans = (opt && opt.getAttribute('data-plans')) || '';
+            var hit = '';
+            plans.split(',').forEach(function (pair) {
+                var kv = pair.split(':');
+                if (kv.length === 2 && Number(kv[0]) === Number(amount.value)) hit = kv[1];
+            });
+            points.value = hit;
+        }
+        amount.addEventListener('input', fill);
+        method.addEventListener('change', fill);
+    })();
+
     // Right-panel tag inputs mirror into the hidden fields that are already in the left form.
     (function () {
         const mainForm = document.querySelector('form[action*="/manager/users/"]');
