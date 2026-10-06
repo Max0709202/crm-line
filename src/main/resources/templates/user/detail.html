@@ -124,8 +124,10 @@
                     <div class="flex flex-col items-center gap-1" style="flex:none;">
                         <!-- 約2.5cm角の正方形（px固定・トリミング表示なので画面の拡大縮小でも歪まない） -->
                         <div id="upPhotoBox" class="up-photo" th:classappend="${userProfile.photoUrl == null} ? 'is-empty'"
-                             th:attr="data-user-id=${user.id}" title="クリックで拡大">
-                            <img id="upPhotoImg" th:if="${userProfile.photoUrl != null}" th:src="${userProfile.photoUrl}" alt=""/>
+                             th:attr="data-user-id=${user.id}" title="クリックで拡大" style="width:96px;height:96px;overflow:hidden;">
+                            <!--/* Size inline too: the .up-photo rules are further down the page, so without this the photo shows full size for a moment while loading. */-->
+                            <img id="upPhotoImg" th:if="${userProfile.photoUrl != null}" th:src="${userProfile.photoUrl}" alt=""
+                                 style="display:block;width:100%;height:100%;object-fit:cover;object-position:center 25%;"/>
                             <span id="upPhotoEmpty" th:if="${userProfile.photoUrl == null}">写真なし</span>
                         </div>
                         <label class="px-2 py-0.5 text-xs border border-slate-300 text-slate-700 hover:bg-slate-50 rounded cursor-pointer">写真を選ぶ<input type="file" id="upPhotoFile" accept="image/*" hidden/></label>
@@ -635,9 +637,9 @@
     <!-- Danger zone: reset credentials + delete -->
     <div class="mt-6 flex flex-wrap gap-2 bg-white rounded-lg shadow-sm border border-slate-100 p-4">
         <form method="post" th:action="@{'/manager/users/' + ${user.id} + '/reset-credentials'}"
-              th:with="hasCred=${user.loginId != null}"
+              th:with="hasCred=${user.loginId != null}, oldId=${user.loginId != null and !user.loginId.matches('[0-9]+')}"
               onsubmit="return confirm(this.dataset.confirmMsg);"
-              th:attr="data-confirm-msg=${hasCred ? 'パスワードを再発行します。以前のパスワードは使えなくなります。' : '認証情報を発行します。よろしいですか?'}">
+              th:attr="data-confirm-msg=${oldId ? 'パスワードを再発行します。ログインIDも数字のIDに変わります。以前のIDとパスワードは使えなくなります。' : (hasCred ? 'パスワードを再発行します。以前のパスワードは使えなくなります。' : '認証情報を発行します。よろしいですか?')}">
             <button type="submit" class="inline-flex items-center px-3 py-2 text-sm border border-amber-500 text-amber-700 hover:bg-amber-50 rounded-md"
                     th:text="${user.loginId != null ? 'パスワード再発行' : '認証情報を発行'}"></button>
         </form>

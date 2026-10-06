@@ -22,6 +22,12 @@ public class MessageComposeForm {
     /** If set, this outbound is a reply to the specified inbound MESSAGE.ID. */
     private Long replyToMessageId;
 
+    /** 送信キャラ (the thread page's キャラ card) — %staff_name% of メール通知 when it templates the mail. */
+    private Long charaId;
+
+    public Long getCharaId() { return charaId; }
+    public void setCharaId(Long charaId) { this.charaId = charaId; }
+
     public String getSubject() { return subject; }
     public void setSubject(String subject) { this.subject = subject; }
 
@@ -33,4 +39,10 @@ public class MessageComposeForm {
 
     public Long getReplyToMessageId() { return replyToMessageId; }
     public void setReplyToMessageId(Long replyToMessageId) { this.replyToMessageId = replyToMessageId; }
+
+    /** 画像添付 (メール / SMS: shown on the 返信画面) / 画像挿入 (LINE: sent as images) — HTML画像 ids. */
+    private java.util.List<Long> imageIds;
+
+    public java.util.List<Long> getImageIds() { return imageIds; }
+    public void setImageIds(java.util.List<Long> imageIds) { this.imageIds = imageIds; }
 }

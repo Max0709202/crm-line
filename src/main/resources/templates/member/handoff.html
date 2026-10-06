@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<!--/* 返信URL → 会員ページ: like the 自動ログインURL page, move on from here (same-site) so the browser
+       sends the session cookie that was just set on the link's cross-site request. */-->
+<meta http-equiv="refresh" th:attr="content='0;url=' + ${next}">
+<title>ログイン</title>
+</head>
+<body>
+<script th:inline="javascript">location.replace(/*[[${next}]]*/ '/member/menu');</script>
+<p><a th:href="${next}">ログインしています…</a></p>
+</body>
+</html>

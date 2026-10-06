@@ -139,9 +139,14 @@
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userDisplayNames != null and userDisplayNames.get(m.userId) != null and userDisplayNames.get(m.userId) != ''} ? ${userDisplayNames.get(m.userId)} : '-'"></td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
-                    th:text="${m.lineAccountId != null and lineAccountNames != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : '-'"></td>
-                <td class="px-3 py-2 text-xs text-slate-500"
-                    th:text="${userFolders != null and userFolders.get(m.userId) != null} ? ${userFolders.get(m.userId)} : '-'"></td>
+                    th:text="${m.lineAccountId != null and lineAccountNames != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : (${charaNames != null and charaNames.get(m.id) != null} ? ${charaNames.get(m.id)} : '-')"></td>
+                <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
+                    <span th:if="${userFolders != null and userFolders.get(m.userId) != null}"
+                          class="inline-block px-1.5 rounded font-semibold text-slate-700 bg-slate-100"
+                          th:style="${folderColors != null and folderColors.get(userFolders.get(m.userId)) != null} ? 'background:' + ${folderColors.get(userFolders.get(m.userId))}"
+                          th:text="${userFolders.get(m.userId)}">フォルダ</span>
+                    <th:block th:unless="${userFolders != null and userFolders.get(m.userId) != null}">-</th:block>
+                </td>
                 <td class="px-3 py-2 text-xs text-slate-700 truncate" style="max-width:200px;" th:unless="${channel == 'SMS'}" th:text="${m.subject} ?: '(件名なし)'"></td>
                 <td class="px-3 py-2 col-body">
                     <div class="body-text" th:text="${m.bodyText}"></div>

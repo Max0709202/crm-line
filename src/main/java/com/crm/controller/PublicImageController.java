@@ -25,12 +25,32 @@ public class PublicImageController {
         this.htmlImageService = htmlImageService;
     }
 
+    /** 画像添付 of メール / SMS — shown to members only through the 返信画面 / 会員ページ (写真閲覧 points). */
+    private com.crm.repository.MessageImageRepository messageImageRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMessageImageRepository(com.crm.repository.MessageImageRepository messageImageRepository) {
+        this.messageImageRepository = messageImageRepository;
+    }
+
     @GetMapping("/img/{id}")
-    public ResponseEntity<org.springframework.core.io.Resource> serve(@PathVariable Long id) {
+    public ResponseEntity<org.springframework.core.io.Resource> serve(@PathVariable Long id, javax.servlet.http.HttpServletRequest request) {
         HtmlImage img = htmlImageService.findById(id).orElse(null);
         if (img == null) return ResponseEntity.notFound().build();
         File f = htmlImageService.fileFor(img);
         if (f == null) return ResponseEntity.notFound().build();
+        // A メール / SMS 画像添付 is not public: members open it with 写真閲覧 points on the 返信画面 /
+        // 会員ページ (their own URLs); here only the 管理画面 (logged-in admin) sees it. LINE画像挿入
+        // stays public — LINE fetches it from this URL.
+        if (img.getLabel() != null && img.getLabel().startsWith(HtmlImageService.LABEL_ATTACH)
+                && messageImageRepository != null && messageImageRepository.existsByImageId(id)) {
+            javax.servlet.http.HttpSession s = request.getSession(false);
+            if (s == null || s.getAttribute(com.crm.interceptor.AuthInterceptor.SESSION_ADMIN_ID) == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType(img.getContentType()))
+                    .cacheControl(CacheControl.noStore()).body(new FileSystemResource(f));
+        }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(img.getContentType()))
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic())

@@ -97,6 +97,8 @@ public class SupportDeskController {
             tpls.add(m);
         }
         model.addAttribute("supportAddress", service.supportAddress());
+        model.addAttribute("senderName", service.senderName());
+        model.addAttribute("senderNameMax", SupportDeskService.SENDER_NAME_MAX);
         model.addAttribute("inquiriesJson", json(rows));
         model.addAttribute("templatesJson", json(tpls));
         model.addAttribute("tagValsJson", json(tagVals));
@@ -127,6 +129,17 @@ public class SupportDeskController {
         res.put("failed", failed);
         res.put("at", LocalDateTime.now().format(ISO_MIN));
         return ResponseEntity.ok(res);
+    }
+
+    /** 送信者名 (From display name of replies) — kept until changed. */
+    @PostMapping("/sender-name")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> saveSenderName(@RequestParam(required = false) String name) {
+        if (name != null && name.trim().length() > SupportDeskService.SENDER_NAME_MAX) {
+            return error("送信者名は" + SupportDeskService.SENDER_NAME_MAX + "文字までです");
+        }
+        service.saveSenderName(name);
+        return ResponseEntity.ok(Collections.singletonMap("name", service.senderName()));
     }
 
     @PostMapping("/bulk-delete")

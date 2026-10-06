@@ -96,7 +96,7 @@ public class AdminRoleService {
                     new MenuItem("siteDesign", "番組デザイン設定", "/manager/settings/site-design"),
                     new MenuItem("memoHtmlBulk", "HTML 一括編集", "/manager/settings/memo-html-bulk"),
                     new MenuItem("htmlImages", "HTML画像管理", "/manager/settings/html-images"),
-                    new MenuItem("backup", "バックアップ設定", "/manager/settings/backup"))));
+                    new MenuItem("backup", "セキュリティ設定", "/manager/settings/security"))));
 
     /** Items the top role can never hide (lock-out prevention). */
     public static final List<String> TOP_ROLE_LOCKED = Collections.singletonList("roles");

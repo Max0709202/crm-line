@@ -187,4 +187,31 @@ class ReplyPageControllerTest {
 
         assertThat(view).isEqualTo("reply/page");
     }
+
+    @Test
+    void memberWithLogin_isLoggedInAndSentToMemberReplyOfTheMessagesChara() {
+        ReplyPage rp = usablePage(1L);
+        rp.setMessageId(77L);
+        CrmUser u = activeUser(1L);
+        u.setLoginPassword("$2a$12$hash");
+        com.crm.entity.Message m = new com.crm.entity.Message();
+        m.setId(77L);
+        when(replyPageService.findByToken("tok123")).thenReturn(Optional.of(rp));
+        when(replyPageService.isUsable(any())).thenReturn(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(u));
+        when(externalLinkDomainService.findByHost(anyString())).thenReturn(Optional.empty());
+        when(messageRepository.findById(77L)).thenReturn(Optional.of(m));
+        com.crm.service.CharaLinkService charaLinks = mock(com.crm.service.CharaLinkService.class);
+        when(charaLinks.charaIdsOfMessages(any())).thenReturn(Collections.singletonMap(77L, 5L));
+        controller.setCharaLinkService(charaLinks);
+
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setServerName("avu74g.jp");
+        Model model = new ExtendedModelMap();
+        String view = controller.show("tok123", 0, 0, req, model);
+
+        assertThat(view).isEqualTo("member/handoff");
+        assertThat(model.getAttribute("next")).isEqualTo("/member/reply?c=5#m77");
+        assertThat(req.getSession().getAttribute(PublicSiteController.SESSION_MEMBER_ID)).isEqualTo(1L);
+    }
 }

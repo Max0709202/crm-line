@@ -56,6 +56,34 @@ public class BroadcastService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
+    /** 画像添付 / LINE画像挿入 — optional (tests). */
+    private MessageImageService messageImageService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMessageImageService(MessageImageService messageImageService) { this.messageImageService = messageImageService; }
+
+    /** 画像添付 (メール / SMS) / 画像挿入 (LINE) of the form, checked; NoTargetsException carries a bad choice. */
+    private List<Long> validImages(BroadcastForm form, boolean forLine) {
+        if (messageImageService == null || form.getImageIds() == null || form.getImageIds().isEmpty()) return new ArrayList<>();
+        try {
+            return messageImageService.validIds(form.getImageIds(), forLine);
+        } catch (MessageImageService.ImageException e) {
+            throw new NoTargetsException(e.getMessage());
+        }
+    }
+
+    private void attachImages(Broadcast saved, List<Long> imageIds) {
+        if (messageImageService != null && !imageIds.isEmpty()) {
+            messageImageService.attach(com.crm.entity.MessageImage.OWNER_BROADCAST, saved.getId(), imageIds);
+        }
+    }
+
+    /** メールテンプレート設定 › メール通知 as the form of a キャラ mail — optional (tests). */
+    private MailMessageTemplateService mailMessageTemplateService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMailMessageTemplateService(MailMessageTemplateService s) { this.mailMessageTemplateService = s; }
+
     public BroadcastService(BroadcastRepository broadcastRepository,
                             CrmUserRepository userRepository,
                             CarrierAddressPoolRepository poolRepository,
@@ -117,6 +145,7 @@ public class BroadcastService {
         if ("LINE".equals(form.getChannel())) {
             return createAndQueueLine(form, adminUserId);
         }
+        List<Long> imageIds = validImages(form, false);
         List<CrmUser> targets = findTargetUsers(form);
 
         // Pre-compute which targets are actually deliverable (have at least one active pool
@@ -203,8 +232,11 @@ public class BroadcastService {
         Broadcast saved = broadcastRepository.save(b);
         // 送信キャラ (一斉送信 / SMS配信 / 差分ステップ で選択)
         if (charaLinkService != null) charaLinkService.assign(com.crm.entity.CharaRef.OWNER_BROADCAST, saved.getId(), form.getCharaId());
+        attachImages(saved, imageIds);
 
         long intervalMs = 60_000L / b.getRatePerMinute();
+        boolean mailTemplated = mailMessageTemplateService != null && mailMessageTemplateService.isActive();
+        String charaName = mailTemplated && charaLinkService != null ? charaLinkService.charaName(form.getCharaId()) : null;
         for (int i = 0; i < deliverable.size(); i++) {
             CrmUser user = deliverable.get(i);
             CarrierAddressPool pool = userToPool.get(user.getId());
@@ -222,7 +254,7 @@ public class BroadcastService {
             m.setDirection(Message.DIR_OUT);
             m.setChannel(Message.CHANNEL_BROADCAST);
             m.setSubject(placeholderService.substitute(form.getSubject(), user));
-            String body = placeholderService.substitute(form.getBody(), user);
+            String body = MessageService.withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
             m.setBodyText(body);
             m.setFromAddress(fromAddr);
             m.setToAddress(user.getEmail());
@@ -233,7 +265,11 @@ public class BroadcastService {
 
             boolean needsAnyUrl = body.contains(MessageService.REPLY_URL_PLACEHOLDER)
                     || body.contains(MessageService.EXTERNAL_URL_PLACEHOLDER);
-            if (needsAnyUrl) {
+            if (mailTemplated) {
+                // メール通知 (with %body%) is the form of the mail: the 文字数設定 counts only %body%
+                mailMessageTemplateService.apply(persisted, user, persisted.getSubject(), body, charaName);
+                messageRepository.save(persisted);
+            } else if (needsAnyUrl) {
                 String url = replyPageService.createReplyPageFor(persisted);
                 // Same full-body-vs-clipped-transmit split as MessageService.compose() —
                 // see MessageService.applyUrlPlaceholders() / clipForTransmission().
@@ -264,6 +300,7 @@ public class BroadcastService {
      */
     @Transactional(noRollbackFor = NoTargetsException.class)
     public Broadcast createAndQueueSms(BroadcastForm form, Long adminUserId) {
+        List<Long> imageIds = validImages(form, false);
         List<CrmUser> targets = findTargetUsers(form);
 
         List<CrmUser> deliverable = new ArrayList<>();
@@ -313,6 +350,7 @@ public class BroadcastService {
         Broadcast saved = broadcastRepository.save(b);
         // 送信キャラ (一斉送信 / SMS配信 / 差分ステップ で選択)
         if (charaLinkService != null) charaLinkService.assign(com.crm.entity.CharaRef.OWNER_BROADCAST, saved.getId(), form.getCharaId());
+        attachImages(saved, imageIds);
 
         long intervalMs = 60_000L / b.getRatePerMinute();
         for (int i = 0; i < deliverable.size(); i++) {
@@ -323,7 +361,7 @@ public class BroadcastService {
             m.setAdminUserId(adminUserId);
             m.setDirection(Message.DIR_OUT);
             m.setChannel(Message.CHANNEL_SMS);
-            String body = placeholderService.substitute(form.getBody(), user);
+            String body = MessageService.withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
             m.setBodyText(body);
             // Resolved per-recipient (not once for the whole broadcast) so RANDOM_* sender-name
             // modes actually rotate identities across the batch instead of reusing one value.
@@ -366,6 +404,7 @@ public class BroadcastService {
         if (lineAccountId == null) {
             throw new NoTargetsException("送信元のLINEアカウントを選択してください");
         }
+        List<Long> imageIds = validImages(form, true);   // LINE画像挿入
         List<CrmUser> targets = findTargetUsers(form);
 
         java.util.Map<Long, LineUser> lineUserByCrmUserId = new java.util.HashMap<>();
@@ -419,6 +458,7 @@ public class BroadcastService {
         b.setScheduledAt(form.getScheduledAt());
         b.setStatus(startAt.isAfter(now) ? Broadcast.STATUS_SCHEDULED : Broadcast.STATUS_SENDING);
         Broadcast saved = broadcastRepository.save(b);
+        attachImages(saved, imageIds);
 
         long intervalMs = 60_000L / b.getRatePerMinute();
         for (int i = 0; i < deliverable.size(); i++) {
@@ -498,6 +538,7 @@ public class BroadcastService {
             sub.setTargetUserIds(e.getValue());
             sub.setRatePerMinute(form.getRatePerMinute());
             sub.setScheduledAt(form.getScheduledAt());
+            sub.setImageIds(form.getImageIds());
             created.add(createAndQueueLine(sub, adminUserId));
         }
         return created;

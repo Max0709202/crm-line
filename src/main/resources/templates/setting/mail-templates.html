@@ -395,7 +395,9 @@
         $('tagBox').innerHTML =
             '<div class="tags-row"><span class="tags-label">共通タグ</span>' + (TAGS.common || []).map(function (x) { return tagBtn(x, keys.indexOf(x[0]) !== -1); }).join('') + '</div>' +
             ((TAGS[currentKey] || []).length ? '<div class="tags-row"><span class="tags-label">このメール用</span>' + TAGS[currentKey].map(function (x) { return tagBtn(x, keys.indexOf(x[0]) !== -1); }).join('') + '</div>' : '') +
-            '<div class="tags-hint">クリックで、最後に選んだ欄（件名または本文）のカーソル位置に入ります。送信時に実際の値へ置き換わります。</div>';
+            '<div class="tags-hint">クリックで、最後に選んだ欄（件名または本文）のカーソル位置に入ります。送信時に実際の値へ置き換わります。</div>' +
+            (currentKey === 'notice' ? '<div class="tags-hint" style="color:#475569;">%body%（本文）を入れて「有効」にすると、個別返信・一斉送信・差分のメールがこのテンプレートの形で送信されます。' +
+                'メール送信設定の「本文の文字数設定」は %body% の部分だけに数え、テンプレートの文字は含みません（LINEの固定テンプレートと同じ）。続きは返信URL先で表示されます。</div>' : '');
         counters();
     }
     function tagBtn(x, isKey) {

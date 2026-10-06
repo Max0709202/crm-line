@@ -105,7 +105,88 @@
             </div>
         </form>
 
-        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 w-full max-w-sm">
+        <div class="w-full max-w-md flex flex-col gap-6">
+        <!-- テレコムクレジット接続（全フォルダ共通）: API接続コード＝クライアントIP -->
+        <form method="post" th:action="@{/manager/settings/payments/telecom}" autocomplete="off"
+              class="bg-white rounded-lg shadow-sm border border-slate-100 p-5">
+            <input type="hidden" name="folder" th:value="${folder}"/>
+            <div class="flex items-center gap-2 mb-1">
+                <h2 class="text-base font-semibold text-slate-800 flex-1">テレコムクレジット接続</h2>
+                <span th:if="${telecom.ready}" class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">接続中</span>
+                <span th:unless="${telecom.ready}" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 font-semibold">未接続</span>
+            </div>
+            <p class="text-xs text-slate-500 mb-3">基本の決済会社です（全フォルダ共通）。テレコムクレジットから発行された情報を入力すると、会員ページの「ポイント購入」から決済できるようになり、決済が完了するとポイントが自動で付与されます。</p>
+            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-3">
+                <input type="checkbox" name="enabled" value="true" class="h-4 w-4 border-slate-300 rounded" th:checked="${telecom.enabled}"/>
+                接続を有効にする
+            </label>
+            <div class="space-y-3 text-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1" for="tcClientIp">API接続コード（クライアントIP）</label>
+                    <input type="text" id="tcClientIp" name="clientIp" class="tw-input font-mono" style="max-width:9rem;" maxlength="5"
+                           inputmode="numeric" pattern="\d{5}" placeholder="例 12345" th:value="${telecom.clientIp}"/>
+                    <p class="text-[11px] text-slate-400 mt-0.5">テレコムクレジットから発行される5桁の数字（サイト識別番号）</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1" for="tcLoginId">管理画面ID</label>
+                        <input type="text" id="tcLoginId" name="loginId" class="tw-input" maxlength="100" th:value="${telecom.loginId}"/>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1" for="tcPassword">管理画面パスワード</label>
+                        <input type="password" id="tcPassword" name="password" class="tw-input" maxlength="200" autocomplete="new-password"
+                               th:placeholder="${telecom.passwordSet} ? '保存済み（変更時のみ入力）' : ''"/>
+                    </div>
+                </div>
+                <label th:if="${telecom.passwordSet}" class="flex items-center gap-1.5 text-xs text-slate-500">
+                    <input type="checkbox" name="clearPassword" value="true" class="h-3.5 w-3.5"/> 保存済みのパスワードを削除する
+                </label>
+                <div>
+                    <div class="text-xs font-semibold text-slate-600 mb-1">この接続で決済する決済方法</div>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1">
+                        <label th:each="mn : ${methodNames}" class="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                            <input type="checkbox" name="methods" th:value="${mn.key}" class="h-4 w-4 border-slate-300 rounded"
+                                   th:checked="${telecom.methods.contains(mn.key)}"/>
+                            <span th:text="${mn.value}">クレジットカード</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-slate-600 mb-1">決済データ送信先URL（テレコムクレジットの設定依頼書に記入）</div>
+                    <div class="flex gap-1">
+                        <input type="text" readonly id="tcNotifyUrl" class="tw-input font-mono text-xs bg-slate-50" th:value="${telecomNotifyUrl}"/>
+                        <button type="button" class="px-2 text-xs border border-slate-300 rounded hover:bg-slate-50 whitespace-nowrap"
+                                onclick="var i=document.getElementById('tcNotifyUrl');i.select();navigator.clipboard&&navigator.clipboard.writeText(i.value);this.textContent='コピー済';">コピー</button>
+                    </div>
+                </div>
+                <details class="text-xs text-slate-500">
+                    <summary class="cursor-pointer">決済サーバーのIPアドレス（この送信元からの決済データのみ受け付けます）</summary>
+                    <textarea name="serverIps" rows="3" class="tw-input font-mono text-xs mt-1" th:text="${#strings.listJoin(telecom.serverIps, ', ')}"></textarea>
+                    <p class="mt-0.5">接続仕様書記載のIP（54.65.177.67、52.196.8.0、54.238.8.174、54.95.89.20）が初期値です。カンマ区切り。</p>
+                </details>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md shadow-sm">接続設定を保存</button>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-100" th:if="${!telecomOrders.isEmpty()}">
+                <div class="text-xs font-semibold text-slate-600 mb-1">最近の決済（テレコムクレジット）</div>
+                <table class="w-full text-xs">
+                    <tr th:each="o : ${telecomOrders}" class="border-b border-slate-100">
+                        <td class="py-1 pr-2 text-slate-500 whitespace-nowrap" th:text="${#temporals.format(o.createdAt, 'M/d H:mm')}">10/6 12:00</td>
+                        <td class="py-1 pr-2"><a class="text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${o.userId}}" target="_blank" th:text="'ID ' + ${o.userId}">ID</a></td>
+                        <td class="py-1 pr-2 text-right whitespace-nowrap" th:text="${#numbers.formatInteger(o.amount, 1, 'COMMA')} + '円'">1,000円</td>
+                        <td class="py-1 pr-2 text-right whitespace-nowrap" th:text="${#numbers.formatInteger(o.points, 1, 'COMMA')} + 'pt'">100pt</td>
+                        <td class="py-1 text-right whitespace-nowrap">
+                            <span th:if="${o.status == 'PAID'}" class="text-emerald-700 font-semibold">決済完了</span>
+                            <span th:if="${o.status == 'FAILED'}" class="text-rose-600 font-semibold">失敗</span>
+                            <span th:if="${o.status == 'PENDING'}" class="text-slate-400">決済画面へ移動</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </form>
+
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 w-full">
             <h2 class="text-base font-semibold text-slate-800 mb-1">ポイント購入（会員ページの表示）</h2>
             <p class="text-xs text-slate-500 mb-3"
                th:text="${folder == null ? '保存済みの内容です（共通）。' : 'フォルダ「' + folder + '」の会員に表示される、保存済みの内容です。'}">保存済みの内容です。</p>
@@ -121,6 +202,7 @@
                 </table>
             </th:block>
             <p th:if="${#lists.isEmpty(methods.?[!offeredPlans.isEmpty()])}" class="text-sm text-slate-400">表示される決済方法がありません。</p>
+        </div>
         </div>
     </div>
     <script>

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/default}">
+<head>
+    <title>セキュリティ設定</title>
+<style>
+  .secw {
+    margin: 0; padding: 0 0 32px; color: #334155; font-size: 13px; line-height: 1.55;
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+  }
+  .secw [hidden] { display: none !important; }
+  .secw button, .secw input, .secw textarea, .secw select { font: inherit; color: inherit; }
+  .secw code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  .secw .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 16px;
+    font-size: 13px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+    transition: background-color .12s, border-color .12s;
+  }
+  .secw .btn-primary { color: #fff; background: #3b82f6; }
+  .secw .btn-primary:hover:not(:disabled) { background: #2563eb; }
+  .secw .btn-outline { color: #475569; background: #fff; border-color: #cbd5e1; }
+  .secw .btn-outline:hover:not(:disabled) { background: #f8fafc; }
+  .secw .btn-soft { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+  .secw .btn-soft:hover:not(:disabled) { background: #dbeafe; }
+  .secw .btn:disabled { color: #fff; background: #cbd5e1; border-color: transparent; cursor: not-allowed; }
+  .secw .btn-sm { padding: 3px 10px; font-size: 12px; }
+  .secw .btn:focus-visible, .secw .input:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96, 165, 250, .2); }
+  .secw .input {
+    box-sizing: border-box; padding: 6px 10px; font-size: 13px; color: #1e293b;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+  }
+  .secw .input.is-err { border-color: #fca5a5; }
+  .secw .chk { width: 16px; height: 16px; margin: 0; accent-color: #3b82f6; cursor: pointer; }
+
+  .secw .page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .secw .page-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: #1e293b; }
+  .secw .page-head p { margin: 0; font-size: 12.5px; color: #64748b; }
+
+  .secw .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+  @media (max-width: 1100px) { .secw .cols { grid-template-columns: minmax(0, 1fr); } }
+
+  .secw .panel { overflow: hidden; background: #fff; border: 1px solid #eef2f6; border-radius: 10px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+  .secw .panel-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #eef2f6; }
+  .secw .panel-ico { flex: none; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; }
+  .secw .panel-ico i { width: 20px; height: 20px; background: currentColor; -webkit-mask: var(--i) center / contain no-repeat; mask: var(--i) center / contain no-repeat; }
+  .secw .panel-title { font-size: 16px; font-weight: 700; color: #1e293b; }
+  .secw .panel-sub { font-size: 12px; color: #64748b; }
+  .secw .panel-state { margin-left: auto; padding: 2px 10px; font-size: 11.5px; font-weight: 700; border-radius: 999px; white-space: nowrap; }
+  .secw .panel-state.on { color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; }
+  .secw .panel-state.off { color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; }
+  .secw .panel-body { padding: 16px 18px 18px; }
+  .secw .ip-panel .panel-head { background: linear-gradient(90deg, #f0f7ff, #fff); }
+  .secw .ip-panel .panel-ico { color: #3b82f6; background: #e0edff; }
+  .secw .bk-panel .panel-head { background: linear-gradient(90deg, #effcf6, #fff); }
+  .secw .bk-panel .panel-ico { color: #10b981; background: #dcfaec; }
+
+  .secw .sec { margin-top: 16px; }
+  .secw .sec:first-child { margin-top: 0; }
+  .secw #bkForm { margin-top: 14px; }
+  .secw .sec-title { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #1e293b; }
+  .secw .sec-title small { font-weight: 400; color: #94a3b8; }
+
+  .secw .switch-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #eef2f6; border-radius: 8px; cursor: pointer; }
+  .secw .switch-row b { font-size: 13.5px; color: #1e293b; }
+  .secw .switch-row span { font-size: 12px; color: #64748b; }
+
+  .secw .note { padding: 10px 12px; font-size: 12.5px; border-radius: 8px; }
+  .secw .note b { display: block; margin-bottom: 2px; }
+  .secw .note-amber { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; }
+  .secw .note-red { color: #9f1239; background: #fff1f2; border: 1px solid #fecdd3; }
+  .secw .note-green { color: #047857; background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .secw .note-gray { color: #64748b; background: #f8fafc; border: 1px solid #eef2f6; }
+
+  .secw .myip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; padding: 10px 12px; border-radius: 8px; }
+  .secw .myip.is-ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .secw .myip.is-ng { background: #fffbeb; border: 1px solid #fde68a; }
+  .secw .myip-label { font-size: 12px; color: #64748b; }
+  .secw .myip-ip { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; font-weight: 700; color: #1e293b; }
+  .secw .badge { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 11.5px; font-weight: 700; line-height: 20px; border-radius: 10px; }
+  .secw .badge-ok { color: #047857; background: #d1fae5; }
+  .secw .badge-ng { color: #b45309; background: #fef3c7; }
+  .secw .myip .btn { margin-left: auto; }
+
+  .secw .iplist { overflow: hidden; border: 1px solid #eef2f6; border-radius: 8px; }
+  .secw .iplist table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .secw .iplist th { padding: 7px 12px; font-size: 11px; font-weight: 600; text-align: left; color: #64748b; background: #f8fafc; border-bottom: 1px solid #eef2f6; }
+  .secw .iplist td { padding: 8px 12px; border-bottom: 1px solid #f4f6f9; vertical-align: middle; }
+  .secw .iplist tr:last-child td { border-bottom: 0; }
+  .secw .iplist .ip { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; color: #1e293b; white-space: nowrap; }
+  .secw .iplist .range { margin-left: 6px; padding: 0 6px; font-family: inherit; font-size: 10.5px; font-weight: 600; color: #6d28d9; background: #f5f3ff; border-radius: 4px; }
+  .secw .iplist .me { margin-left: 6px; padding: 0 6px; font-size: 10.5px; font-weight: 700; color: #047857; background: #ecfdf5; border-radius: 4px; }
+  .secw .iplist .memo { color: #475569; }
+  .secw .iplist .date { width: 1%; color: #94a3b8; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .secw .iplist .op { width: 1%; text-align: right; }
+  .secw .iplist .op button { white-space: nowrap; padding: 2px 9px; font-size: 11.5px; color: #64748b; background: #fff; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer; }
+  .secw .iplist .op button:hover { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+  .secw .iplist .empty td { padding: 20px 12px; text-align: center; color: #94a3b8; }
+
+  .secw .addrow { display: flex; gap: 8px; margin-top: 10px; }
+  .secw .addrow .ip-in { width: 200px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .secw .addrow .memo-in { flex: 1; min-width: 0; }
+  .secw .help { margin-top: 5px; font-size: 11.5px; color: #94a3b8; }
+  .secw .err { margin-top: 5px; font-size: 12px; color: #dc2626; }
+
+  .secw .foot { display: flex; align-items: center; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #eef2f6; }
+  .secw .foot .dirty { font-size: 12px; font-weight: 600; color: #b45309; }
+
+  .secw .fields { padding: 4px 12px; background: #fff; border: 1px solid #eef2f6; border-radius: 8px; transition: opacity .15s; }
+  .secw .fields.is-dim { opacity: .55; }
+  .secw .field { display: grid; grid-template-columns: 110px auto 1fr; align-items: center; gap: 10px; padding: 10px 0; }
+  .secw .field + .field { border-top: 1px dashed #eef2f6; }
+  .secw .field label { font-size: 13px; font-weight: 600; color: #475569; }
+  .secw .field .num { display: inline-flex; align-items: center; gap: 6px; }
+  .secw .field .num .input { width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+  .secw .field .num span { font-size: 12.5px; color: #475569; white-space: nowrap; }
+  .secw .field .hint { font-size: 11.5px; color: #94a3b8; }
+  .secw .quick { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px; margin-top: -4px; }
+  .secw .quick button { padding: 2px 9px; font-size: 11.5px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; cursor: pointer; }
+  .secw .quick button:hover, .secw .quick button[aria-pressed="true"] { color: #047857; border-color: #a7f3d0; background: #ecfdf5; }
+  .secw .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .secw .sum-item { padding: 8px 12px; background: #f8fafc; border: 1px solid #eef2f6; border-radius: 8px; }
+  .secw .sum-item small { display: block; font-size: 11px; color: #94a3b8; }
+  .secw .sum-item b { font-size: 14px; color: #1e293b; font-variant-numeric: tabular-nums; }
+  .secw .runbox { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px; background: #f8fafc; border: 1px solid #eef2f6; border-radius: 8px; }
+  .secw .runbox-txt { flex: 1; min-width: 0; font-size: 12px; color: #64748b; }
+  .secw .runbox-txt b { display: block; font-size: 13px; color: #1e293b; }
+
+  .secw .srv { margin-bottom: 18px; overflow: hidden; background: #fff; border: 1px solid #eef2f6; border-radius: 10px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+  .secw .srv-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: linear-gradient(90deg, #f5f3ff, #fff); border-bottom: 1px solid #eef2f6; }
+  .secw .srv-head .panel-ico { width: 34px; height: 34px; color: #8b5cf6; background: #ede9fe; }
+  .secw .srv-title { font-size: 15px; font-weight: 700; color: #1e293b; }
+  .secw .srv-live { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; }
+  .secw .srv-live::before { content: ""; width: 7px; height: 7px; background: #34d399; border-radius: 50%; box-shadow: 0 0 0 3px rgba(52, 211, 153, .2); }
+  .secw .srv-head .btn { margin-left: auto; }
+  .secw .srv-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 14px 18px 16px; }
+  @media (min-width: 1750px) { .secw .srv-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .secw .srv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .secw .tile { position: relative; padding: 11px 13px 12px; background: #fbfcfe; border: 1px solid #eef2f6; border-radius: 9px; }
+  .secw .tile-top { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+  .secw .tile-ico { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; }
+  .secw .tile-ico i { width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--i) center / contain no-repeat; mask: var(--i) center / contain no-repeat; }
+  .secw .tile-label { font-size: 12px; font-weight: 600; color: #64748b; }
+  .secw .tile-pct { margin-left: auto; padding: 0 7px; font-size: 11px; font-weight: 700; line-height: 18px; border-radius: 9px; font-variant-numeric: tabular-nums; }
+  .secw .tile-val { font-size: 19px; font-weight: 800; color: #1e293b; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .secw .tile-val small { margin-left: 3px; font-size: 12px; font-weight: 500; color: #94a3b8; }
+  .secw .bar { height: 6px; margin-top: 8px; overflow: hidden; background: #eef2f6; border-radius: 3px; }
+  .secw .bar i { display: block; height: 100%; border-radius: 3px; transition: width .4s ease; }
+  .secw .tile-note { margin-top: 6px; font-size: 11px; color: #94a3b8; }
+  .secw .lv-ok   .tile-pct { color: #047857; background: #d1fae5; }  .secw .lv-ok .bar i { background: #6ee7b7; }
+  .secw .lv-warn .tile-pct { color: #b45309; background: #fef3c7; }  .secw .lv-warn .bar i { background: #fcd34d; }
+  .secw .lv-bad  .tile-pct { color: #be123c; background: #ffe4e6; }  .secw .lv-bad .bar i { background: #fda4af; }
+  .secw .tile.lv-warn { border-color: #fde68a; background: #fffdf5; }
+  .secw .tile.lv-bad { border-color: #fecdd3; background: #fff8f9; }
+  .secw .tile.lv-warn .tile-note { color: #b45309; }
+  .secw .tile.lv-bad .tile-note { color: #be123c; }
+  .secw .tile.cap .tile-val { color: #6d28d9; }
+
+  .secw .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 70; max-width: 90vw; padding: 9px 18px; font-size: 12.5px; color: #fff;
+    background: rgba(30, 41, 59, .94); border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, .2);
+    transform: translateX(-50%); transition: opacity .2s, transform .2s;
+  }
+  .secw .toast.is-hide { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
+</style>
+</head>
+<body>
+<section layout:fragment="content">
+<!--/* サイト構成 › セキュリティ設定 — the client-approved design (security_settings.html), styles scoped to .secw. Data: SecurityController. */-->
+<div class="secw">
+  <div class="page-head">
+    <h1>セキュリティ設定</h1>
+    <p>管理画面へのアクセス制限と、データのバックアップを設定します。</p>
+  </div>
+
+  <!-- ===================== サーバー状況（上部・全幅） ===================== -->
+  <div class="srv" aria-label="サーバー状況">
+    <div class="srv-head">
+      <span class="panel-ico"><i style="--i:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Crect x='3' y='3' width='14' height='5.5' rx='1.5'/%3E%3Crect x='3' y='11.5' width='14' height='5.5' rx='1.5'/%3E%3Cpath d='M6 5.8h.01M6 14.3h.01M9 5.8h5M9 14.3h5'/%3E%3C/svg%3E&quot;)"></i></span>
+      <span class="srv-title">サーバー状況</span>
+      <span class="srv-live" id="srvAgo"></span>
+      <button type="button" class="btn btn-outline btn-sm" id="btnSrvRefresh">更新</button>
+    </div>
+    <div class="srv-grid" id="srvGrid"></div>
+  </div>
+
+  <div class="cols">
+
+    <!-- ===================== 左：管理画面IP許可設定 ===================== -->
+    <div class="panel ip-panel">
+      <div class="panel-head">
+        <span class="panel-ico"><i style="--i:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.7' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M10 2.2 3.5 4.6v4.8c0 4.1 2.8 7.2 6.5 8.4 3.7-1.2 6.5-4.3 6.5-8.4V4.6z'/%3E%3Cpath d='m7.2 10 2 2 3.8-4'/%3E%3C/svg%3E&quot;)"></i></span>
+        <div><div class="panel-title">管理画面IP許可設定</div><div class="panel-sub">この管理画面にアクセスできるIPを制限します</div></div>
+        <span class="panel-state" id="ipState"></span>
+      </div>
+      <div class="panel-body">
+        <form method="post" th:action="@{/manager/settings/security/admin-ip}" id="ipForm" novalidate>
+          <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+          <div class="sec">
+            <label class="switch-row">
+              <input type="checkbox" class="chk" name="enabled" value="true" id="ipEnabled"/>
+              <div><b>IP制限を有効にする</b><br><span>有効にすると、下の「許可するIP」以外からは管理画面にアクセスできなくなります。</span></div>
+            </label>
+            <div class="myip" id="myIp"></div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-title">許可するIP <small id="ipCount"></small></div>
+            <div class="iplist">
+              <table>
+                <thead><tr><th>IPアドレス／範囲</th><th>メモ</th><th class="date">追加日</th><th class="op"></th></tr></thead>
+                <tbody id="ipBody"></tbody>
+              </table>
+            </div>
+            <div class="addrow">
+              <input type="text" class="input ip-in" id="newIp" placeholder="IPアドレス" spellcheck="false" autocomplete="off"/>
+              <input type="text" class="input memo-in" id="newMemo" maxlength="40" placeholder="メモ（場所・担当者など）"/>
+              <button type="button" class="btn btn-soft" id="btnAdd">＋ 追加</button>
+            </div>
+            <div class="err" id="ipErr" hidden></div>
+            <div class="help">1つのIP（例 <code>203.0.113.10</code>）または範囲（例 <code>203.0.113.0/24</code>）で指定できます。</div>
+          </div>
+
+          <div class="sec" id="ipWarnBox"></div>
+
+          <div class="foot">
+            <button type="submit" class="btn btn-primary" id="btnIpSave">保存する</button>
+            <span class="dirty" id="ipDirty" hidden>● 未保存の変更があります</span>
+          </div>
+          <div id="ipHidden"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===================== 右：バックアップ設定 ===================== -->
+    <div class="panel bk-panel">
+      <div class="panel-head">
+        <span class="panel-ico"><i style="--i:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Cellipse cx='10' cy='4.8' rx='6' ry='2.3'/%3E%3Cpath d='M4 4.8v10.4c0 1.3 2.7 2.3 6 2.3s6-1 6-2.3V4.8M4 10c0 1.3 2.7 2.3 6 2.3s6-1 6-2.3'/%3E%3C/svg%3E&quot;)"></i></span>
+        <div><div class="panel-title">バックアップ設定</div><div class="panel-sub">データベースの内容を自動で保存します</div></div>
+        <span class="panel-state" id="bkState"></span>
+      </div>
+      <div class="panel-body">
+        <div class="note note-amber">
+          <b>⚠ 容量にご注意ください</b>
+          バックアップはDBの全内容をこのサーバーのディスクに保存します。頻度・保持件数を増やすほど使用容量が増え、サーバーの空き容量を圧迫する可能性があります。上のサーバー状況のディスク使用率と合わせてご確認のうえ設定してください。
+        </div>
+
+        <form method="post" th:action="@{/manager/settings/security/backup}" id="bkForm">
+          <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+          <div class="sec">
+            <label class="switch-row">
+              <input type="checkbox" class="chk" name="enabled" value="true" id="bkEnabled"/>
+              <div><b>自動バックアップを有効化</b><br><span>下の間隔で自動的にバックアップを作成します。</span></div>
+            </label>
+          </div>
+
+          <div class="sec">
+            <div class="fields" id="bkFields">
+              <div class="field">
+                <label for="bkInterval">実行間隔</label>
+                <span class="num"><input type="number" class="input" name="intervalHours" id="bkInterval" min="1" max="720" value="24"/><span>時間ごと</span></span>
+                <span class="hint">1〜720時間（24 = 毎日）</span>
+                <div class="quick" id="bkQuick">
+                  <button type="button" data-h="6">6時間</button><button type="button" data-h="12">12時間</button>
+                  <button type="button" data-h="24">毎日</button><button type="button" data-h="168">毎週</button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="bkKeep">保持件数</label>
+                <span class="num"><input type="number" class="input" name="retentionCount" id="bkKeep" min="1" max="365" value="7"/><span>件</span></span>
+                <span class="hint">超えた分の古いバックアップは自動削除</span>
+              </div>
+            </div>
+            <div class="summary">
+              <div class="sum-item"><small>保存される期間の目安</small><b id="sumSpan"></b></div>
+              <div class="sum-item"><small>前回の実行</small><b id="sumLast"></b></div>
+              <div class="sum-item"><small>次回の実行予定</small><b id="sumNext"></b></div>
+              <div class="sum-item"><small>使用容量の目安</small><b id="sumDisk"></b></div>
+            </div>
+          </div>
+
+          <div class="foot">
+            <button type="submit" class="btn btn-primary">保存する</button>
+            <span class="dirty" id="bkDirty" hidden>● 未保存の変更があります</span>
+          </div>
+        </form>
+
+        <form method="post" th:action="@{/manager/settings/security/backup/run-now}" id="runForm">
+          <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+          <div class="runbox">
+            <div class="runbox-txt"><b>今すぐバックアップ</b>設定の間隔とは別に、その場でバックアップを1件作成します。</div>
+            <button type="submit" class="btn btn-outline">今すぐバックアップ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="toast is-hide" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- currentIp：今アクセスしている人のIP ／ ip：IP制限の設定 ／ backup：バックアップの設定と前回の実行結果
+     server：サーバー状況（容量はGB・MB、pct は使用率％、uptimeSec は稼働秒数） -->
+<script type="application/json" id="secData" th:utext="${secJson}">{}</script>
+<script>
+(function () {
+    'use strict';
+    var $ = function (id) { return document.getElementById(id); };
+    var D = JSON.parse($('secData').textContent);
+    var submitting = false;   // a form is being sent: don't ask "未保存の変更" on leaving
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function today() { var d = new Date(); return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate(); }
+    function fmtDate(d) { return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()); }
+    var toastTimer = null;
+    function toast(msg) { var t = $('toast'); t.textContent = msg; t.classList.remove('is-hide'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.add('is-hide'); }, 2800); }
+
+    /* ================= 管理画面IP許可設定 ================= */
+    var ipOn = !!D.ip.enabled;
+    var list = (D.ip.list || []).map(function (x) { return { ip: x.ip, memo: x.memo || '', addedAt: x.addedAt || '' }; });
+    var saved = JSON.stringify([ipOn, list]);
+
+    function v4(s) { var m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/); if (!m) return null; var n = 0; for (var i = 1; i <= 4; i++) { if (+m[i] > 255) return null; n = n * 256 + (+m[i]); } return n; }
+    function parse(s) {
+        s = s.trim();
+        var p = s.split('/');
+        if (p.length > 2) return null;
+        var n = v4(p[0]);
+        if (n !== null) {
+            if (p.length === 2 && !/^\d{1,2}$/.test(p[1])) return null;
+            var bits = p.length === 2 ? Number(p[1]) : 32;
+            if (bits < 0 || bits > 32) return null;
+            return { v: 4, n: n, bits: bits };
+        }
+        if (/^[0-9a-f:]+$/i.test(p[0]) && p[0].split(':').length >= 3) {   // IPv6 は形式だけ確認（範囲の判定はサーバー側）
+            if (p.length === 2 && !(/^\d{1,3}$/.test(p[1]) && Number(p[1]) <= 128)) return null;
+            return { v: 6, raw: p[0].toLowerCase(), bits: p.length === 2 ? Number(p[1]) : 128 };
+        }
+        return null;
+    }
+    function covers(entry, ip) {
+        var a = parse(entry), b = parse(ip);
+        if (!a || !b || a.v !== b.v) return false;
+        if (a.v === 6) return a.raw === b.raw;
+        var mask = a.bits === 0 ? 0 : (0xFFFFFFFF << (32 - a.bits)) >>> 0;
+        return ((a.n & mask) >>> 0) === ((b.n & mask) >>> 0);
+    }
+    function meAllowed() { return list.some(function (x) { return covers(x.ip, D.currentIp); }); }
+
+    function renderIp() {
+        var ok = meAllowed();
+        $('ipEnabled').checked = ipOn;
+        $('ipState').className = 'panel-state ' + (ipOn ? 'on' : 'off');
+        $('ipState').textContent = ipOn ? '制限中' : '制限なし';
+        $('ipCount').textContent = list.length + '件';
+
+        $('myIp').className = 'myip ' + (ok ? 'is-ok' : 'is-ng');
+        $('myIp').innerHTML = '<span class="myip-label">あなたの現在のIP</span><span class="myip-ip">' + esc(D.currentIp) + '</span>' +
+            (ok ? '<span class="badge badge-ok">✓ 許可されています</span>'
+                : '<span class="badge badge-ng">許可リストにありません</span><button type="button" class="btn btn-soft btn-sm" id="btnAddMe">このIPを追加</button>');
+
+        $('ipBody').innerHTML = list.map(function (x, i) {
+            var p = parse(x.ip);
+            return '<tr><td><span class="ip">' + esc(x.ip) + '</span>' + (p && p.bits < (p.v === 4 ? 32 : 128) ? '<span class="range">範囲</span>' : '') +
+                (covers(x.ip, D.currentIp) ? '<span class="me">あなた</span>' : '') + '</td>' +
+                '<td class="memo">' + esc(x.memo || '—') + '</td><td class="date">' + esc(x.addedAt) + '</td>' +
+                '<td class="op"><button type="button" data-del="' + i + '">削除</button></td></tr>';
+        }).join('') || '<tr class="empty"><td colspan="4">許可するIPはまだ登録されていません</td></tr>';
+
+        var w = '';
+        if (ipOn && !list.length) w = '<div class="note note-red"><b>⚠ 許可するIPが0件です</b>このまま保存すると、誰も管理画面にアクセスできなくなります。先にIPを追加してください。</div>';
+        else if (ipOn && !ok) w = '<div class="note note-red"><b>⚠ あなたの現在のIPが許可されていません</b>このまま保存すると、あなたは管理画面に入れなくなります。「このIPを追加」で追加してから保存してください。</div>';
+        else if (!ipOn) w = '<div class="note note-gray">現在はIP制限が無効のため、どのIPからでも管理画面のログイン画面にアクセスできます。</div>';
+        else w = '<div class="note note-green"><b>✓ 制限の準備ができています</b>許可したIP（' + list.length + '件）からのみ管理画面にアクセスできます。</div>';
+        $('ipWarnBox').innerHTML = w;
+        $('btnIpSave').disabled = ipOn && !list.length;
+        $('ipDirty').hidden = JSON.stringify([ipOn, list]) === saved;
+    }
+    function addIp(ip, memo) {
+        var e = $('ipErr');
+        ip = ip.trim();
+        if (!parse(ip)) { e.textContent = 'IPアドレス（例 203.0.113.10）または範囲（例 203.0.113.0/24）の形で入力してください'; e.hidden = false; $('newIp').classList.add('is-err'); return false; }
+        if (list.some(function (x) { return x.ip === ip; })) { e.textContent = 'このIPはすでに登録されています'; e.hidden = false; $('newIp').classList.add('is-err'); return false; }
+        list.push({ ip: ip, memo: memo.trim(), addedAt: today() });
+        e.hidden = true; $('newIp').classList.remove('is-err');
+        renderIp();
+        return true;
+    }
+    $('ipEnabled').addEventListener('change', function (e) { ipOn = e.target.checked; renderIp(); });
+    $('btnAdd').addEventListener('click', function () { if (addIp($('newIp').value, $('newMemo').value)) { $('newIp').value = ''; $('newMemo').value = ''; $('newIp').focus(); } });
+    ['newIp', 'newMemo'].forEach(function (id) {
+        $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('btnAdd').click(); } });
+    });
+    $('newIp').addEventListener('input', function () { $('ipErr').hidden = true; $('newIp').classList.remove('is-err'); });
+    $('myIp').addEventListener('click', function (e) { if (e.target.closest('#btnAddMe')) addIp(D.currentIp, 'あなたの現在のIP'); });
+    $('ipBody').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-del]');
+        if (!b) return;
+        var x = list[Number(b.getAttribute('data-del'))];
+        var meIn = covers(x.ip, D.currentIp) && list.filter(function (y) { return covers(y.ip, D.currentIp); }).length === 1;
+        if (!confirm('「' + x.ip + '」を許可リストから外します。' + (meIn && ipOn ? '\n\n⚠ あなたの現在のIPが含まれています。保存すると、あなたは管理画面に入れなくなります。' : '') + '\nよろしいですか?')) return;
+        list.splice(Number(b.getAttribute('data-del')), 1);
+        renderIp();
+    });
+    $('ipForm').addEventListener('submit', function (e) {
+        if (ipOn && !list.length) { e.preventDefault(); return; }
+        if (ipOn && !meAllowed() && !confirm('⚠ あなたの現在のIP（' + D.currentIp + '）が許可リストにありません。\n保存すると、あなたはこの管理画面に入れなくなります。\n\n本当に保存しますか?')) { e.preventDefault(); return; }
+        // 許可リストを送信用の項目にする（name="allowIps" / "allowMemos" を同じ順で複数）
+        $('ipHidden').innerHTML = list.map(function (x) {
+            return '<input type="hidden" name="allowIps" value="' + esc(x.ip) + '"/><input type="hidden" name="allowMemos" value="' + esc(x.memo) + '"/>';
+        }).join('');
+        submitting = true;
+    });
+
+    /* ================= バックアップ設定 ================= */
+    var B = D.backup;
+    $('bkEnabled').checked = !!B.enabled;
+    $('bkInterval').value = B.intervalHours;
+    $('bkKeep').value = B.retentionCount;
+    var bkSaved = JSON.stringify([!!B.enabled, String(B.intervalHours), String(B.retentionCount)]);
+
+    function span(h) {
+        if (h % 168 === 0) return '約' + (h / 168) + '週間分';
+        if (h % 24 === 0) return '約' + (h / 24) + '日分';
+        return h >= 48 ? '約' + Math.round(h / 24 * 10) / 10 + '日分' : '約' + h + '時間分';
+    }
+    function mb(v) { return v >= 1024 ? (v / 1024).toFixed(1) + 'GB' : (Math.round(v * 10) / 10) + 'MB'; }
+    function renderBk() {
+        var on = $('bkEnabled').checked;
+        var h = Math.min(720, Math.max(1, parseInt($('bkInterval').value, 10) || 1));
+        var k = Math.min(365, Math.max(1, parseInt($('bkKeep').value, 10) || 1));
+        $('bkState').className = 'panel-state ' + (on ? 'on' : 'off');
+        $('bkState').textContent = on ? '自動実行中' : '停止中';
+        $('bkFields').classList.toggle('is-dim', !on);
+        document.querySelectorAll('#bkQuick [data-h]').forEach(function (b) { b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-h')) === h)); });
+        $('sumSpan').textContent = span(h * k) + '（' + h + '時間ごと × ' + k + '件）';
+        if (B.lastRunAt) {
+            $('sumLast').textContent = fmtDate(new Date(B.lastRunAt)) + (B.lastResult ? '（' + B.lastResult + '）' : '');
+            // 次回: 前回の成功から間隔後（失敗した場合は1時間ごとに再試行）
+            var next = B.lastResult === '失敗' || !B.lastSuccessAt ? null : new Date(new Date(B.lastSuccessAt).getTime() + h * 3600 * 1000);
+            $('sumNext').textContent = !on ? '—（自動バックアップ停止中）' : next ? fmtDate(next) : '1時間以内に再実行します';
+        } else {
+            $('sumLast').textContent = 'まだ実行されていません';
+            $('sumNext').textContent = on ? '保存後、最初の実行を待っています' : '—（自動バックアップ停止中）';
+        }
+        var size = S && S.backupSizeMB;
+        $('sumDisk').textContent = size ? '約' + mb(size * k) + '（' + mb(size) + ' × ' + k + '件）' : '—（まだバックアップがありません）';
+        $('bkDirty').hidden = JSON.stringify([on, $('bkInterval').value, $('bkKeep').value]) === bkSaved;
+    }
+    ['bkEnabled', 'bkInterval', 'bkKeep'].forEach(function (id) { $(id).addEventListener('input', renderBk); $(id).addEventListener('change', renderBk); });
+    $('bkQuick').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-h]');
+        if (b) { $('bkInterval').value = b.getAttribute('data-h'); renderBk(); }
+    });
+    $('bkForm').addEventListener('submit', function () { submitting = true; });
+    $('runForm').addEventListener('submit', function (e) {
+        if (!confirm('今すぐバックアップを実行します。よろしいですか?')) { e.preventDefault(); return; }
+        submitting = true;
+    });
+    window.addEventListener('beforeunload', function (e) {
+        if (submitting) return;
+        if (!$('ipDirty').hidden || !$('bkDirty').hidden) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+
+    /* ================= サーバー状況 ================= */
+    // 30秒ごと（と「更新」ボタン）にサーバーから最新の値を取得します（JSON は secData.server と同じ形）
+    var STATUS_API = '/manager/settings/security/server-status';
+    var S = D.server;
+    var checkedAt = Date.now() - (S.checkedSecAgo || 0) * 1000;
+    var ICO = {
+        mem: "%3Crect x='2.5' y='5' width='15' height='10' rx='1.5'/%3E%3Cpath d='M6 8v4M10 8v4M14 8v4M5 15v2M15 15v2'/%3E",
+        swap: "%3Cpath d='M4 7h11l-3-3M16 13H5l3 3'/%3E",
+        disk: "%3Cellipse cx='10' cy='5' rx='6.5' ry='2.4'/%3E%3Cpath d='M3.5 5v10c0 1.3 2.9 2.4 6.5 2.4s6.5-1.1 6.5-2.4V5'/%3E",
+        heap: "%3Cpath d='M7 3v3M13 3v3M3 8h14M4.5 5.5h11a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z'/%3E",
+        cpu: "%3Crect x='5' y='5' width='10' height='10' rx='1.5'/%3E%3Cpath d='M8 2.5v2.5M12 2.5v2.5M8 15v2.5M12 15v2.5M2.5 8H5M2.5 12H5M15 8h2.5M15 12h2.5'/%3E",
+        up: "%3Ccircle cx='10' cy='10' r='7'/%3E%3Cpath d='M10 6v4l2.6 1.6'/%3E",
+        bk: "%3Cpath d='M10 3v9M6.5 8.5 10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14'/%3E",
+        cap: "%3Ccircle cx='7.5' cy='7' r='2.6'/%3E%3Cpath d='M2.5 16c.4-2.7 2.4-4.2 5-4.2s4.6 1.5 5 4.2M13 4.8a2.4 2.4 0 0 1 0 4.6M14.6 11.9c1.6.5 2.6 1.9 2.9 4.1'/%3E"
+    };
+    var ICO_COLOR = { mem: ['#3b82f6', '#e0edff'], swap: ['#0ea5e9', '#e0f2fe'], disk: ['#10b981', '#dcfaec'], heap: ['#f59e0b', '#fef3c7'],
+        cpu: ['#ef4444', '#fee2e2'], up: ['#64748b', '#eef2f6'], bk: ['#14b8a6', '#ccfbf1'], cap: ['#8b5cf6', '#ede9fe'] };
+    function ico(k) {
+        var svg = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E" + ICO[k] + "%3C/svg%3E\")";
+        return '<span class="tile-ico" style="color:' + ICO_COLOR[k][0] + ';background:' + ICO_COLOR[k][1] + '"><i style="--i:' + svg.replace(/"/g, '&quot;') + '"></i></span>';
+    }
+    function lv(p) { return p >= 90 ? 'lv-bad' : p >= 70 ? 'lv-warn' : 'lv-ok'; }
+    function meter(k, label, used, total, pct, note) {
+        var l = lv(pct);
+        return '<div class="tile ' + l + '"><div class="tile-top">' + ico(k) + '<span class="tile-label">' + label + '</span><span class="tile-pct">' + pct + '%</span></div>' +
+            '<div class="tile-val">' + used + '<small>/ ' + total + '</small></div><div class="bar"><i style="width:' + Math.min(100, pct) + '%"></i></div>' +
+            (note ? '<div class="tile-note">' + note + '</div>' : (l === 'lv-bad' ? '<div class="tile-note">かなり高めです</div>' : l === 'lv-warn' ? '<div class="tile-note">やや高めです</div>' : '')) + '</div>';
+    }
+    function stat(k, label, val, sub, cls, note) {
+        return '<div class="tile ' + (cls || '') + '"><div class="tile-top">' + ico(k) + '<span class="tile-label">' + label + '</span></div>' +
+            '<div class="tile-val">' + val + (sub ? '<small>' + sub + '</small>' : '') + '</div>' + (note ? '<div class="tile-note">' + note + '</div>' : '') + '</div>';
+    }
+    function uptime(sec) {
+        var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+        return d ? d + '日' + (h ? h + '時間' : '') : h ? h + '時間' : m + '分';
+    }
+    function renderSrv() {
+        var loadPct = Math.round(S.load1 / S.cores * 100);
+        var bkDays = S.backupDaysAgo;
+        var bkCls = bkDays == null ? 'lv-warn' : bkDays > 30 ? 'lv-bad' : bkDays > 7 ? 'lv-warn' : '';
+        var bkVal = bkDays == null ? 'なし' : bkDays === 0 ? 'きょう' : bkDays + '日前';
+        var bkNote = bkDays == null ? 'まだバックアップがありません' : bkDays > 7 ? '1週間以上バックアップがありません' : '';
+        $('srvGrid').innerHTML =
+            meter('mem', 'メモリ', S.memUsedGB.toFixed(1) + 'GB', S.memTotalGB.toFixed(1) + 'GB', S.memPct) +
+            meter('swap', 'Swap', S.swapUsedGB.toFixed(1) + 'GB', S.swapTotalGB.toFixed(1) + 'GB', S.swapPct) +
+            meter('disk', 'ディスク', S.diskUsedGB.toFixed(1) + 'GB', S.diskTotalGB.toFixed(1) + 'GB', S.diskPct) +
+            meter('heap', 'JVM Heap', S.heapUsedMB + 'MB', S.heapMaxGB.toFixed(1) + 'GB', S.heapPct) +
+            meter('cpu', 'CPU負荷（1分）', S.load1.toFixed(2), S.cores + 'core', loadPct) +
+            stat('up', '稼働時間', uptime(S.uptimeSec)) +
+            stat('bk', '最新バックアップ', bkVal, S.backupSizeMB != null && bkDays != null ? mb(S.backupSizeMB) : '', bkCls, bkNote) +
+            (S.capacityUsers != null
+                ? stat('cap', '推定上限', '〜' + Number(S.capacityUsers).toLocaleString('ja-JP'), 'ユーザー', 'cap')
+                : stat('cap', '推定上限', 'RAM増設', '', 'cap lv-bad', 'RAM増設の検討時期です'));
+        ago();
+    }
+    function ago() {
+        var s = Math.max(0, Math.round((Date.now() - checkedAt) / 1000));
+        $('srvAgo').textContent = (s < 60 ? s + '秒前' : Math.floor(s / 60) + '分前') + 'に更新';
+    }
+    function refreshSrv() {
+        fetch(STATUS_API, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function (j) { S = j; checkedAt = Date.now() - (j.checkedSecAgo || 0) * 1000; renderSrv(); renderBk(); })
+            .catch(function () { toast('サーバー状況を取得できませんでした'); });
+    }
+    $('btnSrvRefresh').addEventListener('click', refreshSrv);
+    setInterval(ago, 1000);
+    setInterval(refreshSrv, 30000);
+
+    renderSrv();
+    renderIp();
+    renderBk();
+})();
+</script>
+</section>
+</body>
+</html>

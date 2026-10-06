@@ -19,7 +19,7 @@ public class StubOutboundLineService implements OutboundLineService {
 
     @Override
     public SendResult send(LineSendRequest req) {
-        log.info("[STUB LINE] to={} sender={} body={}", req.toLineUserId, req.senderName, req.body);
+        log.info("[STUB LINE] to={} sender={} body={} images={}", req.toLineUserId, req.senderName, req.body, req.imageUrls);
         return SendResult.ok();
     }
 }

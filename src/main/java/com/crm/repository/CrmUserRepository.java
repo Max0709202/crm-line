@@ -14,6 +14,12 @@ public interface CrmUserRepository extends JpaRepository<CrmUser, Long>, JpaSpec
     boolean existsByEmail(String email);
     boolean existsByPhoneNumber(String phoneNumber);
     boolean existsByLoginId(String loginId);
+
+    /** 会員ログイン by ログインID. */
+    Optional<CrmUser> findFirstByLoginId(String loginId);
+
+    /** 会員ログイン by メールアドレス (several rows may share an address). */
+    List<CrmUser> findAllByEmailIgnoreCase(String email);
     long countByStatus(String status);
 
     /** Case-insensitive exact match — used by LineUserLinkService#suggestMatches to propose

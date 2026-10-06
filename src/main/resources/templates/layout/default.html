@@ -88,7 +88,7 @@
                     <a class="nav-link" th:href="@{/manager/settings/site-design}" th:unless="${crmRole != null and crmRole.isHidden('siteDesign')}">番組デザイン設定</a>
                     <a class="nav-link" th:href="@{/manager/settings/memo-html-bulk}" th:unless="${crmRole != null and crmRole.isHidden('memoHtmlBulk')}">HTML 一括編集</a>
                     <a class="nav-link" th:href="@{/manager/settings/html-images}" th:unless="${crmRole != null and crmRole.isHidden('htmlImages')}">HTML画像管理</a>
-                    <a class="nav-link" th:href="@{/manager/settings/backup}" th:unless="${crmRole != null and crmRole.isHidden('backup')}">バックアップ設定</a>
+                    <a class="nav-link" th:href="@{/manager/settings/security}" th:unless="${crmRole != null and crmRole.isHidden('backup')}">セキュリティ設定</a>
                 </div>
             </div>
         </nav>

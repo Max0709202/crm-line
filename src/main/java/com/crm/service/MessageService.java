@@ -78,6 +78,18 @@ public class MessageService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
+    /** 画像添付 / LINE画像挿入 — optional (tests). */
+    private MessageImageService messageImageService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMessageImageService(MessageImageService messageImageService) { this.messageImageService = messageImageService; }
+
+    /** メールテンプレート設定 › メール通知 as the form of a キャラ mail — optional (tests). */
+    private MailMessageTemplateService mailMessageTemplateService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMailMessageTemplateService(MailMessageTemplateService s) { this.mailMessageTemplateService = s; }
+
     public MessageService(MessageRepository messageRepository,
                           CrmUserRepository userRepository,
                           CarrierAddressPoolRepository poolRepository,
@@ -534,7 +546,8 @@ public class MessageService {
         }
 
         String renderedSubject = placeholderService.substitute(form.getSubject(), user);
-        String renderedBody = placeholderService.substitute(form.getBody(), user);
+        List<Long> imageIds = validImages(form.getImageIds(), false);
+        String renderedBody = withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
 
         Message msg = new Message();
         msg.setUserId(userId);
@@ -550,7 +563,13 @@ public class MessageService {
         // Persist first so we have an ID for the reply-page binding if needed.
         boolean needsAnyUrl = renderedBody != null
                 && (renderedBody.contains(REPLY_URL_PLACEHOLDER) || renderedBody.contains(EXTERNAL_URL_PLACEHOLDER));
-        if (needsAnyUrl) {
+        if (mailMessageTemplateService != null && mailMessageTemplateService.isActive()) {
+            // メール通知 (with %body%) is the form of the mail: the 文字数設定 counts only %body%
+            msg.setStatus(Message.STATUS_DRAFT);
+            msg = messageRepository.save(msg);
+            mailMessageTemplateService.apply(msg, user, renderedSubject, renderedBody,
+                    charaLinkService == null ? null : charaLinkService.charaName(form.getCharaId()));
+        } else if (needsAnyUrl) {
             // Temporary body/status so we can save; we'll rewrite after the page is created.
             msg.setStatus(Message.STATUS_DRAFT);
             msg = messageRepository.save(msg);
@@ -569,12 +588,12 @@ public class MessageService {
         if (scheduled != null && scheduled.isAfter(now)) {
             msg.setStatus(Message.STATUS_QUEUED);
             msg.setScheduledAt(scheduled);
-            return messageRepository.save(msg);
+            return attachImages(messageRepository.save(msg), imageIds);
         }
 
         // Immediate send
         msg.setStatus(Message.STATUS_QUEUED); // transient; updated below
-        Message saved = messageRepository.save(msg);
+        Message saved = attachImages(messageRepository.save(msg), imageIds);
         sendNow(saved, pool);
         return saved;
     }
@@ -593,7 +612,8 @@ public class MessageService {
             throw new MessageException("このユーザーには電話番号が登録されていません");
         }
 
-        String renderedBody = placeholderService.substitute(form.getBody(), user);
+        List<Long> imageIds = validImages(form.getImageIds(), false);
+        String renderedBody = withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
 
         Message msg = new Message();
         msg.setUserId(userId);
@@ -627,11 +647,11 @@ public class MessageService {
         if (scheduled != null && scheduled.isAfter(now)) {
             msg.setStatus(Message.STATUS_QUEUED);
             msg.setScheduledAt(scheduled);
-            return messageRepository.save(msg);
+            return attachImages(messageRepository.save(msg), imageIds);
         }
 
         msg.setStatus(Message.STATUS_QUEUED); // transient; updated below
-        Message saved = messageRepository.save(msg);
+        Message saved = attachImages(messageRepository.save(msg), imageIds);
         sendNow(saved, null);
         return saved;
     }
@@ -675,6 +695,8 @@ public class MessageService {
         }
 
         String renderedBody = placeholderService.substitute(form.getBody(), user);
+        // LINE画像挿入: sent to LINE as images after the text (not counted in the 最大文字数)
+        List<Long> imageIds = validImages(form.getImageIds(), true);
 
         Message msg = new Message();
         msg.setUserId(userId);
@@ -712,12 +734,41 @@ public class MessageService {
         if (scheduled != null && scheduled.isAfter(now)) {
             msg.setStatus(Message.STATUS_QUEUED);
             msg.setScheduledAt(scheduled);
-            return messageRepository.save(msg);
+            return attachImages(messageRepository.save(msg), imageIds);
         }
 
         msg.setStatus(Message.STATUS_QUEUED); // transient; updated below
-        Message saved = messageRepository.save(msg);
+        Message saved = attachImages(messageRepository.save(msg), imageIds);
         sendNow(saved, null);
+        return saved;
+    }
+
+    /** 画像添付 / LINE画像挿入: the chosen HTML画像 ids, checked (MessageException on a bad choice). */
+    private List<Long> validImages(List<Long> ids, boolean forLine) {
+        if (ids == null || ids.isEmpty()) return java.util.Collections.emptyList();
+        if (messageImageService == null) return java.util.Collections.emptyList();
+        try {
+            return messageImageService.validIds(ids, forLine);
+        } catch (MessageImageService.ImageException e) {
+            throw new MessageException(e.getMessage());
+        }
+    }
+
+    /**
+     * メール / SMS with 画像添付: the images are shown on the 返信画面 (not as a URL in the mail), so a
+     * mail without %reply_url% gets one at the end — otherwise the member could never reach them.
+     */
+    static String withReplyUrlForImages(String body, List<Long> imageIds) {
+        if (imageIds == null || imageIds.isEmpty()) return body;
+        String b = body == null ? "" : body;
+        if (b.contains(REPLY_URL_PLACEHOLDER)) return b;
+        return b.endsWith("\n") || b.isEmpty() ? b + REPLY_URL_PLACEHOLDER : b + "\n" + REPLY_URL_PLACEHOLDER;
+    }
+
+    private Message attachImages(Message saved, List<Long> imageIds) {
+        if (messageImageService != null && imageIds != null && !imageIds.isEmpty()) {
+            messageImageService.attach(com.crm.entity.MessageImage.OWNER_MESSAGE, saved.getId(), imageIds);
+        }
         return saved;
     }
 
@@ -780,11 +831,16 @@ public class MessageService {
                         senderIconUrl = admin.getAvatarUrl();
                     }
                 }
+                // LINE画像挿入: the message's (or its broadcast's) images, sent after the text
+                List<String> imageUrls = new java.util.ArrayList<>();
+                if (messageImageService != null) {
+                    for (Long imageId : messageImageService.existingImageIdsOf(msg)) imageUrls.add(messageImageService.publicUrl(imageId));
+                }
                 OutboundLineService.LineSendRequest req = new OutboundLineService.LineSendRequest(
                         aes.decrypt(account.getAccessToken()),
                         msg.getToAddress(),
                         transmitBody == null ? "" : transmitBody,
-                        senderName, senderIconUrl);
+                        senderName, senderIconUrl, imageUrls);
                 OutboundLineService.SendResult result = outboundLineService.send(req);
                 success = result.success;
                 retriable = result.retriable;
@@ -798,7 +854,8 @@ public class MessageService {
             OutboundMailService.OutboundRequest req = new OutboundMailService.OutboundRequest(
                     msg.getFromAddress(),
                     msg.getToAddress(),
-                    msg.getSubject() == null ? "" : msg.getSubject(),
+                    mailMessageTemplateService != null ? mailMessageTemplateService.sentSubjectOf(msg)
+                            : (msg.getSubject() == null ? "" : msg.getSubject()),
                     transmitBody == null ? "" : transmitBody,
                     smtpHost,
                     smtpPort == null ? 587 : smtpPort,

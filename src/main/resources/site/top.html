@@ -277,8 +277,8 @@ dialog[open]{animation:sheet-in .35s cubic-bezier(.2,.8,.2,1) both}
 .switch{margin:18px 0 0;padding-top:18px;border-top:1px solid var(--line);text-align:center;font-size:14px}
 .login-msg{margin:12px 0 0;font-size:13px;color:var(--ink-2);text-align:center}
 .login-msg:empty{display:none}
-/* JSなしでも #login でログインが開くように */
-.sheet:target{display:block;position:fixed;inset:0;margin:auto;height:fit-content;z-index:100}
+/* JSなしでも #login でログインが開くように（JSありのときはJSがモーダルで開くので×で閉じられる） */
+html:not(.js) .sheet:target{display:block;position:fixed;inset:0;margin:auto;height:fit-content;z-index:100}
 
 /* =========================================================
    Sticky CTA（スマホ：フォームが画面外のときだけ表示）
@@ -625,10 +625,21 @@ dialog[open]{animation:sheet-in .35s cubic-bezier(.2,.8,.2,1) both}
 
   /* ---------- ログイン ---------- */
   const login = $('#login');
-  const openLogin = () => { if (!canModal) return false; login.showModal(); $('#loginId').focus(); return true; };
+  const openLogin = () => { if (!canModal) return false; if (!login.open) login.showModal(); $('#loginId').focus(); return true; };
   $$('a[href="#login"]').forEach(a => a.addEventListener('click', e => { if (openLogin()) e.preventDefault(); }));
   login.addEventListener('click', e => { if (e.target === login) login.close(); });
   $$('[data-close]', login).forEach(b => b.addEventListener('click', () => login.close()));
+  // /#login (ログアウト後・未ログインで会員ページを開いたとき): open it as the modal so × / 外側タップで閉じられ、
+  // 閉じたら URL の #login も外す
+  if (canModal) {
+    document.documentElement.classList.add('js');
+    login.addEventListener('close', () => {
+      if (location.hash === '#login') history.replaceState(null, '', location.pathname + location.search);
+    });
+    if (location.hash === '#login' && !age.open) openLogin();
+    age.addEventListener('close', () => { if (location.hash === '#login') openLogin(); });
+    addEventListener('hashchange', () => { if (location.hash === '#login') openLogin(); });
+  }
   $('#loginForm').addEventListener('submit', e => {
     if (!e.target.getAttribute('action')) { e.preventDefault(); $('#loginMsg').textContent = 'デモ表示のため、ログインは行われません。'; }
   });

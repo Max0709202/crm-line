@@ -28,4 +28,10 @@ public class LineComposeForm {
     public void setReplyToMessageId(Long replyToMessageId) { this.replyToMessageId = replyToMessageId; }
     public Long getLineAccountId() { return lineAccountId; }
     public void setLineAccountId(Long lineAccountId) { this.lineAccountId = lineAccountId; }
+
+    /** 画像添付 (メール / SMS: shown on the 返信画面) / 画像挿入 (LINE: sent as images) — HTML画像 ids. */
+    private java.util.List<Long> imageIds;
+
+    public java.util.List<Long> getImageIds() { return imageIds; }
+    public void setImageIds(java.util.List<Long> imageIds) { this.imageIds = imageIds; }
 }

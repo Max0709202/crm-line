@@ -42,6 +42,14 @@ public class BroadcastController {
     private final com.crm.repository.LineUserRepository lineUserRepository;
     private final com.crm.service.CharaService charaService;
     private final com.crm.service.LineBlockService lineBlockService;
+    private com.crm.service.CharaLinkService charaLinkService;
+    private com.crm.service.FolderSettingService folderSettingService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCharaLinkService(com.crm.service.CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setFolderSettingService(com.crm.service.FolderSettingService folderSettingService) { this.folderSettingService = folderSettingService; }
 
     public BroadcastController(BroadcastService broadcastService,
                                MessageTemplateService templateService,
@@ -154,6 +162,11 @@ public class BroadcastController {
                 ? java.util.Collections.emptySet()
                 : new java.util.HashSet<>(lineUserRepository.findLinkedCrmUserIds(uids)));
         model.addAttribute("diffOriginByBroadcastId", diffOriginByBroadcastId);
+        // キャラ名 for メール / SMS messages (the broadcast's キャラ) + フォルダの色分け
+        model.addAttribute("charaNames", charaLinkService == null ? java.util.Collections.emptyMap()
+                : charaLinkService.charaNamesOfMessages(messages.getContent()));
+        model.addAttribute("folderColors", folderSettingService == null ? java.util.Collections.emptyMap()
+                : folderSettingService.colorMap());
         model.addAttribute("addr", addrTrim == null ? "" : addrTrim);
         model.addAttribute("channel", channelFilter == null ? "" : channelFilter);
         return "message/broadcast-list";

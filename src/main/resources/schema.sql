@@ -777,3 +777,55 @@ CREATE TABLE IF NOT EXISTS LINE_ACCOUNT_PHOTO (
   PHOTO_URL       VARCHAR(255) NOT NULL COMMENT '/img/<HTML_IMAGE.ID>',
   UPDATED_AT      DATETIME     NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- メールテンプレート設定 › メール通知 used for a キャラ mail (%body% in the template): the subject actually
+-- sent. MESSAGE.SUBJECT keeps the message's own title (履歴 / 返信画面); this row exists only when templated.
+CREATE TABLE IF NOT EXISTS MESSAGE_SENT_SUBJECT (
+  MESSAGE_ID BIGINT   NOT NULL PRIMARY KEY COMMENT 'MESSAGE.ID',
+  SUBJECT    TEXT     NOT NULL,
+  CREATED_AT DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 決済関連設定 › テレコムクレジット: one row per ポイント購入 started on the member page. The member is sent
+-- to Telecom's 決済画面 with option=ID; Telecom's 決済データ (rel=yes) marks it PAID, adds the points
+-- and records the 入金 (PAYMENT_ID). SETTLE_UUID (Telecom's 決済識別子) keeps a resent notice from
+-- counting twice.
+CREATE TABLE IF NOT EXISTS TELECOM_ORDER (
+  ID            BIGINT       AUTO_INCREMENT PRIMARY KEY,
+  USER_ID       BIGINT       NOT NULL,
+  METHOD        VARCHAR(32)  NOT NULL COMMENT '決済関連設定の決済方法コード (credit …)',
+  AMOUNT        INT          NOT NULL,
+  POINTS        INT          NOT NULL,
+  STATUS        VARCHAR(16)  NOT NULL COMMENT 'PENDING | PAID | FAILED',
+  SETTLE_UUID   VARCHAR(64)  DEFAULT NULL,
+  PAYMENT_ID    BIGINT       DEFAULT NULL,
+  RESULT_PARAMS TEXT         DEFAULT NULL COMMENT 'Telecom 決済データ (as received, telno/email masked)',
+  CREATED_AT    DATETIME     NOT NULL,
+  PAID_AT       DATETIME     DEFAULT NULL,
+  UNIQUE KEY UK_TELECOM_ORDER_SETTLE (SETTLE_UUID),
+  KEY IDX_TELECOM_ORDER_USER (USER_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 画像添付 (メール / SMS: shown on the 返信画面 with a 📎 mark, not as a URL in the mail) and
+-- LINE画像挿入 (sent to LINE as image messages) of an outbound message or a broadcast (一斉送信 / 差分).
+CREATE TABLE IF NOT EXISTS MESSAGE_IMAGE (
+  ID         BIGINT      AUTO_INCREMENT PRIMARY KEY,
+  OWNER_TYPE VARCHAR(16) NOT NULL COMMENT 'MESSAGE | BROADCAST',
+  OWNER_ID   BIGINT      NOT NULL,
+  IMAGE_ID   BIGINT      NOT NULL COMMENT 'HTML_IMAGE.ID',
+  SORT_NO    INT         NOT NULL DEFAULT 0,
+  CREATED_AT DATETIME    NOT NULL,
+  KEY IDX_MESSAGE_IMAGE_OWNER (OWNER_TYPE, OWNER_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 会員ページ / 返信画面 で会員がポイントを使って見たもの (本文閲覧・プロフィール閲覧・写真閲覧・添付画像):
+-- one row per member × thing, so seeing it again costs nothing.
+CREATE TABLE IF NOT EXISTS MEMBER_UNLOCK (
+  ID         BIGINT      AUTO_INCREMENT PRIMARY KEY,
+  USER_ID    BIGINT      NOT NULL,
+  KIND       VARCHAR(16) NOT NULL COMMENT 'BODY (MESSAGE.ID) | PROFILE (CHARA.ID) | PHOTO (CHARA.ID) | IMAGE (HTML_IMAGE.ID)',
+  REF_ID     BIGINT      NOT NULL,
+  POINTS     INT         NOT NULL DEFAULT 0,
+  CREATED_AT DATETIME    NOT NULL,
+  UNIQUE KEY UK_MEMBER_UNLOCK (USER_ID, KIND, REF_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

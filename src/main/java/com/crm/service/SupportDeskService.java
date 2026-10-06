@@ -1,9 +1,11 @@
 package com.crm.service;
 
+import com.crm.entity.CrmSetting;
 import com.crm.entity.CrmUser;
 import com.crm.entity.SupportInquiry;
 import com.crm.entity.SupportReply;
 import com.crm.entity.SupportTemplate;
+import com.crm.repository.CrmSettingRepository;
 import com.crm.repository.CrmUserRepository;
 import com.crm.repository.SupportInquiryRepository;
 import com.crm.repository.SupportReplyRepository;
@@ -14,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.mail.internet.MimeUtility;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -41,6 +45,9 @@ public class SupportDeskService {
     public static final int TEMPLATE_TITLE_MAX = 40;
     public static final int SUBJECT_MAX = 500;
     public static final int BODY_MAX = 60_000;
+    public static final int SENDER_NAME_MAX = 100;
+    /** 送信者名: the From display name of replies (blank = the address only). */
+    private static final String KEY_SENDER_NAME = "support.sender_name";
 
     private final SupportInquiryRepository inquiryRepository;
     private final SupportReplyRepository replyRepository;
@@ -49,6 +56,7 @@ public class SupportDeskService {
     private final DomainSettingService domainSettingService;
     private final SiteDesignService siteDesignService;
     private final LocalPostfixOutboundMailService mailService;
+    private final CrmSettingRepository settingRepository;
 
     public SupportDeskService(SupportInquiryRepository inquiryRepository,
                               SupportReplyRepository replyRepository,
@@ -56,7 +64,8 @@ public class SupportDeskService {
                               CrmUserRepository userRepository,
                               DomainSettingService domainSettingService,
                               SiteDesignService siteDesignService,
-                              LocalPostfixOutboundMailService mailService) {
+                              LocalPostfixOutboundMailService mailService,
+                              CrmSettingRepository settingRepository) {
         this.inquiryRepository = inquiryRepository;
         this.replyRepository = replyRepository;
         this.templateRepository = templateRepository;
@@ -64,6 +73,7 @@ public class SupportDeskService {
         this.domainSettingService = domainSettingService;
         this.siteDesignService = siteDesignService;
         this.mailService = mailService;
+        this.settingRepository = settingRepository;
     }
 
     /* ===================== address ===================== */
@@ -77,6 +87,35 @@ public class SupportDeskService {
             return (host == null || host.isEmpty()) ? null : "support@" + host.toLowerCase();
         } catch (IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    /** 送信者名 saved on サポート窓口 ("" when unset). */
+    public String senderName() {
+        return settingRepository.findBySettingKey(KEY_SENDER_NAME)
+                .map(CrmSetting::getSettingValue).map(String::trim).orElse("");
+    }
+
+    public void saveSenderName(String name) {
+        String v = name == null ? "" : name.replaceAll("[\\r\\n\\t]", " ").trim();
+        if (v.length() > SENDER_NAME_MAX) v = v.substring(0, SENDER_NAME_MAX);
+        CrmSetting s = settingRepository.findBySettingKey(KEY_SENDER_NAME).orElseGet(() -> {
+            CrmSetting ns = new CrmSetting();
+            ns.setSettingKey(KEY_SENDER_NAME);
+            return ns;
+        });
+        s.setSettingValue(v);
+        settingRepository.save(s);
+    }
+
+    /** The From of a reply: {@code "送信者名" <address>} (MIME-encoded), or the address alone. */
+    private String fromWithName(String address) {
+        String name = senderName();
+        if (name.isEmpty()) return address;
+        try {
+            return MimeUtility.encodeWord(name, "UTF-8", "B") + " <" + address + ">";
+        } catch (UnsupportedEncodingException e) {
+            return address;
         }
     }
 
@@ -212,7 +251,7 @@ public class SupportDeskService {
                 error = "受付アドレスが未設定です（ドメイン設定の返信URLを設定してください）";
             } else {
                 OutboundMailService.SendResult res = mailService.send(new OutboundMailService.OutboundRequest(
-                        from, q.getEmail(), filledSubject, filledBody, "127.0.0.1", 25, null, null));
+                        fromWithName(from), q.getEmail(), filledSubject, filledBody, "127.0.0.1", 25, null, null));
                 if (!res.success) error = res.errorMessage == null ? "送信に失敗しました" : res.errorMessage;
             }
             if (error == null) {

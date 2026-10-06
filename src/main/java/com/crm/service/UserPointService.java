@@ -91,6 +91,30 @@ public class UserPointService {
         return users == null ? 0 : users;
     }
 
+    /** Adds {@code points} (≥ 0) to the member's 所持ポイント in one statement (決済 / 入金). */
+    @Transactional
+    public void add(Long userId, int points) {
+        if (userId == null || points <= 0) return;
+        int a = clamp(points);
+        jdbc.update("INSERT INTO USER_POINT (USER_ID, POINTS, UPDATED_AT) VALUES (?, ?, NOW()) "
+                + "ON DUPLICATE KEY UPDATE POINTS = LEAST(POINTS + ?, " + MAX_POINTS + "), UPDATED_AT = NOW()",
+                userId, a, a);
+    }
+
+    /**
+     * Uses {@code cost} pt of the member's 所持ポイント (会員ページ: 写真閲覧・メール送信 …) in one
+     * statement, so two clicks can't spend the same points twice.
+     *
+     * @return true when the member had enough (cost 0 always succeeds), false otherwise (nothing used)
+     */
+    @Transactional
+    public boolean spend(Long userId, int cost) {
+        if (userId == null) return false;
+        if (cost <= 0) return true;
+        return jdbc.update("UPDATE USER_POINT SET POINTS = POINTS - ?, UPDATED_AT = NOW() WHERE USER_ID = ? AND POINTS >= ?",
+                cost, userId, cost) == 1;
+    }
+
     private static int clamp(int v) {
         return Math.max(0, Math.min(MAX_POINTS, v));
     }

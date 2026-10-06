@@ -84,4 +84,10 @@ public class BroadcastForm {
     public void setTargetStatus(String targetStatus) { this.targetStatus = targetStatus; }
     public Integer getRatePerMinute() { return ratePerMinute; }
     public void setRatePerMinute(Integer ratePerMinute) { this.ratePerMinute = ratePerMinute; }
+
+    /** 画像添付 (メール / SMS: shown on the 返信画面) / 画像挿入 (LINE: sent as images) — HTML画像 ids. */
+    private java.util.List<Long> imageIds;
+
+    public java.util.List<Long> getImageIds() { return imageIds; }
+    public void setImageIds(java.util.List<Long> imageIds) { this.imageIds = imageIds; }
 }

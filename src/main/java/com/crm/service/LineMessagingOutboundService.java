@@ -33,8 +33,9 @@ public class LineMessagingOutboundService implements OutboundLineService {
             return SendResult.fail("送信先のLINEユーザーIDがありません");
         }
 
-        LineApiClient.PushResult result = lineApiClient.push(
-                req.accessToken, req.toLineUserId, req.body, req.senderName, req.senderIconUrl);
+        LineApiClient.PushResult result = req.imageUrls.isEmpty()
+                ? lineApiClient.push(req.accessToken, req.toLineUserId, req.body, req.senderName, req.senderIconUrl)
+                : lineApiClient.push(req.accessToken, req.toLineUserId, req.body, req.senderName, req.senderIconUrl, req.imageUrls);
 
         if (result.isSuccess()) {
             log.info("[LINE] sent: to={}", req.toLineUserId);

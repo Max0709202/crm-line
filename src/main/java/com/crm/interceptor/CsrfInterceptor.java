@@ -50,7 +50,9 @@ public class CsrfInterceptor implements HandlerInterceptor {
     /** Paths exempted from CSRF (bootstrap login + IP-restricted webhook). */
     private static final Set<String> EXEMPT_PATHS = new HashSet<>(Arrays.asList(
             "/manager/login",
-            "/api/inbound/receive-raw"
+            "/api/inbound/receive-raw",
+            // テレコムクレジット 決済データ — Telecom's server (no session); only its 決済サーバー IPs are accepted
+            com.crm.service.TelecomCreditService.NOTIFY_PATH
     ));
 
     /**

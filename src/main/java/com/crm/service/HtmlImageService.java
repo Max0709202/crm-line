@@ -18,6 +18,9 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -53,6 +56,45 @@ public class HtmlImageService {
         } catch (IOException e) {
             log.warn("Failed to create uploads root {}: {}", uploadsRoot, e.toString());
         }
+    }
+
+    /**
+     * HTML画像管理's columns: category key → name, in display order. An image's category comes from
+     * the label its upload screen gives it (see {@link #categoryOf}); ユーザーからの画像添付 (the
+     * reply page's uploads, ReplyAttachmentService) is shown as {@link #CATEGORY_USER_ATTACH}.
+     */
+    public static final Map<String, String> CATEGORIES;
+    public static final String CATEGORY_USER_ATTACH = "userAttach";
+    public static final String CATEGORY_OTHER = "other";
+    /** Label of an image attached on 返信 / 一斉送信 / 差分 (shown on the 返信画面, not in the mail). */
+    public static final String LABEL_ATTACH = "画像添付";
+    /** Label of an image inserted into a LINE message (sent to LINE as an image). */
+    public static final String LABEL_LINE_INSERT = "LINE画像挿入";
+    static {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("chara", "キャラ写真");
+        m.put("user", "ユーザー写真");
+        m.put("attach", "画像添付");
+        m.put("lineInsert", "LINE画像挿入");
+        m.put(CATEGORY_USER_ATTACH, "ユーザーからの画像添付");
+        m.put("lineChara", "LINEキャラ写真");
+        m.put("persona", "line-persona");
+        m.put("site", "サイトロゴ・トップ画像");
+        m.put(CATEGORY_OTHER, "その他（このページでアップロード）");
+        CATEGORIES = Collections.unmodifiableMap(m);
+    }
+
+    /** Category of an HTML画像 from its label (the label each upload screen sets). */
+    public static String categoryOf(HtmlImage img) {
+        String l = img.getLabel() == null ? "" : img.getLabel();
+        if (l.startsWith("キャラ写真")) return "chara";
+        if (l.startsWith("ユーザー写真")) return "user";
+        if (l.startsWith(LABEL_LINE_INSERT)) return "lineInsert";
+        if (l.startsWith(LABEL_ATTACH)) return "attach";
+        if (l.startsWith("LINEキャラ写真")) return "lineChara";
+        if (l.startsWith("line-persona")) return "persona";
+        if (l.startsWith("サイトロゴ") || l.startsWith("トップ画像")) return "site";
+        return CATEGORY_OTHER;
     }
 
     public List<HtmlImage> listAll() {

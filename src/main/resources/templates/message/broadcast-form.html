@@ -67,6 +67,17 @@
             width:100%; padding:6px 10px; border:1px solid #cbd5e1; border-radius:5px; font-size:.8rem; outline:none; }
         .compose-body input:focus, .compose-body textarea:focus, .compose-body select:focus { border-color:#2563eb; }
         .compose-body textarea { resize:none; min-height:120px; flex:1; }
+        .bc-imgs { margin-top:6px; }
+        .bc-imgs-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+        .bc-img-btn { padding:4px 10px; font-size:.75rem; font-weight:700; color:#0f766e; background:#f0fdfa; border:1px solid #5eead4; border-radius:5px; cursor:pointer; }
+        .bc-img-btn.is-line { color:#047857; background:#ecfdf5; border-color:#06C755; }
+        .bc-img-btn:disabled { opacity:.6; }
+        .bc-imgs-hint { font-size:.7rem; color:#64748b; }
+        .bc-imgs-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+        .bc-img { position:relative; display:inline-block; width:54px; height:54px; }
+        .bc-img img { width:100%; height:100%; object-fit:cover; border:1px solid #cbd5e1; border-radius:4px; }
+        .bc-img-del { position:absolute; top:-6px; right:-6px; width:18px; height:18px; padding:0; font-size:11px; line-height:16px; color:#fff; background:#475569; border:1px solid #fff; border-radius:50%; cursor:pointer; }
+        .bc-line-note { margin:4px 0 0; font-size:.7rem; line-height:1.45; color:#b45309; }
         .compose-actions { display:flex; align-items:center; gap:8px; margin-top:4px; }
         .btn-send { background:#2563eb; color:#fff; padding:6px 16px; border-radius:5px; border:none; font-weight:700; font-size:.8rem; cursor:pointer; }
         .btn-send:hover { background:#1d4ed8; }
@@ -280,6 +291,27 @@
                           th:attr="data-max=${lineMaxBodyLength}" th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
                 </div>
 
+                <!-- 画像添付（メール・SMS: 本文にURLを入れず、返信画面に📎付きで表示）/ 画像挿入（LINE: LINEに画像で表示） -->
+                <div class="bc-imgs">
+                    <div class="bc-imgs-row">
+                        <button type="button" class="bc-img-btn" id="btnBcImage" th:classappend="${form.channel == 'LINE'} ? 'is-line'"
+                                th:text="${form.channel == 'LINE'} ? '画像挿入（PCから選択）' : '画像添付（PCから選択）'">画像添付</button>
+                        <input type="file" id="bcImageFile" style="display:none;"
+                               th:attr="accept=${form.channel == 'LINE'} ? 'image/jpeg,image/png' : 'image/jpeg,image/png,image/gif,image/webp',data-kind=${form.channel == 'LINE'} ? 'line' : ''"/>
+                        <span class="bc-imgs-hint" th:text="${form.channel == 'LINE'}
+                              ? 'LINEに画像として送信します（JPEG・PNG、4枚まで）'
+                              : '本文にURLは入りません。返信画面に📎付きで表示されます（返信URLが無い本文には自動で付きます・4枚まで）'">hint</span>
+                    </div>
+                    <div class="bc-imgs-list" id="bcImgs">
+                        <span class="bc-img" th:each="imgId : ${form.imageIds}" th:if="${form.imageIds != null}">
+                            <img th:src="@{'/img/' + ${imgId}}" alt=""/><input type="hidden" name="imageIds" th:value="${imgId}"/>
+                            <button type="button" class="bc-img-del" title="外す">×</button>
+                        </span>
+                    </div>
+                    <p th:if="${form.channel == 'LINE'}" class="bc-line-note"
+                       th:text="'⚠ LINE本文の最大文字数（' + ${lineMaxBodyLength} + '文字）が設定されています。画像のURLを本文に貼ると、文字数の設定で途中で切れて画像が見られません。画像は「画像挿入」で入れてください（画像は本文とは別に送られ、文字数に含まれません）。'">⚠</p>
+                </div>
+
                 <!-- メールドメイン / ステータス / rate / min は operator 要請により削除。
                      対象絞り込みはユーザー管理側のフィルタ + 選択送信で行う運用に統一。
                      ratePerMinute は隠しフィールドとして残し、グローバル設定 (リレー設定画面) の値で
@@ -384,6 +416,53 @@ function applyTemplateFromElement(el) {
     }
     ta.addEventListener('input', update);
     update();
+})();
+
+// 画像添付 / 画像挿入: upload from the PC into HTML画像管理, keep the id in a hidden imageIds input
+(function () {
+    var btn = document.getElementById('btnBcImage');
+    var file = document.getElementById('bcImageFile');
+    var list = document.getElementById('bcImgs');
+    if (!btn || !file || !list) return;
+    var MAX = 4;
+    var label = btn.classList.contains('is-line') ? '画像挿入' : '画像添付';
+    list.addEventListener('click', function (e) {
+        var x = e.target.closest('.bc-img-del');
+        if (x) x.closest('.bc-img').remove();
+    });
+    btn.addEventListener('click', function () {
+        if (list.querySelectorAll('.bc-img').length >= MAX) { alert('画像は1通につき' + MAX + '枚までです'); return; }
+        file.click();
+    });
+    file.addEventListener('change', function () {
+        var f = file.files && file.files[0];
+        if (!f) return;
+        var fd = new FormData();
+        fd.append('file', f);
+        if (file.getAttribute('data-kind')) fd.append('kind', file.getAttribute('data-kind'));
+        btn.disabled = true;
+        var orig = btn.textContent;
+        btn.textContent = 'アップロード中…';
+        fetch('/manager/settings/html-images/compose-upload', {
+            method: 'POST', credentials: 'same-origin', body: fd,
+            headers: { 'X-CSRF-Token': (document.querySelector('meta[name="_csrf"]') || {}).content || '' }
+        })
+            .then(function (r) {
+                return r.json().catch(function () { return { error: 'HTTP ' + r.status }; })
+                    .then(function (j) { return { ok: r.ok, j: j }; });
+            })
+            .then(function (res) {
+                if (!res.ok || !res.j.id) throw new Error(res.j.error || 'アップロードに失敗しました');
+                var chip = document.createElement('span');
+                chip.className = 'bc-img';
+                chip.innerHTML = '<img alt=""><input type="hidden" name="imageIds"><button type="button" class="bc-img-del" title="外す">×</button>';
+                chip.querySelector('img').src = '/img/' + Number(res.j.id);
+                chip.querySelector('input').value = String(Number(res.j.id));
+                list.appendChild(chip);
+            })
+            .catch(function (e) { alert(label + 'に失敗しました: ' + e.message); })
+            .then(function () { btn.disabled = false; btn.textContent = orig; file.value = ''; });
+    });
 })();
 
 function insertTagToBody(token) {

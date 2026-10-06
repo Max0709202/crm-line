@@ -11,6 +11,14 @@
         html.inbox-solo aside.w-64.fixed { display:none !important; }
         html.inbox-solo main.flex-1.ml-64 { margin-left:0 !important; }
         main.flex-1.p-6 { padding: 0 !important; overflow: hidden !important; height: 100vh; display: flex; flex-direction: column; }
+        /* 送信しました etc. (layout flash): float over the top of the screen instead of pushing the 4 panes down, then fade out. */
+        main.flex-1.p-6 > div.bg-green-50, main.flex-1.p-6 > div.bg-red-50 {
+            position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; margin: 0 !important;
+            max-width: 90vw; box-shadow: 0 4px 14px rgba(15,23,42,.18); pointer-events: none;
+            animation: flashToastOut .4s ease 3s forwards;
+        }
+        main.flex-1.p-6 > div.bg-red-50 { animation-delay: 8s; }
+        @keyframes flashToastOut { to { opacity: 0; visibility: hidden; } }
 
         .wsx { position:relative; height:100vh; box-sizing:border-box; background:#f1f5f9; color:#334155; }
         .wsx .pane { position:absolute; box-sizing:border-box; background:#fff; overflow:hidden; display:flex; flex-direction:column; min-width:0; min-height:0;
@@ -338,6 +346,10 @@
         .wsx button.dtl-img { cursor:zoom-in; }
         .wsx .dtl-img img { display:block; width:100%; height:100%; object-fit:cover; object-position:center 25%; }
         .wsx .dtl-attrs .is-pref { color:#475569; background:#f8fafc; }
+        .wsx .dtl-chara-profile { min-width:0; padding:5px 8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; }
+        .wsx .dtl-chara-profile-label { font-size:10.5px; font-weight:700; color:#94a3b8; }
+        .wsx .dtl-chara-profile-text { max-height:90px; overflow:auto; font-size:12px; line-height:1.5; color:#334155; white-space:pre-wrap; word-break:break-word; }
+        .wsx .dtl-chara-profile-text.is-empty { color:#94a3b8; }
         .wsx .dtl-line-photo { flex:none; display:flex; flex-direction:column; align-items:center; gap:3px; }
         .wsx .dtl-line-badge { font-size:10px; font-weight:800; line-height:15px; padding:0 6px; color:#fff; background:#06C755; border-radius:3px; letter-spacing:.04em; }
         .wsx .is-blocked, .wsx .dtl-chars a.is-blocked { text-decoration:line-through; text-decoration-color:#000; text-decoration-thickness:2px; }
@@ -480,6 +492,19 @@
         .wsx .msg-more:hover { color:#334155; }
         .wsx .msg-atts { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
         .wsx .msg-atts img { width:60px; height:60px; object-fit:cover; border:1px solid #cbd5e1; border-radius:4px; cursor:zoom-in; }
+        .wsx .msg-out-imgs { margin-top:6px; }
+        .wsx .cmp-imgs { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:4px; padding:5px 7px; background:#f0fdfa; border:1px dashed #5eead4; border-radius:6px; }
+        .wsx .cmp-imgs[hidden] { display:none; }
+        .wsx .cmp-imgs.is-line { background:#f0fdf4; border-color:#86efac; }
+        .wsx .cmp-imgs-label { flex-basis:100%; font-size:10.5px; font-weight:700; color:#0f766e; }
+        .wsx .cmp-imgs.is-line .cmp-imgs-label { color:#047857; }
+        .wsx .cmp-img { position:relative; display:inline-block; width:46px; height:46px; }
+        .wsx .cmp-img img { width:100%; height:100%; object-fit:cover; border:1px solid #cbd5e1; border-radius:4px; }
+        .wsx .cmp-img-del { position:absolute; top:-6px; right:-6px; width:17px; height:17px; padding:0; font-size:11px; line-height:15px; color:#fff; background:#475569; border:1px solid #fff; border-radius:50%; cursor:pointer; }
+        .wsx .btn-line-img { padding:3px 8px; font-size:.72rem; font-weight:700; color:#047857; background:#ecfdf5; border:1px solid #06C755; border-radius:4px; cursor:pointer; }
+        .wsx .btn-line-img:disabled { opacity:.6; }
+        .wsx .cmp-line-note { margin:2px 0 0; font-size:10.5px; line-height:1.45; color:#b45309; }
+        .wsx .msg-out-imgs-tag { display:inline-block; padding:0 6px; font-size:10.5px; font-weight:700; line-height:17px; color:#0f766e; background:#ccfbf1; border-radius:4px; }
         .wsx .dtl-empty { padding:40px 0; font-size:12px; text-align:center; color:#94a3b8; }
         .wsx .pane-tr > .dtl-foot {
             flex:none; display:flex; align-items:center; justify-content:flex-end; gap:12px;
@@ -551,8 +576,8 @@
                         <span th:case="*" class="inbox-route is-direct">直アド</span>
                     </td>
                     <td class="inbox-member"><a th:href="@{'/manager/users/' + ${r.userId} + '/thread'}" th:text="${r.displayName}">ユーザー</a></td>
-                    <td class="inbox-staff" th:text="${r.latestLineAccountName} ?: '—'">—</td>
-                    <td class="inbox-point" title="ポイント残高は未対応です">—</td>
+                    <td class="inbox-staff" th:text="${inboxCharaNames.get(r.userId)} ?: '—'">—</td>
+                    <td class="inbox-point" th:text="${inboxPoints.get(r.userId) != null} ? ${#numbers.formatInteger(inboxPoints.get(r.userId), 1, 'COMMA')} + 'pt' : '0pt'">0pt</td>
                     <td class="inbox-date">
                         <th:block th:if="${r.latestAt != null}"><span class="d" th:text="${#temporals.format(r.latestAt, 'M/d')}"></span><th:block th:text="${#temporals.format(r.latestAt, 'H:mm')}"/></th:block>
                         <th:block th:if="${r.latestAt == null}">—</th:block>
@@ -663,13 +688,18 @@
                             <li class="is-folder" th:text="${cardCharaFolder} ?: '未分類'">フォルダ</li>
                             <li class="is-pref" th:text="${cardChara.pref} ?: '未設定'">都道府県</li>
                         </ul>
+                        <!-- フォルダ名・都道府県の直下: キャラ登録のプロフィール -->
+                        <div class="dtl-chara-profile" th:if="${cardChara != null}">
+                            <div class="dtl-chara-profile-label">プロフィール</div>
+                            <div class="dtl-chara-profile-text" th:text="${cardChara.profile != null and !#strings.isEmpty(#strings.trim(cardChara.profile))} ? ${cardChara.profile} : '未設定'"
+                                 th:classappend="${cardChara.profile == null or #strings.isEmpty(#strings.trim(cardChara.profile))} ? 'is-empty'">プロフィール</div>
+                        </div>
                     </div>
                     <dl class="dtl-table">
                         <div><dt>登録日時</dt><dd th:text="${cardChara != null and cardChara.createdAt != null} ? ${#temporals.format(cardChara.createdAt, 'yyyy/MM/dd HH:mm')} : '—'">—</dd></div>
                         <div><dt>血液型</dt><dd th:text="${cardChara != null and cardChara.blood != null} ? ${cardChara.blood} : '—'">—</dd></div>
                         <div><dt>星座</dt><dd th:text="${cardChara != null and cardChara.sign != null} ? ${cardChara.sign} : '—'">—</dd></div>
                         <div><dt>年齢</dt><dd th:text="${cardChara != null and cardChara.age != null} ? ${cardChara.age} + '歳' : '—'">—</dd></div>
-                        <div><dt>文字入れ E</dt><dd>—</dd></div>
                     </dl>
                 </div>
                 <div class="dtl-memo" data-memo-target="staff">
@@ -755,6 +785,14 @@
                              th:src="@{'/manager/users/' + ${user.id} + '/attachment/' + ${a.id}}"
                              th:alt="${a.fileName}" th:title="${a.fileName}" onclick="openThreadLightbox(this.src);"/>
                     </div>
+                    <!-- 画像添付 (メール / SMS: 返信画面に📎で表示) / LINE画像挿入 (LINEに画像で送信) -->
+                    <div class="msg-out-imgs" th:if="${isOut and outImagesByMessageId.get(m.id) != null}">
+                        <span class="msg-out-imgs-tag" th:text="${m.channel == 'LINE'} ? 'LINE画像挿入' : '📎 画像添付（返信画面に表示）'">📎 画像添付</span>
+                        <div class="msg-atts">
+                            <img th:each="imgId : ${outImagesByMessageId.get(m.id)}" th:src="@{'/img/' + ${imgId}}"
+                                 alt="添付画像" onclick="openThreadLightbox(this.src);"/>
+                        </div>
+                    </div>
                     <div class="msg-err" th:if="${isOut and m.status == 'FAILED' and m.errorMessage != null}" th:text="${#strings.abbreviate(m.errorMessage, 120)}"></div>
                 </div>
                 <div th:if="${isOut}" class="msg-av is-staff" th:text="${#strings.substring(who, 0, 1)}">運</div>
@@ -796,6 +834,13 @@
                     <input type="text" id="subject" th:field="*{subject}" placeholder="件名"/>
                 </div>
                 <textarea id="body" th:field="*{body}" placeholder="本文"></textarea>
+                <!-- 画像添付（メール・SMS）: 本文にはURLを入れず、返信画面に📎付きで表示 / LINE画像挿入: LINEに画像で表示 -->
+                <div class="cmp-imgs" id="composeImgs" hidden>
+                    <span class="cmp-imgs-label">📎 画像添付（メール・SMS／返信画面に表示）</span>
+                </div>
+                <div class="cmp-imgs is-line" id="lineImgs" hidden>
+                    <span class="cmp-imgs-label">LINE画像挿入（LINEに画像で表示）</span>
+                </div>
 
                 <div class="row">
                     <span th:if="${user.phoneNumber != null and !#strings.isEmpty(user.phoneNumber)}"
@@ -815,11 +860,17 @@
                                 th:text="${c.value} + (${blockedLineAccountIds.contains(c.key)} ? '（ブロック中）' : '')"
                                 th:selected="${selectedLineAccountId != null and selectedLineAccountId == c.key}">キャラ</option>
                     </select>
+                    <button type="button" th:if="${hasLineLink}" id="btnLineImage" class="btn-line-img"
+                            title="PCの画像を選んでLINEに挿入します（JPEG・PNG）">画像挿入</button>
+                    <input type="file" th:if="${hasLineLink}" id="lineImageFile" accept="image/jpeg,image/png" style="display:none;"/>
                     <button type="submit" th:if="${hasLineLink}"
                             th:formaction="@{'/manager/users/' + ${user.id} + '/messages/line'}"
                             class="btn" style="background:#06C755;">LINE返信</button>
                     <button type="submit" class="btn ml-auto">返信</button>
                 </div>
+
+                <p th:if="${hasLineLink and lineMaxBodyLength != null}" class="cmp-line-note"
+                   th:text="'⚠ LINE本文の最大文字数（' + ${lineMaxBodyLength} + '文字）が設定されています。画像のURLを本文に貼ると、文字数の設定で途中で切れて画像が見られません。LINEの画像は「画像挿入」で入れてください（画像は本文とは別に送られ、文字数に含まれません）。'">⚠</p>
 
                 <div class="sched-box" data-sched-box>
                     <div class="sched-head">
@@ -830,7 +881,7 @@
                         <input type="datetime-local" th:field="*{scheduledAt}" data-sched-input/>
                         <button type="button" class="chip" data-sched-quick="60">+1時間</button>
                         <button type="button" class="chip" data-sched-quick="180">+3時間</button>
-                        <button type="button" class="chip" id="btnComposeImage">画像添付</button>
+                        <button type="button" class="chip" id="btnComposeImage" title="PCの画像を選んで添付します（メール・SMS：本文にURLは入らず、返信画面に📎付きで表示）">画像添付</button>
                         <input type="file" id="composeImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;"/>
                     </div>
                 </div>
@@ -1565,34 +1616,64 @@ document.querySelectorAll('[data-sched-box]').forEach(function (box) {
     refresh();
 });
 
+// 画像添付 (メール・SMS) / LINE画像挿入: upload from the PC into HTML画像管理 and add a chip
+// (hidden imageIds / lineImageIds) — the image is not written into 本文 as a URL.
 (function () {
-    var btn = document.getElementById('btnComposeImage');
-    var file = document.getElementById('composeImageFile');
-    if (!btn || !file) return;
-    btn.addEventListener('click', function () { file.click(); });
-    file.addEventListener('change', function () {
-        var f = file.files && file.files[0];
-        if (!f) return;
-        var fd = new FormData();
-        fd.append('file', f);
-        btn.disabled = true;
-        btn.textContent = 'アップロード中…';
-        fetch('/manager/settings/html-images/compose-upload', { method: 'POST', credentials: 'same-origin', body: fd })
-            .then(function (r) {
-                return r.json().catch(function () { return { error: 'HTTP ' + r.status }; })
-                    .then(function (j) { return { ok: r.ok, j: j }; });
+    var MAX = 4;
+    function wire(btnId, fileId, boxId, inputName, kind, label) {
+        var btn = document.getElementById(btnId);
+        var file = document.getElementById(fileId);
+        var box = document.getElementById(boxId);
+        if (!btn || !file || !box) return;
+        function count() { return box.querySelectorAll('.cmp-img').length; }
+        function sync() { box.hidden = count() === 0; }
+        btn.addEventListener('click', function () {
+            if (count() >= MAX) { alert('画像は1通につき' + MAX + '枚までです'); return; }
+            file.click();
+        });
+        box.addEventListener('click', function (e) {
+            var x = e.target.closest('.cmp-img-del');
+            if (x) { x.closest('.cmp-img').remove(); sync(); }
+        });
+        file.addEventListener('change', function () {
+            var f = file.files && file.files[0];
+            if (!f) return;
+            var fd = new FormData();
+            fd.append('file', f);
+            if (kind) fd.append('kind', kind);
+            btn.disabled = true;
+            var orig = btn.textContent;
+            btn.textContent = 'アップロード中…';
+            fetch('/manager/settings/html-images/compose-upload', {
+                method: 'POST', credentials: 'same-origin', body: fd,
+                headers: { 'X-CSRF-Token': (document.querySelector('meta[name="_csrf"]') || {}).content || '' }
             })
-            .then(function (res) {
-                if (!res.ok || !res.j.url) throw new Error(res.j.error || 'アップロードに失敗しました');
-                insertTagToBody('\n' + res.j.url + '\n');
-            })
-            .catch(function (e) { alert('画像添付失敗: ' + e.message); })
-            .then(function () {
-                btn.disabled = false;
-                btn.textContent = '画像添付';
-                file.value = '';
-            });
-    });
+                .then(function (r) {
+                    return r.json().catch(function () { return { error: 'HTTP ' + r.status }; })
+                        .then(function (j) { return { ok: r.ok, j: j }; });
+                })
+                .then(function (res) {
+                    if (!res.ok || !res.j.id) throw new Error(res.j.error || 'アップロードに失敗しました');
+                    var chip = document.createElement('span');
+                    chip.className = 'cmp-img';
+                    chip.innerHTML = '<img alt="">' + '<input type="hidden">' + '<button type="button" class="cmp-img-del" title="外す">×</button>';
+                    chip.querySelector('img').src = '/img/' + Number(res.j.id);
+                    var hid = chip.querySelector('input');
+                    hid.name = inputName;
+                    hid.value = String(Number(res.j.id));
+                    box.appendChild(chip);
+                    sync();
+                })
+                .catch(function (e) { alert(label + 'に失敗しました: ' + e.message); })
+                .then(function () {
+                    btn.disabled = false;
+                    btn.textContent = orig;
+                    file.value = '';
+                });
+        });
+    }
+    wire('btnComposeImage', 'composeImageFile', 'composeImgs', 'imageIds', '', '画像添付');
+    wire('btnLineImage', 'lineImageFile', 'lineImgs', 'lineImageIds', 'line', '画像挿入');
 })();
 
 function insertTagToBody(token) {

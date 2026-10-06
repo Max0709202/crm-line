@@ -583,7 +583,7 @@ class DiffScheduleServiceTest {
     }
 
     @Test
-    void execute_messageImage_splicesImageTagIntoBody() {
+    void execute_messageImage_attachesTheImage() {
         DiffSchedule schedule = new DiffSchedule();
         schedule.setId(7L);
         schedule.setTargetUserIds("1");
@@ -600,7 +600,6 @@ class DiffScheduleServiceTest {
         step.setBodySnapshot("本文です");
 
         when(htmlImageService.findById(555L)).thenReturn(Optional.of(new com.crm.entity.HtmlImage()));
-        when(domainSettingService.getReplyBaseUrl()).thenReturn("https://example.jp");
         Broadcast b = new Broadcast();
         b.setId(111L);
         b.setTotalCount(1);
@@ -610,7 +609,9 @@ class DiffScheduleServiceTest {
 
         svc.execute(step);
 
-        assertThat(cap.getValue().getBody()).startsWith("<img src=\"https://example.jp/img/555\"/><br/>本文です");
+        // 画像添付: the image goes with the message (返信画面 / LINE image), not as an <img> tag in the body
+        assertThat(cap.getValue().getBody()).isEqualTo("本文です");
+        assertThat(cap.getValue().getImageIds()).containsExactly(555L);
     }
 
     @Test

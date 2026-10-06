@@ -1,5 +1,6 @@
 package com.crm.config;
 
+import com.crm.interceptor.AdminIpInterceptor;
 import com.crm.interceptor.AuthInterceptor;
 import com.crm.interceptor.CsrfInterceptor;
 import com.crm.interceptor.MediaAuthInterceptor;
@@ -15,19 +16,24 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final CsrfInterceptor csrfInterceptor;
     private final MediaAuthInterceptor mediaAuthInterceptor;
     private final RoleInterceptor roleInterceptor;
+    private final AdminIpInterceptor adminIpInterceptor;
 
     public WebMvcConfig(AuthInterceptor authInterceptor,
                         CsrfInterceptor csrfInterceptor,
                         MediaAuthInterceptor mediaAuthInterceptor,
-                        RoleInterceptor roleInterceptor) {
+                        RoleInterceptor roleInterceptor,
+                        AdminIpInterceptor adminIpInterceptor) {
         this.authInterceptor = authInterceptor;
         this.csrfInterceptor = csrfInterceptor;
         this.mediaAuthInterceptor = mediaAuthInterceptor;
         this.roleInterceptor = roleInterceptor;
+        this.adminIpInterceptor = adminIpInterceptor;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // セキュリティ設定 › 管理画面IP許可設定: an IP off the list never reaches the admin screens (login included).
+        registry.addInterceptor(adminIpInterceptor).addPathPatterns("/manager", "/manager/**");
         // CSRF runs first so it can reject state-changing requests before auth work kicks in.
         registry.addInterceptor(csrfInterceptor);
         registry.addInterceptor(authInterceptor).addPathPatterns("/manager/**");

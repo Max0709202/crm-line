@@ -153,6 +153,8 @@
   .sdw .reply-to { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: #64748b; }
   .sdw .reply-to b { font-weight: 600; color: #1e293b; }
   .sdw .reply .input + .input { margin-top: 6px; }
+  .sdw .sender-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: #475569; }
+  .sdw .sender-row .input { flex: 1; min-width: 0; }
   .sdw #replyBody { height: 120px; min-height: 80px; resize: vertical; line-height: 1.65; }
 
   .sdw .tags { margin-top: 8px; padding: 8px 10px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px; }
@@ -323,6 +325,11 @@
 
         <form class="reply" id="replyForm" method="post" action="/manager/support/reply">
           <div class="reply-to" id="replyTo"></div>
+          <div class="sender-row">
+            <label for="senderName" style="white-space:nowrap;">送信者名</label>
+            <input type="text" class="input" id="senderName" th:value="${senderName}" th:maxlength="${senderNameMax}" placeholder="例: サポート事務局（空欄なら受付アドレスのみ）"/>
+            <button type="button" class="btn btn-outline btn-sm" id="btnSenderSave">保存</button>
+          </div>
           <input type="text" class="input" id="replySubject" name="subject" maxlength="500" placeholder="件名（空欄なら「Re: 元の件名」）"/>
           <textarea class="input" id="replyBody" name="body" placeholder="本文（右の定型文・下のタグをクリックで挿入）"></textarea>
 
@@ -392,7 +399,8 @@
         status: '/manager/support/status',
         templateSave: '/manager/support/templates',
         templateDelete: '/manager/support/templates/delete',
-        tagSave: '/manager/support/tags'
+        tagSave: '/manager/support/tags',
+        senderName: '/manager/support/sender-name'
     };
 
     var $ = function (id) { return document.getElementById(id); };
@@ -748,6 +756,18 @@
         var v = tagVals[key] || {};
         document.querySelectorAll('.sdw .tag-val input').forEach(function (i) { i.value = v[i.getAttribute('data-tag')] || ''; });
     }
+    // 送信者名: saved once, used for every reply until changed
+    function saveSenderName() {
+        post(API.senderName, { name: $('senderName').value })
+            .then(function (j) { $('senderName').value = j.name || ''; toast('送信者名を保存しました'); })
+            .catch(function (err) { toast('保存に失敗しました (' + err.message + ')'); });
+    }
+    $('btnSenderSave').addEventListener('click', saveSenderName);
+    // Enter in this field must not submit the reply form (= send the reply)
+    $('senderName').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveSenderName(); }
+    });
+
     $('btnTagSave').addEventListener('click', function () {
         if (state.mode === 'empty') return;
         var v = {};

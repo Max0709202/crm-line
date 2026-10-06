@@ -143,17 +143,22 @@
                                 <div th:id="'charaBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL' or s.channel == 'SMS'} ? '' : 'display:none;'">
                                     <div th:replace="~{fragment/chara-picker :: picker('charaId', ${stepCharaIds.get(s.id)})}"></div>
                                 </div>
-                                <div th:id="'imageToggleBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL' or s.channel == 'LINE'} ? '' : 'display:none;'">
+                                <div th:id="'imageToggleBox' + ${s.id}" class="mb-2" th:style="${s.channel == 'EMAIL' or s.channel == 'SMS' or s.channel == 'LINE'} ? '' : 'display:none;'">
                                     <label class="text-xs text-slate-600">
                                         <input type="checkbox" th:id="'imageToggle' + ${s.id}" th:checked="${s.stepType == 'MESSAGE_IMAGE'}"
-                                               th:attr="onchange=|toggleImageStep(${s.id})|"/> 画像を挿入する
+                                               th:attr="onchange=|toggleImageStep(${s.id})|"/>
+                                        <span th:id="'imageLabel' + ${s.id}" th:text="${s.channel == 'LINE'} ? '画像を挿入する（LINEに画像で表示）' : '画像を添付する（本文にURLは入らず、返信画面に📎付きで表示）'">画像を添付する</span>
                                     </label>
-                                    <div th:id="'imageSelectBox' + ${s.id}" th:style="${s.stepType == 'MESSAGE_IMAGE'} ? '' : 'display:none;'" class="mt-1">
-                                        <select name="imageId" class="tw-input">
-                                            <option value="">画像を選択</option>
+                                    <div th:id="'imageSelectBox' + ${s.id}" th:style="${s.stepType == 'MESSAGE_IMAGE'} ? '' : 'display:none;'" class="mt-1 flex flex-wrap items-center gap-2">
+                                        <select name="imageId" class="tw-input" th:id="'imageSelect' + ${s.id}" style="max-width:20rem;">
+                                            <option value="">画像を選択（HTML画像管理）</option>
                                             <option th:each="img : ${htmlImages}" th:value="${img.id}" th:text="${img.label} ?: ${img.fileName}"
                                                     th:selected="${img.id == s.imageId}"></option>
                                         </select>
+                                        <button type="button" class="px-2 py-1 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                                                th:attr="onclick=|pickStepImage('${s.id}')|">PCから選択</button>
+                                        <input type="file" th:id="'imageFile' + ${s.id}" style="display:none;" accept="image/jpeg,image/png,image/gif,image/webp"
+                                               th:attr="onchange=|uploadStepImage('${s.id}', this)|"/>
                                     </div>
                                 </div>
                                 <textarea name="body" rows="4" placeholder="本文" class="tw-input" th:id="'body' + ${s.id}" th:text="${s.body}"></textarea>
@@ -251,13 +256,18 @@
                     </div>
                     <div id="imageToggleBoxnew" class="mb-2">
                         <label class="text-xs text-slate-600">
-                            <input type="checkbox" id="imageTogglenew" onchange="toggleImageStep('new')"/> 画像を挿入する
+                            <input type="checkbox" id="imageTogglenew" onchange="toggleImageStep('new')"/>
+                            <span id="imageLabelnew">画像を添付する（本文にURLは入らず、返信画面に📎付きで表示）</span>
                         </label>
-                        <div id="imageSelectBoxnew" style="display:none;" class="mt-1">
-                            <select name="imageId" class="tw-input">
-                                <option value="">画像を選択</option>
+                        <div id="imageSelectBoxnew" style="display:none;" class="mt-1 flex flex-wrap items-center gap-2">
+                            <select name="imageId" class="tw-input" id="imageSelectnew" style="max-width:20rem;">
+                                <option value="">画像を選択（HTML画像管理）</option>
                                 <option th:each="img : ${htmlImages}" th:value="${img.id}" th:text="${img.label} ?: ${img.fileName}"></option>
                             </select>
+                            <button type="button" class="px-2 py-1 text-xs border border-slate-300 rounded hover:bg-slate-50"
+                                    onclick="pickStepImage('new')">PCから選択</button>
+                            <input type="file" id="imageFilenew" style="display:none;" accept="image/jpeg,image/png,image/gif,image/webp"
+                                   onchange="uploadStepImage('new', this)"/>
                         </div>
                     </div>
                     <textarea name="body" rows="4" placeholder="本文" class="tw-input" id="bodynew"></textarea>
@@ -330,8 +340,14 @@
             var charaBox = document.getElementById('charaBox' + id);
             if (charaBox) charaBox.style.display = (channel === 'EMAIL' || channel === 'SMS') ? 'block' : 'none';
             var imgToggleBox = document.getElementById('imageToggleBox' + id);
-            var imgAllowed = (channel === 'EMAIL' || channel === 'LINE');
+            var imgAllowed = (channel === 'EMAIL' || channel === 'SMS' || channel === 'LINE');
             if (imgToggleBox) imgToggleBox.style.display = imgAllowed ? 'block' : 'none';
+            // LINE: 画像挿入（LINEに画像で表示） / メール・SMS: 画像添付（返信画面に📎で表示）
+            var imgLabel = document.getElementById('imageLabel' + id);
+            if (imgLabel) imgLabel.textContent = channel === 'LINE' ? '画像を挿入する（LINEに画像で表示）'
+                : '画像を添付する（本文にURLは入らず、返信画面に📎付きで表示）';
+            var imgFile = document.getElementById('imageFile' + id);
+            if (imgFile) imgFile.setAttribute('accept', channel === 'LINE' ? 'image/jpeg,image/png' : 'image/jpeg,image/png,image/gif,image/webp');
             if (!imgAllowed) {
                 var cb = document.getElementById('imageToggle' + id);
                 if (cb && cb.checked) { cb.checked = false; toggleImageStep(id); }
@@ -344,6 +360,43 @@
             var checked = cb && cb.checked;
             if (stepTypeField) stepTypeField.value = checked ? 'MESSAGE_IMAGE' : 'MESSAGE';
             if (box) box.style.display = checked ? 'block' : 'none';
+        }
+        // PCから選択: upload into HTML画像管理 (LINE: JPEG・PNG) and select it
+        function stepChannel(id) {
+            var form = document.getElementById('imageToggleBox' + id);
+            form = form && form.closest('form');
+            var sel = form && form.querySelector('[name="channel"]:checked, select[name="channel"], input[type="hidden"][name="channel"]');
+            return sel ? sel.value : '';
+        }
+        function pickStepImage(id) {
+            var f = document.getElementById('imageFile' + id);
+            if (f) f.click();
+        }
+        function uploadStepImage(id, input) {
+            var f = input.files && input.files[0];
+            if (!f) return;
+            var fd = new FormData();
+            fd.append('file', f);
+            if (stepChannel(id) === 'LINE') fd.append('kind', 'line');
+            fetch('/manager/settings/html-images/compose-upload', {
+                method: 'POST', credentials: 'same-origin', body: fd,
+                headers: { 'X-CSRF-Token': (document.querySelector('meta[name="_csrf"]') || {}).content || '' }
+            })
+                .then(function (r) {
+                    return r.json().catch(function () { return { error: 'HTTP ' + r.status }; })
+                        .then(function (j) { return { ok: r.ok, j: j }; });
+                })
+                .then(function (res) {
+                    if (!res.ok || !res.j.id) throw new Error(res.j.error || 'アップロードに失敗しました');
+                    var sel = document.getElementById('imageSelect' + id);
+                    var opt = document.createElement('option');
+                    opt.value = String(Number(res.j.id));
+                    opt.textContent = f.name + '（PCから追加）';
+                    sel.appendChild(opt);
+                    sel.value = opt.value;
+                })
+                .catch(function (e) { alert('画像のアップロードに失敗しました: ' + e.message); })
+                .then(function () { input.value = ''; });
         }
         function insertTag(id, token) {
             var ta = document.getElementById('body' + id);

@@ -12,6 +12,9 @@
         #nyukinReport table.nr-grid thead th { border-bottom: 2px solid #94a3b8; }
         #nyukinReport #detailTable { table-layout: fixed; }
         #nyukinReport #detailTable td { overflow-wrap: anywhere; }
+        /* Every month's rows are in the HTML; keep them hidden until the script has narrowed them
+           to the selected month, so past rows don't flash on page load. */
+        #nyukinReport:not(.nr-ready) #detailTable tbody { visibility: hidden; }
     </style>
 </head>
 <body>
@@ -575,6 +578,7 @@
     });
 
     render();
+    document.getElementById('nyukinReport').classList.add('nr-ready');
   })();
   </script>
 </section>

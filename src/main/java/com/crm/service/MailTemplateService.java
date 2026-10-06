@@ -122,7 +122,8 @@ public class MailTemplateService {
                 new String[]{"%email%", "メールアドレス", "naoto.k@example.com"},
                 new String[]{"%point%", "所持ポイント", "1,200"},
                 new String[]{"%login_url%", "ログインURL（ID・パスワード入力）", loginUrl()},
-                new String[]{"%auto_login_url%", "自動ログインURL（ID・パスワード入力なし）", autoLoginService.sampleUrl()}));
+                new String[]{"%auto_login_url%", "自動ログインURL（ID・パスワード入力なし）", autoLoginService.sampleUrl()},
+                new String[]{"%body%", "本文（キャラからのメッセージ本文）", "こんばんは！今日はお仕事お疲れさまでした…"}));
         m.put(PROVISIONAL, Arrays.asList(
                 new String[]{"%verify_url%", "本登録用URL", base + "/member/confirm?token=3f9a…"},
                 new String[]{"%expire%", "URLの有効期限", LocalDateTime.now().plusHours(MemberRegistrationService.TOKEN_VALID_HOURS).format(JP_DATETIME)}));
@@ -221,14 +222,8 @@ public class MailTemplateService {
                 body = DEFAULT_PROVISIONAL_BODY;
             }
             if (subject.isEmpty() || body.trim().isEmpty()) return false;
-            Map<String, String> values = new LinkedHashMap<>();
-            values.put("%sitename%", siteDesignService.getSiteName());
-            values.put("%id%", nz(user.getLoginId()));
-            values.put("%name%", nz(user.getDisplayName()));
-            values.put("%email%", nz(user.getEmail()));
-            values.put("%point%", String.format("%,d", userPointService.get(user.getId())));
-            values.put("%login_url%", loginUrl());
-            if (containsTag(subject, body, "%auto_login_url%")) values.put("%auto_login_url%", autoLoginService.urlFor(user));
+            Map<String, String> values = commonValues(user, subject, body);
+            values.put("%body%", "");   // only メール通知 sent with a キャラ mail has a 本文
             if (extra != null) values.putAll(extra);
             OutboundMailService.SendResult res = deliver(user.getEmail().trim(), fill(subject, values), fill(body, values));
             if (res == null) {
@@ -244,6 +239,40 @@ public class MailTemplateService {
             log.warn("mail template {} error: user={} {}", key, user == null ? null : user.getId(), e.toString());
             return false;
         }
+    }
+
+    /**
+     * メール通知 as the form of a キャラ mail (個別返信 / 一斉送信 / 差分): used while it is 有効 and its
+     * subject and body are written with {@code %body%} in the body. Like LINE's 固定テンプレート, the
+     * 本文の文字数設定 then counts only the {@code %body%} part (see MailMessageTemplateService).
+     */
+    public boolean isMessageTemplateActive() {
+        return isEnabled(NOTICE) && !subject(NOTICE).trim().isEmpty() && body(NOTICE).contains("%body%");
+    }
+
+    /** メール通知 filled for {@code user}: the common tags plus {@code extra} → {subject, body}. */
+    public String[] renderMessageTemplate(CrmUser user, Map<String, String> extra) {
+        String subject = subject(NOTICE), body = body(NOTICE);
+        Map<String, String> values = commonValues(user, subject, body);
+        if (extra != null) values.putAll(extra);
+        return new String[]{fill(subject, values).replace("\n", " ").trim(), fill(body, values)};
+    }
+
+    /** Raw メール通知 subject and body (tags not filled). */
+    public String[] messageTemplateSource() {
+        return new String[]{subject(NOTICE), body(NOTICE)};
+    }
+
+    private Map<String, String> commonValues(CrmUser user, String subject, String body) {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("%sitename%", siteDesignService.getSiteName());
+        values.put("%id%", nz(user.getLoginId()));
+        values.put("%name%", nz(user.getDisplayName()));
+        values.put("%email%", nz(user.getEmail()));
+        values.put("%point%", String.format("%,d", userPointService.get(user.getId())));
+        values.put("%login_url%", loginUrl());
+        if (containsTag(subject, body, "%auto_login_url%")) values.put("%auto_login_url%", autoLoginService.urlFor(user));
+        return values;
     }
 
     /** 仮登録通知 — {@code %verify_url%} / {@code %expire%}. */

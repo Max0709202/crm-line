@@ -24,14 +24,23 @@ public interface OutboundLineService {
          *  adds {@code LineAccount.isGroupChatMode}. */
         public final String senderName;
         public final String senderIconUrl;
+        /** LINE画像挿入: public HTTPS URLs of JPEG / PNG images sent after the text (empty = none). */
+        public final java.util.List<String> imageUrls;
 
         public LineSendRequest(String accessToken, String toLineUserId, String body,
                                 String senderName, String senderIconUrl) {
+            this(accessToken, toLineUserId, body, senderName, senderIconUrl, null);
+        }
+
+        public LineSendRequest(String accessToken, String toLineUserId, String body,
+                                String senderName, String senderIconUrl, java.util.List<String> imageUrls) {
             this.accessToken = accessToken;
             this.toLineUserId = toLineUserId;
             this.body = body;
             this.senderName = senderName;
             this.senderIconUrl = senderIconUrl;
+            this.imageUrls = imageUrls == null ? java.util.Collections.<String>emptyList()
+                    : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(imageUrls));
         }
     }
 

@@ -47,6 +47,10 @@ public class MessageController {
     private final com.crm.service.ThreadLayoutService threadLayoutService;
     private final com.crm.service.ThreadPanelService threadPanelService;
     private final com.crm.service.FolderSettingService folderSettingService;
+    private com.crm.service.MessageImageService messageImageService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMessageImageService(com.crm.service.MessageImageService messageImageService) { this.messageImageService = messageImageService; }
     private final com.crm.service.CharaLinkService charaLinkService;
     private final com.crm.repository.CharaRepository charaRepository;
     private final com.crm.repository.CharaFolderRepository charaFolderRepository;
@@ -155,6 +159,9 @@ public class MessageController {
             }
         }
         model.addAttribute("lineAccountNames", lineAccountNames);
+        // キャラ名 for メール / SMS messages (the message's キャラ, else its broadcast's) + フォルダの色分け
+        model.addAttribute("charaNames", charaLinkService.charaNamesOfMessages(messages.getContent()));
+        model.addAttribute("folderColors", folderSettingService.colorMap());
         return "message/list";
     }
 
@@ -267,6 +274,13 @@ public class MessageController {
             }
         }
         model.addAttribute("attachmentsByMessageId", attsByMsg);
+        // 画像添付 (メール / SMS) / LINE画像挿入 of the outbound messages, shown in their bubbles
+        java.util.List<com.crm.entity.Message> outMsgs = new java.util.ArrayList<>();
+        for (com.crm.entity.Message m : thread) {
+            if (com.crm.entity.Message.DIR_OUT.equals(m.getDirection())) outMsgs.add(m);
+        }
+        model.addAttribute("outImagesByMessageId", messageImageService == null
+                ? java.util.Collections.emptyMap() : messageImageService.imageIdsOfMessages(outMsgs));
         // Left-upper inbox list (all users with any inbound, newest first).
         List<MessageService.InboxRow> inboxRows = messageService.inboxByUser(false);
         model.addAttribute("inboxRows", inboxRows);
@@ -276,6 +290,26 @@ public class MessageController {
         java.util.Map<Long, CrmUser> inboxUsers = new java.util.HashMap<>();
         for (CrmUser u : userService.findAllByIds(inboxUserIds)) inboxUsers.put(u.getId(), u);
         model.addAttribute("inboxUsers", inboxUsers);
+        // キャラ / ポイント columns: the キャラ the latest inbound message was sent to (メール/Web: its
+        // キャラ record; LINE: the LINE account), and the user's point balance.
+        java.util.List<Long> latestInIds = new java.util.ArrayList<>();
+        for (MessageService.InboxRow r : inboxRows) if (r.getLatestMessageId() != null) latestInIds.add(r.getLatestMessageId());
+        java.util.Map<Long, Long> charaIdByMsg = charaLinkService.charaIdsOf(com.crm.entity.CharaRef.OWNER_MESSAGE, latestInIds);
+        java.util.Map<Long, String> charaNameById = new java.util.HashMap<>();
+        if (!charaIdByMsg.isEmpty()) {
+            for (com.crm.entity.Chara c : charaRepository.findAllById(new java.util.HashSet<>(charaIdByMsg.values()))) {
+                charaNameById.put(c.getId(), c.getName());
+            }
+        }
+        java.util.Map<Long, String> inboxCharaNames = new java.util.HashMap<>();
+        for (MessageService.InboxRow r : inboxRows) {
+            Long cid = r.getLatestMessageId() == null ? null : charaIdByMsg.get(r.getLatestMessageId());
+            String name = cid == null ? null : charaNameById.get(cid);
+            if (name == null) name = r.getLatestLineAccountName();
+            if (name != null) inboxCharaNames.put(r.getUserId(), name);
+        }
+        model.addAttribute("inboxCharaNames", inboxCharaNames);
+        model.addAttribute("inboxPoints", userPointService.getAll(inboxUserIds));
         model.addAttribute("starredUserIds", threadPanelService.starredUserIds());
         model.addAttribute("folderColors", folderSettingService.colorMap());
         // Gates the LINE返信 button — LINE only lets you message someone who has already
@@ -495,6 +529,7 @@ public class MessageController {
                            @RequestParam(name = "charaView", required = false) String charaView,
                            @Valid @ModelAttribute("lineForm") com.crm.dto.LineComposeForm form,
                            BindingResult br,
+                           @RequestParam(name = "lineImageIds", required = false) java.util.List<Long> lineImageIds,
                            HttpSession session,
                            RedirectAttributes ra,
                            Model model) {
@@ -502,6 +537,8 @@ public class MessageController {
             ra.addFlashAttribute("flashError", "本文を入力してください");
             return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
         }
+        // LINE画像挿入 (the compose form's 画像添付 chips are for メール / SMS)
+        form.setImageIds(lineImageIds);
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
         try {
             Message sent = messageService.composeLine(userId, adminId, form);

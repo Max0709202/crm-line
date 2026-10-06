@@ -217,14 +217,23 @@ public class DiffDefinitionService {
         } else if (DiffStep.STEP_HTML_SWITCH.equals(stepType)) {
             if (memoSlot == null || memoSlot < 1 || memoSlot > 10) throw new IllegalArgumentException("切替先スロット(1〜10)を指定してください");
         } else if (DiffStep.STEP_MESSAGE_IMAGE.equals(stepType)) {
-            if (!DiffStep.CHANNEL_EMAIL.equals(channel) && !DiffStep.CHANNEL_LINE.equals(channel)) {
-                throw new IllegalArgumentException("画像挿入ステップはメール・LINEのみ対応しています");
+            // メール / SMS: 画像添付 (返信画面に📎で表示) — LINE: 画像挿入 (LINEに画像で送信, JPEG・PNG)
+            if (!DiffStep.CHANNEL_EMAIL.equals(channel) && !DiffStep.CHANNEL_SMS.equals(channel)
+                    && !DiffStep.CHANNEL_LINE.equals(channel)) {
+                throw new IllegalArgumentException("画像付きステップはメール・SMS・LINEのみ対応しています");
             }
             if (DiffStep.CHANNEL_LINE.equals(channel) && lineAccountId == null) {
                 throw new IllegalArgumentException("送信元のLINEアカウントを指定してください");
             }
-            if (imageId == null) throw new IllegalArgumentException("挿入する画像を選択してください");
-            if (!htmlImageRepository.existsById(imageId)) throw new IllegalArgumentException("指定された画像が見つかりません");
+            if (imageId == null) {
+                throw new IllegalArgumentException(DiffStep.CHANNEL_LINE.equals(channel) ? "挿入する画像を選択してください" : "添付する画像を選択してください");
+            }
+            com.crm.entity.HtmlImage img = htmlImageRepository.findById(imageId).orElse(null);
+            if (img == null) throw new IllegalArgumentException("指定された画像が見つかりません");
+            if (DiffStep.CHANNEL_LINE.equals(channel) && !"image/jpeg".equalsIgnoreCase(img.getContentType())
+                    && !"image/png".equalsIgnoreCase(img.getContentType())) {
+                throw new IllegalArgumentException("LINEに挿入できる画像はJPEG・PNGのみです");
+            }
             if (body == null || body.trim().isEmpty()) throw new IllegalArgumentException("本文を入力してください");
         } else {
             throw new IllegalArgumentException("unknown step type: " + stepType);

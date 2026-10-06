@@ -32,12 +32,24 @@ public class PaymentSettingController {
     private final PaymentSettingService paymentSettingService;
     private final FolderSettingService folderSettingService;
     private final AuditLogService auditLog;
+    private com.crm.service.TelecomCreditService telecomCreditService;
+    private com.crm.repository.TelecomOrderRepository telecomOrderRepository;
+    private com.crm.service.DomainSettingService domainSettingService;
 
     public PaymentSettingController(PaymentSettingService paymentSettingService,
                                     FolderSettingService folderSettingService, AuditLogService auditLog) {
         this.paymentSettingService = paymentSettingService;
         this.folderSettingService = folderSettingService;
         this.auditLog = auditLog;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setTelecom(com.crm.service.TelecomCreditService telecomCreditService,
+                           com.crm.repository.TelecomOrderRepository telecomOrderRepository,
+                           com.crm.service.DomainSettingService domainSettingService) {
+        this.telecomCreditService = telecomCreditService;
+        this.telecomOrderRepository = telecomOrderRepository;
+        this.domainSettingService = domainSettingService;
     }
 
     @GetMapping
@@ -53,7 +65,36 @@ public class PaymentSettingController {
         model.addAttribute("maxAmount", PaymentSettingService.MAX_AMOUNT);
         model.addAttribute("maxPoints", PaymentSettingService.MAX_POINTS);
         model.addAttribute("maxLabel", PaymentSettingService.MAX_LABEL);
+        // テレコムクレジット接続 (right side; 全フォルダ共通)
+        model.addAttribute("telecom", telecomCreditService.getSettings());
+        model.addAttribute("methodNames", PaymentSettingService.METHODS);
+        String base = domainSettingService.getReplyBaseUrl();
+        model.addAttribute("telecomNotifyUrl", (base == null ? "" : base.trim().replaceAll("/+$", "")) + com.crm.service.TelecomCreditService.NOTIFY_PATH);
+        model.addAttribute("telecomOrders", telecomOrderRepository.findTop10ByOrderByIdDesc());
         return "setting/payments";
+    }
+
+    /** テレコムクレジット接続: API接続コード（クライアントIP）・管理画面ID / パスワード・使う決済方法. */
+    @PostMapping("/telecom")
+    public String saveTelecom(@RequestParam(name = "enabled", defaultValue = "false") boolean enabled,
+                              @RequestParam(name = "clientIp", required = false) String clientIp,
+                              @RequestParam(name = "loginId", required = false) String loginId,
+                              @RequestParam(name = "password", required = false) String password,
+                              @RequestParam(name = "clearPassword", defaultValue = "false") boolean clearPassword,
+                              @RequestParam(name = "methods", required = false) List<String> methods,
+                              @RequestParam(name = "serverIps", required = false) String serverIps,
+                              @RequestParam(value = "folder", required = false) String folder,
+                              RedirectAttributes ra) {
+        try {
+            telecomCreditService.saveSettings(enabled, clientIp, loginId, password, clearPassword, methods, serverIps);
+            auditLog.record(AuditLogService.ACTION_SETTINGS_UPDATE, "PaymentSetting", null,
+                    "テレコムクレジット接続: " + (enabled ? "有効" : "無効"));
+            ra.addFlashAttribute("flashSuccess", "テレコムクレジットの接続設定を保存しました");
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("flashError", e.getMessage());
+        }
+        if (folder != null && !folder.isEmpty()) ra.addAttribute("folder", folder);
+        return "redirect:/manager/settings/payments";
     }
 
     @PostMapping

@@ -168,4 +168,41 @@ class MemberPageServiceTest {
                                                        PaymentSettingService.Plan plan) {
         return new PaymentSettingService.Method(code, label, shown, Arrays.asList(plan));
     }
+
+    @Test
+    void memberPages_showTheLiveContent_realBadges_andTheLogoInsteadOfTheSiteName() {
+        SiteDesignService site = mock(SiteDesignService.class);
+        List<SiteDesignService.Slot> slots = new ArrayList<>();
+        for (String code : SiteDesignService.MEMBER_PAGES.keySet()) {
+            slots.add(new SiteDesignService.Slot(code, code, "<p>TOP</p>", "<p>BOTTOM</p>", "",
+                    Collections.<String>emptyList(), Collections.<String>emptyList()));
+        }
+        when(site.getSlots()).thenReturn(slots);
+        when(site.getConfiguredSiteName()).thenReturn("サイト名");
+        when(site.getLogoUrl()).thenReturn("/img/6");
+        when(site.slotHtmlFor(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any())).thenReturn("");
+        MemberPageService svc = new MemberPageService(site, mock(PaymentSettingService.class));
+        java.util.Map<String, String> values = new java.util.HashMap<>();
+        values.put("id", "10001");
+        values.put("name", "なおと");
+        values.put("point", "1,200");
+        values.put("email", "a@example.jp");
+
+        for (String device : Arrays.asList("sp", "fp")) {
+            String html = svc.renderMember("inbox", device, values, "", "<div id=\"live\">本文に %point% と書いた</div>", null, 3,
+                    c -> "/member/" + c);
+            assertThat(html).as(device)
+                    .contains("<div id=\"live\">本文に %point% と書いた</div>")   // the member's own text is not read as a tag
+                    .contains("10001", "なおと", "1,200")
+                    .doesNotContain("サイト名", "まい", "ゆか");                       // logo registered → no site name; no sample rows
+        }
+        assertThat(svc.renderMember("menu", "sp", values, "", null, null, 3, c -> "/member/" + c))
+                .contains("<span class=\"badge\">3</span>", "<i class=\"fb\">3</i>", "href=\"/member/logout\"", "href=\"/page/terms\"")
+                .doesNotContain(">17<");
+        assertThat(svc.renderMember("menu", "fp", values, "", null, null, 0, c -> "/member/" + c))
+                .contains("受信BOX</a>", "href=\"/member/logout\"").doesNotContain("(17)");
+        assertThat(svc.renderMember("reply", "sp", values, "", "<p>x</p>", "写真閲覧", 0, c -> "/member/" + c))
+                .contains("<div class=\"bar\">写真閲覧</div>");
+    }
 }

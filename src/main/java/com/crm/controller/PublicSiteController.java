@@ -37,7 +37,8 @@ import java.util.Optional;
  *   <li>GET /member/confirm?token=… — the mailed link; the user becomes ACTIVE and 本登録完了 is shown,
  *       whose プロフィール登録 button opens /member/profile (プロフ編集) for that member.</li>
  * </ul>
- * Member login is not built yet, so /member/login still answers with a 準備中 page.
+ * 会員ログイン and the pages after it (/member/login, /member/menu, プロフ編集 …) are in
+ * {@link MemberSiteController}.
  */
 @Controller
 public class PublicSiteController {
@@ -96,7 +97,7 @@ public class PublicSiteController {
     }
 
     @GetMapping("/page/{code}")
-    public String page(@PathVariable String code, Model model, HttpServletResponse response) {
+    public String page(@PathVariable String code, Model model, HttpServletRequest request, HttpServletResponse response) {
         String title = SiteDesignService.PAGES.get(code);
         if (title == null) {
             // Same no-info 404 page as unknown URLs (GlobalExceptionHandler#handle404), which
@@ -106,6 +107,8 @@ public class PublicSiteController {
         }
         addCommon(model);
         model.addAttribute("pageTitle", title);
+        // 利用規約 etc. opened from the member MENU: トップへ戻る / logo go back to the MENU, not the pre-login top
+        if (loggedInMember(request)) model.addAttribute("topHref", "/member/menu");
         // %sitename% in the page body → the ドメイン設定 site name, as on the top page
         model.addAttribute("pageHtml", siteDesignService.getPageHtml(code)
                 .replace("%sitename%", HtmlUtils.htmlEscape(siteDesignService.getSiteName(), "UTF-8")));
@@ -165,31 +168,12 @@ public class PublicSiteController {
         return html(publicSiteService.renderRegisterPage(PublicSiteService.PAGE_REGISTER_COMPLETE, false));
     }
 
-    /** プロフ編集 for the member who completed 本登録 in this browser; others go to the login dialog. */
-    @GetMapping(PublicSiteService.PROFILE_URL)
-    public Object profile(HttpSession session) {
-        Object id = session.getAttribute(SESSION_MEMBER_ID);
-        Optional<CrmUser> user = id instanceof Long ? userRepository.findById((Long) id) : Optional.<CrmUser>empty();
-        if (!user.isPresent() || !CrmUser.STATUS_ACTIVE.equals(user.get().getStatus())) {
-            return "redirect:/#login";
-        }
-        CrmUser u = user.get();
-        Map<String, String> values = new HashMap<>();
-        values.put("id", u.getLoginId());
-        values.put("name", u.getDisplayName());
-        values.put("point", String.format("%,d", userPointService.get(u.getId())));
-        values.put("email", u.getEmail());
-        // only プロフ編集 is open to members so far; the design's other links stay on this page
-        return html(memberPageService.renderForMember("profile", "sp", values, u.getFolder(),
-                code -> "profile".equals(code) ? PublicSiteService.PROFILE_URL : "#"));
-    }
-
-    @PostMapping("/member/login")
-    public String pending(Model model) {
-        addCommon(model);
-        model.addAttribute("pageTitle", "準備中");
-        model.addAttribute("pageHtml", "<p>会員ログインは現在準備中です。公開まで今しばらくお待ちください。</p>");
-        return "member/page";
+    /** A 本登録済み member is logged in on this session. */
+    private boolean loggedInMember(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        Object id = session == null ? null : session.getAttribute(SESSION_MEMBER_ID);
+        return id instanceof Long && userRepository.findById((Long) id)
+                .filter(u -> CrmUser.STATUS_ACTIVE.equals(u.getStatus())).isPresent();
     }
 
     private static String errorsHtml(List<String> errors) {

@@ -76,6 +76,29 @@
                  th:text="${item.subject}"></div>
             <div class="message-box-body" th:text="${item.bodyText}"></div>
 
+            <!-- 画像添付 (返信画面): 📎 mark; 写真閲覧 points (ポイント設定) open each image once.
+                 boxImages / openImages come from ReplyPageController (absent on other pages). -->
+            <div class="message-box-images" th:if="${!isAdmin and boxImages != null and boxImages.get(item.id) != null}"
+                 th:with="imgs=${boxImages.get(item.id)}">
+                <div class="message-box-images-mark" th:text="'📎 添付画像 ' + ${imgs.size()} + '枚'">📎 添付画像</div>
+                <div class="message-box-images-grid">
+                    <th:block th:each="imgId : ${imgs}">
+                        <a th:if="${openImages.contains(imgId)}" th:id="'img-' + ${imgId}" class="message-box-image"
+                           th:href="@{'/reply/' + ${token} + '/image/' + ${imgId}}" target="_blank">
+                            <img th:src="@{'/reply/' + ${token} + '/image/' + ${imgId}}" alt="添付画像"/>
+                        </a>
+                        <form th:unless="${openImages.contains(imgId)}" th:id="'img-' + ${imgId}" class="message-box-image is-locked"
+                              method="post" th:action="@{'/reply/' + ${token} + '/image/' + ${imgId} + '/open'}">
+                            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+                            <input type="hidden" name="box_page" th:value="${boxPage}"/>
+                            <button type="submit"><span>📎</span>写真閲覧<small th:text="${photoViewCost} + 'pt'">20pt</small></button>
+                        </form>
+                    </th:block>
+                </div>
+                <p class="message-box-images-note" th:unless="${openImages.containsAll(imgs)}"
+                   th:text="'写真を見るには1枚につき ' + ${photoViewCost} + 'pt 使います（所持 ' + ${#numbers.formatInteger(memberPoints, 1, 'COMMA')} + 'pt）。一度見た写真は何度でも見られます。'">写真閲覧</p>
+            </div>
+
             <div class="message-box-divider"></div>
 
             <!-- Public reply form: posts to /reply/{token}/send with replyToMessageId targeting

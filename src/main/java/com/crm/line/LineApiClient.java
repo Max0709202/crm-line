@@ -139,24 +139,51 @@ public class LineApiClient {
      */
     public PushResult push(String accessToken, String toLineUserId, String text,
                             String senderName, String senderIconUrl) {
+        return push(accessToken, toLineUserId, text, senderName, senderIconUrl, null);
+    }
+
+    /**
+     * As above, with LINE画像挿入: each URL (public HTTPS, JPEG / PNG) is sent as an image message
+     * after the text, in one push (LINE takes up to 5 messages per push). An empty text sends the
+     * images only.
+     */
+    public PushResult push(String accessToken, String toLineUserId, String text,
+                            String senderName, String senderIconUrl, java.util.List<String> imageUrls) {
         RequestConfig rc = RequestConfig.custom()
                 .setConnectTimeout(connectTimeoutMs)
                 .setConnectionRequestTimeout(connectTimeoutMs)
                 .setSocketTimeout(readTimeoutMs)
                 .build();
 
-        Map<String, Object> textMessage = new LinkedHashMap<>();
-        textMessage.put("type", "text");
-        textMessage.put("text", text);
+        Map<String, Object> sender = null;
         if (senderName != null || senderIconUrl != null) {
-            Map<String, Object> sender = new LinkedHashMap<>();
+            sender = new LinkedHashMap<>();
             if (senderName != null) sender.put("name", senderName);
             if (senderIconUrl != null) sender.put("iconUrl", senderIconUrl);
-            textMessage.put("sender", sender);
+        }
+        java.util.List<Map<String, Object>> messages = new java.util.ArrayList<>();
+        boolean images = imageUrls != null && !imageUrls.isEmpty();
+        if (!images || (text != null && !text.trim().isEmpty())) {
+            Map<String, Object> textMessage = new LinkedHashMap<>();
+            textMessage.put("type", "text");
+            textMessage.put("text", text);
+            if (sender != null) textMessage.put("sender", sender);
+            messages.add(textMessage);
+        }
+        if (images) {
+            for (String url : imageUrls) {
+                if (messages.size() >= 5) break;
+                Map<String, Object> image = new LinkedHashMap<>();
+                image.put("type", "image");
+                image.put("originalContentUrl", url);
+                image.put("previewImageUrl", url);
+                if (sender != null) image.put("sender", sender);
+                messages.add(image);
+            }
         }
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("to", toLineUserId);
-        payload.put("messages", java.util.Collections.singletonList(textMessage));
+        payload.put("messages", messages);
 
         try (CloseableHttpClient http = HttpClientBuilder.create().setDefaultRequestConfig(rc).build()) {
             String body = objectMapper.writeValueAsString(payload);

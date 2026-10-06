@@ -317,9 +317,10 @@ public class CrmUserService {
         return cred;
     }
 
-    /** Login ID in registration order (see {@link MemberLoginIdService}) plus a generated password. */
+    /** Login ID in registration order (see {@link MemberLoginIdService}) plus a generated password.
+     *  An older random-letter login ID (e.g. "UjPhaskA") is replaced by a numbered one too. */
     private IssuedCredentials issueFreshCredentials(CrmUser u) {
-        if (u.getLoginId() == null || u.getLoginId().isEmpty()) {
+        if (u.getLoginId() == null || !u.getLoginId().matches("[0-9]+")) {
             u.setLoginId(loginIdService.next());
         }
         String plain = CredentialGenerator.generatePassword();
@@ -432,7 +433,8 @@ public class CrmUserService {
         u.setAddressInvalidReason(addrInvalid);
         u.setDisplayName(displayName);
         u.setCarrierDomain(deriveCarrierDomainIfBlank(carrierDomain, email));
-        u.setMemo(memo);
+        // CSV memo → 個別メモ (admin-only), not the 専用HTML (MEMO) shown on the reply page
+        u.setInternalMemo(memo);
         u.setAdCode(adCode);
         u.setGender(gender);
         IssuedCredentials cred = issueFreshCredentials(u);

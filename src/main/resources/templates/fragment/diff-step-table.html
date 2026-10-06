@@ -96,9 +96,17 @@
                   th:text="${sched != null ? sched.diffNameSnapshot : ''}"></span>
         </td>
         <td class="px-2 py-1.5 text-xs text-slate-600"
-            th:text="${userInfoById != null and sched != null and userInfoById.get(sched.id) != null} ? ${userInfoById.get(sched.id).get('displayName')} : '-'"></td>
+            th:with="uinfo=${userInfoById != null and sched != null} ? ${userInfoById.get(sched.id)} : null">
+            <div th:text="${uinfo != null} ? ${uinfo.get('displayName')} : '-'"></div>
+            <!-- フォルダ（フォルダ設定の色）: 差分スケジュール履歴 passes folderColors -->
+            <span th:if="${uinfo != null and uinfo.get('folder') != null and folderColors != null}"
+                  class="inline-block mt-0.5 px-1.5 rounded text-[11px] font-semibold text-slate-700 bg-slate-100"
+                  th:style="${folderColors.get(uinfo.get('folder')) != null} ? 'background:' + ${folderColors.get(uinfo.get('folder'))}"
+                  th:text="${uinfo.get('folder')}">フォルダ</span>
+        </td>
+        <!-- キャラ名: LINE = LINEアカウント, メール / SMS = 差分のキャラ (stepCharaNames, when the page passes it) -->
         <td class="px-2 py-1.5 text-xs text-slate-600 whitespace-nowrap"
-            th:text="${s.channel != 'LINE' or s.lineAccountId == null} ? '-' : (${s.lineAccountId == -1} ? '紐づきアカ' : (${lineAccountNames != null and lineAccountNames.get(s.lineAccountId) != null} ? ${lineAccountNames.get(s.lineAccountId)} : '-'))"></td>
+            th:text="${s.channel == 'LINE'} ? (${s.lineAccountId == null} ? '-' : (${s.lineAccountId == -1} ? '紐づきアカ' : (${lineAccountNames != null and lineAccountNames.get(s.lineAccountId) != null} ? ${lineAccountNames.get(s.lineAccountId)} : '-'))) : (${stepCharaNames != null and stepCharaNames.get(s.id) != null} ? ${stepCharaNames.get(s.id)} : '-')"></td>
         <td class="px-2 py-1.5 text-xs text-slate-600" th:text="${s.subjectSnapshot} ?: '-'"></td>
         <td class="px-2 py-1.5 diff-tbl-body">
             <div class="diff-tbl-body-text" th:text="${s.bodySnapshot} ?: '-'"></div>

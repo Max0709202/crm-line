@@ -86,11 +86,13 @@ public class DiffScheduleController {
             } catch (NumberFormatException ignored) { /* skip malformed */ }
         }
         java.util.Map<Long, String> displayNameByUserId = new java.util.HashMap<>();
+        java.util.Map<Long, String> folderByUserId = new java.util.HashMap<>();
         if (!singleTargetUserIds.isEmpty()) {
             for (com.crm.entity.CrmUser u : crmUserService.findAllByIds(singleTargetUserIds)) {
                 String name = (u.getDisplayName() == null || u.getDisplayName().isEmpty())
                         ? u.getEmail() : u.getDisplayName();
                 displayNameByUserId.put(u.getId(), name);
+                if (u.getFolder() != null && !u.getFolder().isEmpty()) folderByUserId.put(u.getId(), u.getFolder());
             }
         }
         java.util.Map<Long, java.util.Map<String, String>> out = new java.util.HashMap<>();
@@ -99,6 +101,7 @@ public class DiffScheduleController {
             if (name != null) {
                 java.util.Map<String, String> info = new java.util.HashMap<>();
                 info.put("displayName", name);
+                if (folderByUserId.containsKey(e.getValue())) info.put("folder", folderByUserId.get(e.getValue()));
                 out.put(e.getKey(), info);
             }
         }
@@ -360,6 +363,11 @@ public class DiffScheduleController {
             }
         }
         model.addAttribute("lineAccountNames", lineAccountNames);
+        // キャラ名 for メール / SMS steps + フォルダの色分け (表示名 の下のフォルダ)
+        java.util.List<Long> stepIds = new java.util.ArrayList<>();
+        for (DiffScheduleStep step : results.getContent()) stepIds.add(step.getId());
+        model.addAttribute("stepCharaNames", charaLinkService.charaNamesOf(com.crm.entity.CharaRef.OWNER_DIFF_SCHEDULE_STEP, stepIds));
+        model.addAttribute("folderColors", folderSettingService.colorMap());
         model.addAttribute("status", status);
         model.addAttribute("targetType", targetType);
         model.addAttribute("diffDefinitionId", diffDefinitionId);

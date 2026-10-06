@@ -69,6 +69,26 @@ public class ReplyPageController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(com.crm.service.CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
+    /** 画像添付 on the 返信画面 (📎, behind ポイント設定's 写真閲覧) — optional so hand-built instances (tests) work. */
+    private com.crm.service.MessageImageService messageImageService;
+    private com.crm.service.MemberUnlockService memberUnlockService;
+    private com.crm.service.PointSettingService pointSettingService;
+    private com.crm.service.UserPointService userPointService;
+    private com.crm.service.HtmlImageService htmlImageService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setImageViewing(com.crm.service.MessageImageService messageImageService,
+                                com.crm.service.MemberUnlockService memberUnlockService,
+                                com.crm.service.PointSettingService pointSettingService,
+                                com.crm.service.UserPointService userPointService,
+                                com.crm.service.HtmlImageService htmlImageService) {
+        this.messageImageService = messageImageService;
+        this.memberUnlockService = memberUnlockService;
+        this.pointSettingService = pointSettingService;
+        this.userPointService = userPointService;
+        this.htmlImageService = htmlImageService;
+    }
+
     public ReplyPageController(ReplyPageService replyPageService,
                                CrmUserRepository userRepository,
                                MessageRepository messageRepository,
@@ -119,6 +139,8 @@ public class ReplyPageController {
                        @RequestParam(name = "box_page", defaultValue = "0") int boxPage,
                        @RequestParam(name = "inbound_page", defaultValue = "0") int inboundPage,
                        HttpServletRequest request, Model model) {
+        // 写真閲覧 with too few points comes back here with ?pt=short
+        model.addAttribute("pointShort", "short".equals(request.getParameter("pt")));
         Optional<ReplyPage> rpOpt = replyPageService.findByToken(token);
         if (!rpOpt.isPresent() || !replyPageService.isUsable(rpOpt.get())) {
             return "reply/expired";
@@ -168,6 +190,14 @@ public class ReplyPageController {
             }
         }
 
+        // 会員サイト: a member with a login (ID / password issued, ACTIVE) is logged in and taken to the
+        // 会員ページ's 返信 screen with this message's キャラ, like the 自動ログインURL. Users without a
+        // login keep the reply page below.
+        if (user.isPresent() && user.get().getLoginPassword() != null) {
+            model.addAttribute("next", memberHandoff(request, user.get(), rp.getMessageId()));
+            return "member/handoff";
+        }
+
         ReplyPageSetting settings = settingService.getOrCreate();
         String headerHtml = blankToNull(rp.getHeaderHtml());
         if (headerHtml == null && user.isPresent()) {
@@ -209,11 +239,98 @@ public class ReplyPageController {
         // メッセージボックス: 送信履歴 tab (past OUT/SENT history) + 受信履歴 tab (this user's own
         // past inbound submissions) — split 2026-09-09, 受信履歴 is the default tab.
         if (user.isPresent()) {
-            model.addAttribute("messageBox", messageBoxService.listFor(user.get().getId(), boxPage));
+            org.springframework.data.domain.Page<com.crm.dto.MessageBoxItem> box = messageBoxService.listFor(user.get().getId(), boxPage);
+            model.addAttribute("messageBox", box);
             model.addAttribute("inboundBox", messageBoxService.listInboundFor(user.get().getId(), inboundPage));
+            addBoxImages(model, user.get(), box);
+            model.addAttribute("boxPage", boxPage);
         }
         addOgpAttributes(model);
         return "reply/page";
+    }
+
+    /** Logs the member in (new session ID, same session — an operator's 管理画面 login stays) and
+     *  returns the 会員ページ URL of the conversation the reply URL was sent with. */
+    private String memberHandoff(HttpServletRequest request, CrmUser user, Long messageId) {
+        javax.servlet.http.HttpSession session = request.getSession(true);
+        if (!session.isNew()) request.changeSessionId();
+        session.setAttribute(PublicSiteController.SESSION_MEMBER_ID, user.getId());
+        long charaId = 0L;
+        Optional<Message> msg = messageId == null ? Optional.<Message>empty() : messageRepository.findById(messageId);
+        if (msg.isPresent() && charaLinkService != null) {
+            Long cid = charaLinkService.charaIdsOfMessages(java.util.Collections.singletonList(msg.get())).get(messageId);
+            if (cid != null) charaId = cid;
+        }
+        return "/member/reply?c=" + charaId + (msg.isPresent() ? "#m" + messageId : "");
+    }
+
+    /**
+     * 画像添付 of the メッセージボックス items: {@code boxImages} (message id → image ids), and per image
+     * whether the member may see it ({@code openImages}: 写真閲覧 is free or already used) — the rest
+     * show a 📎 mark and a 写真閲覧 button.
+     */
+    private void addBoxImages(Model model, CrmUser user, org.springframework.data.domain.Page<com.crm.dto.MessageBoxItem> box) {
+        if (messageImageService == null || box == null || box.getContent().isEmpty()) return;
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        for (com.crm.dto.MessageBoxItem it : box.getContent()) ids.add(it.getId());
+        java.util.Map<Long, java.util.List<Long>> images = messageImageService.imageIdsOfMessages(messageRepository.findAllById(ids));
+        if (images.isEmpty()) return;
+        java.util.Set<Long> all = new java.util.LinkedHashSet<>();
+        for (java.util.List<Long> l : images.values()) all.addAll(l);
+        int cost = photoViewCost(user);
+        java.util.Set<Long> open = cost <= 0 ? all : memberUnlockService.unlocked(user.getId(), com.crm.service.MemberUnlockService.IMAGE, all);
+        model.addAttribute("boxImages", images);
+        model.addAttribute("openImages", open);
+        model.addAttribute("photoViewCost", cost);
+        model.addAttribute("memberPoints", userPointService.get(user.getId()));
+    }
+
+    private int photoViewCost(CrmUser user) {
+        return pointSettingService == null ? 0 : pointSettingService.getCost("photo_view", user.getFolder());
+    }
+
+    /** An attached image on the 返信画面 — only one sent to this user, and only once 写真閲覧 is free / used. */
+    @GetMapping("/reply/{token}/image/{imageId}")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> image(@PathVariable String token,
+                                                                                              @PathVariable Long imageId) {
+        Optional<ReplyPage> rp = replyPageService.findByToken(token);
+        if (!rp.isPresent() || !replyPageService.isUsable(rp.get()) || messageImageService == null) {
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        Optional<CrmUser> user = userRepository.findById(rp.get().getUserId());
+        if (!user.isPresent() || !CrmUser.STATUS_ACTIVE.equals(user.get().getStatus())
+                || !messageImageService.isImageOfUser(user.get().getId(), imageId)) {
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        if (photoViewCost(user.get()) > 0
+                && !memberUnlockService.isUnlocked(user.get().getId(), com.crm.service.MemberUnlockService.IMAGE, imageId)) {
+            return org.springframework.http.ResponseEntity.status(403).build();
+        }
+        Optional<com.crm.entity.HtmlImage> img = htmlImageService.findById(imageId);
+        java.io.File f = img.isPresent() ? htmlImageService.fileFor(img.get()) : null;
+        if (f == null) return org.springframework.http.ResponseEntity.notFound().build();
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType(img.get().getContentType()))
+                .header("Cache-Control", "private, max-age=3600")
+                .body(new org.springframework.core.io.FileSystemResource(f));
+    }
+
+    /** 写真閲覧 of an attached image: uses ポイント設定's 写真閲覧 points once, then it stays open. */
+    @PostMapping("/reply/{token}/image/{imageId}/open")
+    public String openImage(@PathVariable String token, @PathVariable Long imageId,
+                            @RequestParam(name = "box_page", defaultValue = "0") int boxPage,
+                            org.springframework.web.servlet.mvc.support.RedirectAttributes ra) {
+        Optional<ReplyPage> rp = replyPageService.findByToken(token);
+        if (!rp.isPresent() || !replyPageService.isUsable(rp.get()) || messageImageService == null) return "reply/expired";
+        Optional<CrmUser> user = userRepository.findById(rp.get().getUserId());
+        if (user.isPresent() && CrmUser.STATUS_ACTIVE.equals(user.get().getStatus())
+                && messageImageService.isImageOfUser(user.get().getId(), imageId)) {
+            com.crm.service.MemberUnlockService.Result r = memberUnlockService.unlock(user.get().getId(),
+                    com.crm.service.MemberUnlockService.IMAGE, imageId, photoViewCost(user.get()));
+            if (r == com.crm.service.MemberUnlockService.Result.NOT_ENOUGH_POINTS) ra.addAttribute("pt", "short");
+        }
+        if (boxPage > 0) ra.addAttribute("box_page", boxPage);
+        return "redirect:/reply/" + token + "#img-" + imageId;
     }
 
     /** OGP (Open Graph) link-preview card, shown by LINE/Twitter/etc. when this URL is pasted

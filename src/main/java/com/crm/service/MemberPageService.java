@@ -99,7 +99,7 @@ public class MemberPageService {
      * @param linkForCode href for a link to another member page, given its page code
      */
     public String renderPreview(String code, String device, boolean markAreas, Function<String, String> linkForCode) {
-        return render(code, device, markAreas, linkForCode, null, null);
+        return render(code, device, markAreas, linkForCode, null, null, null, null, -1);
     }
 
     /**
@@ -109,28 +109,59 @@ public class MemberPageService {
      */
     public String renderForMember(String code, String device, Map<String, String> memberValues, String memberFolder,
                                   Function<String, String> linkForCode) {
-        return render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder);
+        return render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder, null, null, -1);
     }
+
+    /**
+     * One logged-in member page (会員ページ): the design's frame (logo, ID・PT, page-name bar, footer
+     * menu, 上部 / 下部HTML, CSS) around {@code mainHtml} — the page's live content, already escaped
+     * (null = the design's own content, e.g. MENU). {@code title} replaces the page-name bar text
+     * (null = the page's own); {@code unread} is the 受信BOX count shown on the badges (0 = none).
+     */
+    public String renderMember(String code, String device, Map<String, String> memberValues, String memberFolder,
+                               String mainHtml, String title, int unread, Function<String, String> linkForCode) {
+        return render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder,
+                mainHtml, title, Math.max(0, unread));
+    }
+
+    /** Where a member page's live content goes (put in after the tags are filled, so a member's
+     *  own text like "%point%" is never read as a tag). */
+    private static final String MAIN_MARK = "<!--member-main-->";
 
     /** {@code memberFolder} null = admin preview (every area shown); else a member in that folder ("" = none). */
     private String render(String code, String device, boolean markAreas, Function<String, String> linkForCode,
-                          Map<String, String> memberValues, String memberFolder) {
+                          Map<String, String> memberValues, String memberFolder,
+                          String mainHtml, String title, int unread) {
         if (!BAR_TITLES.containsKey(code)) code = "menu";
         boolean fp = "fp".equals(device) && FP_PAGES.contains(code);
         SiteDesignService.Slot slot = slotFor(code);
+        String barTitle = title == null ? BAR_TITLES.get(code) : title;
 
         String html;
         if (fp) {
             html = load("fp/" + code + ".html");
-            if ("points".equals(code)) html = html.replace("%plans%", fpPointPlans());
+            if (mainHtml != null) {
+                // the page's content: after the ID / PT row, up to the page footer
+                int acct = html.indexOf("<div class=\"acct\">");
+                int start = acct < 0 ? -1 : html.indexOf("</div>", acct);
+                int end = html.lastIndexOf(FP_FOOTER);
+                if (end < 0) end = html.lastIndexOf("</body>");
+                if (start >= 0 && end > start) html = html.substring(0, start + 6) + MAIN_MARK + html.substring(end);
+                if (title != null) html = html.replace("<header>" + BAR_TITLES.get(code) + "</header>", "<header>" + esc(title) + "</header>")
+                        .replace("<title>" + BAR_TITLES.get(code) + "</title>", "<title>" + esc(title) + "</title>");
+            } else if ("points".equals(code)) {
+                html = html.replace("%plans%", fpPointPlans());
+            }
         } else {
             html = load("layout.html")
-                    .replace("%title%", BAR_TITLES.get(code))
-                    .replace("%main%", "points".equals(code)
+                    .replace("%title%", esc(barTitle))
+                    .replace("%main%", mainHtml != null ? MAIN_MARK : "points".equals(code)
                             ? load("points.html").replace("%plans%", pointPlans())
                             : load(code + ".html"));
         }
         html = fillTags(html, memberValues);
+        if (mainHtml != null) html = html.replace(MAIN_MARK, mainHtml);
+        if (unread >= 0) html = memberChrome(html, unread);
 
         String topHtml = slot.getTopHtml(), bottomHtml = slot.getBottomHtml();
         if (memberFolder != null) {
@@ -164,6 +195,29 @@ public class MemberPageService {
             html = insertBefore(html, "</head>", "<style>\n" + scopeCss(css) + "\n</style>");
         }
         return rewriteLinks(html, linkForCode);
+    }
+
+    /**
+     * The logged-in member's real values in the design's fixed parts: the 受信BOX badges (the
+     * design's sample "17"), the MENU's 利用規約 etc. links (no お問い合わせ — サポート窓口 is in the MENU)
+     * and a ログアウト link, and the ガラケー
+     * footer's ポイント購入 link.
+     */
+    private static String memberChrome(String html, int unread) {
+        String n = String.valueOf(unread);
+        return html
+                .replace("<span class=\"badge\">17</span>", unread > 0 ? "<span class=\"badge\">" + n + "</span>" : "")
+                .replace("<i class=\"fb\">17</i>", unread > 0 ? "<i class=\"fb\">" + n + "</i>" : "")
+                .replace("受信BOX(17)", unread > 0 ? "受信BOX(" + n + ")" : "受信BOX")
+                .replace("<a href=\"#\">利用規約　›</a><a href=\"#\">特定商取引法　›</a><a href=\"#\">プライバシーポリシー　›</a>",
+                        "<a href=\"/page/terms\">利用規約　›</a><a href=\"/page/tokushoho\">特定商取引法　›</a>"
+                                + "<a href=\"/page/privacy\">プライバシーポリシー　›</a>"
+                                + "<a href=\"/member/logout\">ログアウト　›</a>")
+                .replace("<a href=\"#\">利用規約</a>｜<a href=\"#\">特定商取引</a><br><a href=\"#\">プライバシーポリシー</a>",
+                        "<a href=\"/page/terms\">利用規約</a>｜<a href=\"/page/tokushoho\">特定商取引</a><br>"
+                                + "<a href=\"/page/privacy\">プライバシーポリシー</a><br>"
+                                + "<a href=\"/member/logout\">ログアウト</a>")
+                .replace("<a href=\"#\">ポイント購入</a>", "<a href=\"/member/points\">ポイント購入</a>");
     }
 
     /** ポイント購入: each shown payment method (saved order and name) with its plans. */
@@ -210,7 +264,8 @@ public class MemberPageService {
     private String fillTags(String html, Map<String, String> memberValues) {
         String logo = siteDesignService.getLogoUrl();
         Map<String, String> values = new HashMap<>();
-        values.put("sitename", esc(siteDesignService.getConfiguredSiteName()));   // never the bare domain
+        // never the bare domain; with a サイトロゴ registered the logo replaces the name (no double title)
+        values.put("sitename", logo == null ? esc(siteDesignService.getConfiguredSiteName()) : "");
         values.put("sitelogo", logo == null ? ""
                 : "<img src=\"" + esc(logo) + "\" alt=\"\" style=\"max-height:40px;max-width:100%\">");
         values.put("id", "000123");

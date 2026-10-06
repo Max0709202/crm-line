@@ -329,6 +329,21 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
     Page<Message> findMessageBoxPage(@org.springframework.data.repository.query.Param("userId") Long userId,
                                       Pageable pageable);
 
+    /** 会員ページ › 受信BOX: キャラ mails / SMS sent to the member (LINE is its own app), newest first. */
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT m FROM Message m WHERE m.userId = :userId " +
+            "AND m.direction = 'OUT' AND m.status = 'SENT' " +
+            "AND m.channel IN ('EMAIL','SMS','BROADCAST') " +
+            "AND m.boxDismissedAt IS NULL " +
+            "ORDER BY m.sentAt DESC, m.id DESC")
+    List<Message> findMemberInbox(@org.springframework.data.repository.query.Param("userId") Long userId, Pageable pageable);
+
+    /** 会員ページ › 受信BOX 送信済み / やり取り: what the member sent, newest first. */
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT m FROM Message m WHERE m.userId = :userId AND m.direction = 'IN' " +
+            "AND m.channel <> 'LINE' ORDER BY m.createdAt DESC, m.id DESC")
+    List<Message> findMemberSent(@org.springframework.data.repository.query.Param("userId") Long userId, Pageable pageable);
+
     /** 受信履歴 tab counterpart to {@link #findMessageBoxPage} — this user's own past inbound
      *  submissions (web-form replies, direct email/SMS replies), newest first. Added
      *  2026-09-09 alongside the メッセージボックス→受信履歴/送信履歴 tab split; previously the

@@ -451,27 +451,25 @@ public class DiffScheduleService {
             executeHtmlSwitch(step, ids);
         } else {
             // MESSAGE and MESSAGE_IMAGE share the same send path — the only difference is
-            // executeMessage() splicing an <img> into the body first when imageIdSnapshot is set.
+            // executeMessage() passing the step's image (画像添付 / LINE画像挿入) when imageIdSnapshot is set.
             executeMessage(step, schedule, ids);
         }
     }
 
-    /** Prepends {@code <img src=".../img/{id}">} to the body for a MESSAGE_IMAGE step. If the
-     *  referenced image was deleted after this step was created, the send still goes out with
-     *  the plain body rather than failing the whole step — a missing decorative image isn't
-     *  worth blocking the message over. */
-    private String bodyWithImageSpliced(DiffScheduleStep step) {
-        String body = step.getBodySnapshot();
+    /** A MESSAGE_IMAGE step's image: メール / SMS 画像添付 (shown on the 返信画面 with a 📎 mark, not as a
+     *  URL / tag in the mail) or LINE 画像挿入 (sent to LINE as an image). If the image was deleted after
+     *  this step was created, the step still goes out without it rather than failing — a missing
+     *  image isn't worth blocking the message over. */
+    private List<Long> stepImageIds(DiffScheduleStep step) {
         if (!DiffStep.STEP_MESSAGE_IMAGE.equals(step.getStepType()) || step.getImageIdSnapshot() == null) {
-            return body;
+            return java.util.Collections.emptyList();
         }
         if (!htmlImageService.findById(step.getImageIdSnapshot()).isPresent()) {
             log.warn("Diff-schedule-step image missing at execute time: stepId={} imageId={}",
                     step.getId(), step.getImageIdSnapshot());
-            return body;
+            return java.util.Collections.emptyList();
         }
-        String imgTag = "<img src=\"" + domainSettingService.getReplyBaseUrl() + "/img/" + step.getImageIdSnapshot() + "\"/><br/>";
-        return imgTag + (body == null ? "" : body);
+        return java.util.Collections.singletonList(step.getImageIdSnapshot());
     }
 
     private void executeHtmlSwitch(DiffScheduleStep step, List<Long> ids) {
@@ -507,7 +505,8 @@ public class DiffScheduleService {
         form.setChannel(step.getChannel());
         form.setTitle(schedule.getDiffNameSnapshot());
         form.setSubject(DiffStep.CHANNEL_EMAIL.equals(step.getChannel()) ? step.getSubjectSnapshot() : null);
-        form.setBody(bodyWithImageSpliced(step));
+        form.setBody(step.getBodySnapshot());
+        form.setImageIds(stepImageIds(step));
         form.setLineAccountId(step.getLineAccountId());
         if (charaLinkService != null) {
             form.setCharaId(charaLinkService.charaIdOf(com.crm.entity.CharaRef.OWNER_DIFF_SCHEDULE_STEP, step.getId()));
@@ -566,7 +565,8 @@ public class DiffScheduleService {
             auditLog.record(AuditLogService.ACTION_DIFF_SCHEDULE_EXECUTE, "DiffScheduleStep", step.getId(), step.getResultDetail());
             return;
         }
-        String body = bodyWithImageSpliced(step);
+        String body = step.getBodySnapshot();
+        List<Long> imageIds = stepImageIds(step);
         java.util.List<String> broadcastSummaries = new java.util.ArrayList<>();
         java.util.List<Long> readTargets = new java.util.ArrayList<>();
         int totalQueued = 0;
@@ -576,6 +576,7 @@ public class DiffScheduleService {
             form.setChannel(DiffStep.CHANNEL_LINE);
             form.setTitle(schedule.getDiffNameSnapshot());
             form.setBody(body);
+            form.setImageIds(imageIds);
             form.setLineAccountId(e.getKey());
             form.setRatePerMinute(domainSettingService.getLineRatePerMinute());
             try {

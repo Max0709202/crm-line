@@ -104,6 +104,34 @@ public class CharaLinkService {
         return out;
     }
 
+    /** ownerId → キャラ name for the given owners (owners without a キャラ, or whose キャラ was deleted, are absent). */
+    public Map<Long, String> charaNamesOf(String ownerType, Collection<Long> ownerIds) {
+        return names(charaIdsOf(ownerType, ownerIds));
+    }
+
+    /** message id → キャラ name (the message's own キャラ, else its broadcast's). */
+    public Map<Long, String> charaNamesOfMessages(Collection<Message> messages) {
+        return names(charaIdsOfMessages(messages));
+    }
+
+    private Map<Long, String> names(Map<Long, Long> charaIdByOwner) {
+        Map<Long, String> out = new HashMap<>();
+        if (charaIdByOwner.isEmpty()) return out;
+        Map<Long, String> nameById = new HashMap<>();
+        for (Chara c : charaRepository.findAllById(new java.util.HashSet<>(charaIdByOwner.values()))) nameById.put(c.getId(), c.getName());
+        for (Map.Entry<Long, Long> e : charaIdByOwner.entrySet()) {
+            String n = nameById.get(e.getValue());
+            if (n != null) out.put(e.getKey(), n);
+        }
+        return out;
+    }
+
+    /** Name of キャラ {@code charaId}, or null (none / deleted). */
+    public String charaName(Long charaId) {
+        if (charaId == null) return null;
+        return charaRepository.findById(charaId).map(Chara::getName).orElse(null);
+    }
+
     public Long charaIdOfMessage(Message m) {
         if (m == null) return null;
         return charaIdsOfMessages(Collections.singletonList(m)).get(m.getId());

@@ -36,7 +36,7 @@ main{flex:1;padding:40px 20px 72px}
 <body>
 <header class="site-header">
   <div class="header-in">
-    <a class="brand" href="/" th:attr="aria-label=${siteName} + ' トップ'">
+    <a class="brand" href="/" th:href="${topHref ?: '/'}" th:attr="aria-label=${siteName} + ' トップ'">
       <img th:if="${logoUrl != null}" th:src="${logoUrl}" th:alt="${siteName}">
       <th:block th:if="${logoUrl == null}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 21s-7.4-4.5-9.5-9.2C1 8.4 3 4.5 6.7 4.5c2.2 0 3.6 1.2 4.3 2.5.7-1.3 2.2-2.5 4.3-2.5 3.7 0 5.7 3.9 4.2 7.3C19.4 16.5 12 21 12 21z"/></svg>
@@ -51,7 +51,7 @@ main{flex:1;padding:40px 20px 72px}
     <h1 th:text="${pageTitle}">ページ</h1>
     <div class="body" th:if="${pageHtml != null and !pageHtml.isEmpty()}" th:utext="${pageHtml}"></div>
     <p class="empty" th:if="${pageHtml == null or pageHtml.isEmpty()}">現在準備中です。</p>
-    <a class="back" href="/">トップへ戻る</a>
+    <a class="back" href="/" th:href="${topHref ?: '/'}">トップへ戻る</a>
   </article>
 </main>
 

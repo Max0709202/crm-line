@@ -91,27 +91,10 @@ public class SettingController {
         this.placeholderService = placeholderService;
     }
 
+    /** バックアップ設定 is now part of セキュリティ設定 (SecurityController). */
     @GetMapping("/backup")
-    public String backupPage(Model model) {
-        model.addAttribute("config", backupService.getConfig());
-        return "setting/backup";
-    }
-
-    @PostMapping("/backup")
-    public String saveBackupConfig(@RequestParam(defaultValue = "false") boolean enabled,
-                                    @RequestParam int intervalHours,
-                                    @RequestParam int retentionCount,
-                                    RedirectAttributes ra) {
-        backupService.saveConfig(enabled, intervalHours, retentionCount);
-        ra.addFlashAttribute("flashSuccess", "バックアップ設定を保存しました");
-        return "redirect:/manager/settings/backup";
-    }
-
-    @PostMapping("/backup/run-now")
-    public String runBackupNow(RedirectAttributes ra) {
-        backupService.runBackupNow();
-        ra.addFlashAttribute("flashSuccess", "バックアップを実行しました");
-        return "redirect:/manager/settings/backup";
+    public String backupPage() {
+        return "redirect:/manager/settings/security";
     }
 
     /** Page: current IMAP-monitor sync state + manual re-sync button. Auto-sync also fires

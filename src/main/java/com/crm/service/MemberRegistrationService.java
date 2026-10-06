@@ -98,9 +98,10 @@ public class MemberRegistrationService {
         if (nick.isEmpty()) errors.add("ニックネームを入力してください");
         else if (nick.length() > MAX_NICKNAME) errors.add("ニックネームは" + MAX_NICKNAME + "文字までです");
         if (mail.isEmpty() || !CsvUtil.isValidEmail(mail)) errors.add("メールアドレスを正しく入力してください");
-        if (pw.length() < 8 || pw.length() > MAX_PASSWORD || !pw.matches("[A-Za-z0-9]+")
+        // same rule as the registration form: half-width letters / digits / symbols, letters and digits both
+        if (pw.length() < 8 || pw.length() > MAX_PASSWORD || !pw.matches("[\\x21-\\x7e]+")
                 || !pw.matches(".*[A-Za-z].*") || !pw.matches(".*[0-9].*")) {
-            errors.add("パスワードは英字と数字を両方ふくむ8〜" + MAX_PASSWORD + "文字の半角英数字で入力してください");
+            errors.add("パスワードは英字と数字を両方ふくむ8〜" + MAX_PASSWORD + "文字の半角英数字（記号も可）で入力してください");
         }
         if (!agreed) errors.add("利用規約とプライバシーポリシーへの同意が必要です");
         if (!errors.isEmpty()) throw new RegistrationException(errors);
