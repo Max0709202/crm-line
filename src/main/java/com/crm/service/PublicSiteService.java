@@ -72,7 +72,7 @@ public class PublicSiteService {
     public String renderTop(String csrfToken) {
         String template = siteDesignService.getTopHtml();
         if (template == null) template = getDefaultTopTemplate();
-        return fillTags(withFooter(template), csrfToken);
+        return com.crm.util.NoZoom.apply(fillTags(withFooter(template), csrfToken));
     }
 
     /**
@@ -84,7 +84,7 @@ public class PublicSiteService {
         if (fp) return fillTags(bundled("site/" + page + "_fp.html"), null);
         String template = siteDesignService.getRegisterHtml(page);
         if (template == null) template = getDefaultRegisterTemplate(page);
-        return fillTags(withFooter(template), null);
+        return com.crm.util.NoZoom.apply(fillTags(withFooter(template), null));
     }
 
     /** The bundled client design of a registration page — what 番組デザイン設定 shows / restores. */

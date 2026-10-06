@@ -136,8 +136,8 @@ public class PublicSiteController {
     }
 
     @GetMapping("/member/register/done")
-    public ResponseEntity<String> registerDone() {
-        return html(publicSiteService.renderRegisterPage(PublicSiteService.PAGE_REGISTER_DONE, false));
+    public ResponseEntity<String> registerDone(HttpServletRequest request) {
+        return html(publicSiteService.renderRegisterPage(PublicSiteService.PAGE_REGISTER_DONE, MemberSiteController.fp(request)));
     }
 
     @GetMapping("/member/confirm")
@@ -164,8 +164,8 @@ public class PublicSiteController {
     }
 
     @GetMapping("/member/register/complete")
-    public ResponseEntity<String> registerComplete() {
-        return html(publicSiteService.renderRegisterPage(PublicSiteService.PAGE_REGISTER_COMPLETE, false));
+    public ResponseEntity<String> registerComplete(HttpServletRequest request) {
+        return html(publicSiteService.renderRegisterPage(PublicSiteService.PAGE_REGISTER_COMPLETE, MemberSiteController.fp(request)));
     }
 
     /** A 本登録済み member is logged in on this session. */

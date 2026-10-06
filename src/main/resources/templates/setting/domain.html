@@ -134,42 +134,6 @@
             </p>
         </div>
 
-        <hr class="my-6 border-slate-200"/>
-
-        <h2 class="text-base font-semibold text-slate-800 mb-3">返信URLのリンクプレビュー (OGP)</h2>
-        <p class="text-xs text-slate-500 mb-3">
-            LINEやTwitterなどのチャットにURLを貼ると、そのアプリがページを取得して画像・タイトル・説明文を
-            カード形式で表示します（Open Graph Protocol）。ここで設定した内容が、返信ページ (/reply/{token})
-            のリンクプレビューに使われます。OFFの場合は今まで通り何も表示されません。
-        </p>
-
-        <div class="mb-4 flex items-center">
-            <input type="checkbox" class="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                   id="replyOgpEnabled" th:field="*{replyOgpEnabled}"/>
-            <label class="ml-2 text-sm text-slate-700" for="replyOgpEnabled">
-                リンクプレビューを有効にする (デフォルトはOFF)
-            </label>
-        </div>
-
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-slate-700 mb-1">タイトル</label>
-            <input type="text" class="tw-input" th:field="*{replyOgpTitle}" maxlength="200" placeholder="例: お客様サポート窓口"/>
-        </div>
-
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-slate-700 mb-1">説明文</label>
-            <input type="text" class="tw-input" th:field="*{replyOgpDescription}" maxlength="500" placeholder="例: こちらのリンクからお問い合わせ内容をご確認いただけます"/>
-        </div>
-
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-slate-700 mb-1">画像URL</label>
-            <input type="text" class="tw-input" th:field="*{replyOgpImageUrl}" placeholder="例: https://avu74g.jp/img/12"/>
-            <p class="mt-1 text-xs text-slate-500">
-                <a class="text-blue-600 hover:underline" th:href="@{/manager/settings/html-images}">設定 › HTML用画像</a>
-                で画像をアップロードすると、そこで発行される公開URLをそのまま貼り付けられます。
-            </p>
-        </div>
-
         <div class="flex items-center gap-3 mt-6">
             <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
             <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/settings}">キャンセル</a>

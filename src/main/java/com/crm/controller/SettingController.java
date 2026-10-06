@@ -756,10 +756,6 @@ public class SettingController {
         form.setFromFixedLocal(domainSettingService.getFromFixedLocal());
         form.setBindingExpireEnabled(domainSettingService.isBindingExpireEnabled());
         form.setBindingExpireDays(domainSettingService.getBindingExpireDays());
-        form.setReplyOgpEnabled(domainSettingService.isReplyOgpEnabled());
-        form.setReplyOgpTitle(domainSettingService.getReplyOgpTitle());
-        form.setReplyOgpDescription(domainSettingService.getReplyOgpDescription());
-        form.setReplyOgpImageUrl(domainSettingService.getReplyOgpImageUrl());
         form.setSiteName(domainSettingService.getSiteName());
         model.addAttribute("form", form);
         return "setting/domain";
@@ -783,11 +779,8 @@ public class SettingController {
                 String.valueOf(Boolean.TRUE.equals(form.getBindingExpireEnabled())));
         domainSettingService.save(DomainSettingService.KEY_BINDING_EXPIRE_DAYS,
                 String.valueOf(form.getBindingExpireDays() == null ? 60 : form.getBindingExpireDays()));
-        domainSettingService.save(DomainSettingService.KEY_REPLY_OGP_ENABLED,
-                String.valueOf(Boolean.TRUE.equals(form.getReplyOgpEnabled())));
-        domainSettingService.save(DomainSettingService.KEY_REPLY_OGP_TITLE, s(form.getReplyOgpTitle()));
-        domainSettingService.save(DomainSettingService.KEY_REPLY_OGP_DESCRIPTION, s(form.getReplyOgpDescription()));
-        domainSettingService.save(DomainSettingService.KEY_REPLY_OGP_IMAGE_URL, s(form.getReplyOgpImageUrl()));
+        // 返信URLのリンクプレビュー (OGP) is saved on LINE設定 now (LineAccountController#saveReplyOgp),
+        // so this form must not touch it.
         domainSettingService.save(DomainSettingService.KEY_SITE_NAME, s(form.getSiteName()));
         ra.addFlashAttribute("flashSuccess", "ドメイン設定を保存しました");
         return "redirect:/manager/settings/domain";

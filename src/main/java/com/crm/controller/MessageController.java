@@ -549,7 +549,11 @@ public class MessageController {
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }
-        return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
+        // Back on the same LINE キャラ (?line=) the reply was sent as — without it the thread
+        // reopens on the user's first LINE キャラ, which looks like jumping back a page.
+        String suffix = redirectSuffixFor(returnTo, charaView, charaId);
+        if ("/thread".equals(suffix) && form.getLineAccountId() != null) suffix += "?line=" + form.getLineAccountId();
+        return "redirect:/manager/users/" + userId + suffix;
     }
 
     /** メッセージボックス per-item reply forms post with returnTo=message-box so the admin

@@ -46,10 +46,10 @@
         これを設定しないと、友達追加やメッセージが届いても本システムには反映されません。
     </p>
 
-    <!-- 上の3つの設定（左）＋ LINE送信の固定テンプレート（右） -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4 items-start">
+    <!-- 上の3つの設定（左）＋ LINE送信の固定テンプレート（中）＋ 返信URLのリンクプレビュー (OGP)（右） -->
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4 items-start">
     <div>
-        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-center gap-3">
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex flex-wrap items-center gap-3">
             <label class="text-sm font-medium text-slate-700 whitespace-nowrap">LINE本文の最大文字数</label>
             <form method="post" th:action="@{/manager/line-settings/max-body-length}" class="flex items-center gap-2">
                 <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -59,7 +59,7 @@
             <span class="text-xs text-slate-400">この文字数を超えた本文は、ここまでをLINEで送り、続きは返信URL先で表示します（返信URLは自動で付きます。固定テンプレートの文字数は含みません）。</span>
         </div>
 
-        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-center gap-3">
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex flex-wrap items-center gap-3">
             <label class="text-sm font-medium text-slate-700 whitespace-nowrap">LINE送信間隔 (件/分)</label>
             <form method="post" th:action="@{/manager/line-settings/rate-per-minute}" class="flex items-center gap-2">
                 <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -69,7 +69,7 @@
             <span class="text-xs text-slate-400">LINE一斉送信専用の送信間隔です（メール一斉送信の間隔とは独立しています）。</span>
         </div>
 
-        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-center gap-3">
+        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex flex-wrap items-center gap-3">
             <label class="text-sm font-medium text-slate-700 whitespace-nowrap">友だち追加時の自動割当フォルダ</label>
             <form method="post" th:action="@{/manager/line-settings/auto-register-folder}" class="flex items-center gap-2">
                 <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -99,6 +99,32 @@
             <br>置き換えタグ：<code class="bg-slate-100 px-1 rounded">%reply_url%</code> 返信URL
             <th:block th:each="t : ${builtinTags}">、<code class="bg-slate-100 px-1 rounded" th:text="${t.token}"></code> <th:block th:text="${t.description}"/></th:block>
             、ユーザー詳細の置き換えタグ（<code class="bg-slate-100 px-1 rounded">%amount%</code> など）
+        </div>
+        <div><button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button></div>
+    </form>
+
+    <!-- 返信URLのリンクプレビュー (OGP) — ドメイン設定から移動 -->
+    <form method="post" th:action="@{/manager/line-settings/reply-ogp}"
+          class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 flex flex-col gap-2">
+        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+        <div class="flex items-center gap-3">
+            <span class="text-sm font-medium text-slate-700">返信URLのリンクプレビュー (OGP)</span>
+            <label class="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-700">
+                <input type="checkbox" name="enabled" value="1" th:checked="${replyOgpEnabled}" class="h-4 w-4"/>有効にする
+            </label>
+        </div>
+        <label class="text-xs text-slate-600">タイトル
+            <input type="text" name="title" th:value="${replyOgpTitle}" maxlength="200" class="tw-input text-sm" placeholder="例: お客様サポート窓口"/>
+        </label>
+        <label class="text-xs text-slate-600">説明文
+            <input type="text" name="description" th:value="${replyOgpDescription}" maxlength="500" class="tw-input text-sm" placeholder="例: こちらのリンクからお問い合わせ内容をご確認いただけます"/>
+        </label>
+        <label class="text-xs text-slate-600">画像URL
+            <input type="text" name="imageUrl" th:value="${replyOgpImageUrl}" class="tw-input text-sm" placeholder="例: https://avu74g.jp/img/12"/>
+        </label>
+        <div class="text-xs text-slate-500 leading-relaxed">
+            LINEなどにURLを貼ると、返信ページ (/reply/{token}) の画像・タイトル・説明文がカード形式で表示されます。OFFの場合は何も表示されません。
+            画像は<a class="text-blue-600 hover:underline" th:href="@{/manager/settings/html-images}">HTML画像管理</a>でアップロードした公開URLを貼り付けてください。
         </div>
         <div><button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button></div>
     </form>

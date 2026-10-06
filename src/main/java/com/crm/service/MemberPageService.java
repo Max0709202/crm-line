@@ -109,7 +109,7 @@ public class MemberPageService {
      */
     public String renderForMember(String code, String device, Map<String, String> memberValues, String memberFolder,
                                   Function<String, String> linkForCode) {
-        return render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder, null, null, -1);
+        return noZoom(device, render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder, null, null, -1));
     }
 
     /**
@@ -120,8 +120,13 @@ public class MemberPageService {
      */
     public String renderMember(String code, String device, Map<String, String> memberValues, String memberFolder,
                                String mainHtml, String title, int unread, Function<String, String> linkForCode) {
-        return render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder,
-                mainHtml, title, Math.max(0, unread));
+        return noZoom(device, render(code, device, false, linkForCode, memberValues, memberFolder == null ? "" : memberFolder,
+                mainHtml, title, Math.max(0, unread)));
+    }
+
+    /** Member pages can't be zoomed ({@link com.crm.util.NoZoom}); the ガラケー design is left as is. */
+    private static String noZoom(String device, String html) {
+        return "fp".equals(device) ? html : com.crm.util.NoZoom.apply(html);
     }
 
     /** Where a member page's live content goes (put in after the tags are filled, so a member's

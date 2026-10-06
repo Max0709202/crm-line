@@ -161,6 +161,13 @@
                                                th:attr="onchange=|uploadStepImage('${s.id}', this)|"/>
                                     </div>
                                 </div>
+                                <!-- LINE: 文字数カウント・注意喚起 (画像はURLを本文に貼らず「画像を挿入する」で) -->
+                                <div th:id="'lineNote' + ${s.id}" class="mb-2" th:style="${s.channel == 'LINE'} ? '' : 'display:none;'">
+                                    <span class="text-xs text-slate-500" th:id="'lineCount' + ${s.id}" th:attr="data-max=${lineMaxBodyLength},data-body='body' + ${s.id}"
+                                          th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
+                                    <p class="text-xs mt-1" style="color:#b45309;"
+                                       th:text="'⚠ LINE本文の最大文字数（' + ${lineMaxBodyLength} + '文字）が設定されています。画像のURLを本文に貼ると、文字数の設定で途中で切れて画像が見られません。LINEの画像は「画像を挿入する」で入れてください（画像は本文とは別に送られ、文字数に含まれません）。'">⚠</p>
+                                </div>
                                 <textarea name="body" rows="4" placeholder="本文" class="tw-input" th:id="'body' + ${s.id}" th:text="${s.body}"></textarea>
                                 <div class="tag-panel mt-1">
                                     <div class="tag-row" th:each="t : ${builtinTags}">
@@ -182,6 +189,10 @@
                                     <div class="tag-row">
                                         <code class="tag-name" th:attr="onclick=|insertTag(${s.id}, '%reply_url%')|">%reply_url%</code>
                                         <span class="tag-desc">返信URL（送信時に自動生成）</span>
+                                    </div>
+                                    <div class="tag-row">
+                                        <code class="tag-name" th:attr="onclick=|insertTag(${s.id}, '%external_url%')|">%external_url%</code>
+                                        <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
                                     </div>
                                 </div>
                             </div>
@@ -270,6 +281,13 @@
                                    onchange="uploadStepImage('new', this)"/>
                         </div>
                     </div>
+                    <!-- LINE: 文字数カウント・注意喚起 (画像はURLを本文に貼らず「画像を挿入する」で) -->
+                    <div id="lineNotenew" class="mb-2" style="display:none;">
+                        <span class="text-xs text-slate-500" id="lineCountnew" data-body="bodynew" th:attr="data-max=${lineMaxBodyLength}"
+                              th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
+                        <p class="text-xs mt-1" style="color:#b45309;"
+                           th:text="'⚠ LINE本文の最大文字数（' + ${lineMaxBodyLength} + '文字）が設定されています。画像のURLを本文に貼ると、文字数の設定で途中で切れて画像が見られません。LINEの画像は「画像を挿入する」で入れてください（画像は本文とは別に送られ、文字数に含まれません）。'">⚠</p>
+                    </div>
                     <textarea name="body" rows="4" placeholder="本文" class="tw-input" id="bodynew"></textarea>
                     <div class="tag-panel mt-1">
                         <div class="tag-row" th:each="t : ${builtinTags}">
@@ -291,6 +309,10 @@
                         <div class="tag-row">
                             <code class="tag-name" onclick="insertTag('new', '%reply_url%')">%reply_url%</code>
                             <span class="tag-desc">返信URL（送信時に自動生成）</span>
+                        </div>
+                        <div class="tag-row">
+                            <code class="tag-name" onclick="insertTag('new', '%external_url%')">%external_url%</code>
+                            <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
                         </div>
                     </div>
                 </div>
@@ -337,6 +359,8 @@
             if (box) box.style.display = (channel === 'EMAIL') ? 'block' : 'none';
             var lineBox = document.getElementById('lineAccountBox' + id);
             if (lineBox) lineBox.style.display = (channel === 'LINE') ? 'block' : 'none';
+            var lineNote = document.getElementById('lineNote' + id);
+            if (lineNote) lineNote.style.display = (channel === 'LINE') ? 'block' : 'none';
             var charaBox = document.getElementById('charaBox' + id);
             if (charaBox) charaBox.style.display = (channel === 'EMAIL' || channel === 'SMS') ? 'block' : 'none';
             var imgToggleBox = document.getElementById('imageToggleBox' + id);
@@ -405,7 +429,21 @@
             ta.value = ta.value.slice(0, pos) + token + ta.value.slice(ta.selectionEnd || pos);
             ta.focus();
             ta.selectionStart = ta.selectionEnd = pos + token.length;
+            ta.dispatchEvent(new Event('input'));
         }
+        // LINE 文字数カウント — same count as the LINE send (%reply_url% / %external_url% are not counted)
+        document.querySelectorAll('[id^="lineCount"]').forEach(function (counter) {
+            var ta = document.getElementById(counter.getAttribute('data-body'));
+            if (!ta) return;
+            var max = parseInt(counter.getAttribute('data-max'), 10) || 1000;
+            function update() {
+                var n = Array.from(ta.value.replace(/%reply_url%|%external_url%/g, '')).length;
+                counter.textContent = max + '文字以内 (' + n + '文字' + (n > max ? ' / ' + max + '文字以降は返信URL先に表示' : '') + ')';
+                counter.style.color = n > max ? '#b45309' : '';
+            }
+            ta.addEventListener('input', update);
+            update();
+        });
     </script>
 </section>
 </body>

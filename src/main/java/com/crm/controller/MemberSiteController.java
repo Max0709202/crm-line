@@ -757,7 +757,8 @@ public class MemberSiteController {
         return "redirect:/#login";
     }
 
-    private static boolean fp(HttpServletRequest request) {
+    /** ガラケー (feature phone) by User-Agent — also used for the top page and the 仮登録 / 本登録 pages. */
+    static boolean fp(HttpServletRequest request) {
         String ua = request.getHeader("User-Agent");
         return ua != null && FEATURE_PHONE.matcher(ua).find();
     }

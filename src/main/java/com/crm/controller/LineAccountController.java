@@ -103,6 +103,11 @@ public class LineAccountController {
         model.addAttribute("lineTemplateEnabled", lineTextService.isTemplateEnabled());
         model.addAttribute("lineTemplateText", lineTextService.getTemplate());
         model.addAttribute("lineTemplateShortUrl", lineTextService.isShortUrl());
+        // 返信URLのリンクプレビュー (OGP) — moved here from ドメイン設定 (LINE shows the card)
+        model.addAttribute("replyOgpEnabled", domainSettingService.isReplyOgpEnabled());
+        model.addAttribute("replyOgpTitle", domainSettingService.getReplyOgpTitle());
+        model.addAttribute("replyOgpDescription", domainSettingService.getReplyOgpDescription());
+        model.addAttribute("replyOgpImageUrl", domainSettingService.getReplyOgpImageUrl());
         model.addAttribute("builtinTags", com.crm.service.PlaceholderService.BUILTIN_TAGS);
         return "line/account-list";
     }
@@ -377,6 +382,26 @@ public class LineAccountController {
         auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null,
                 "line.max_body_length=" + clamped);
         ra.addFlashAttribute("flashSuccess", "LINE本文の最大文字数を更新しました");
+        return "redirect:/manager/line-settings";
+    }
+
+    /** 返信URLのリンクプレビュー (OGP) — same keys the ドメイン設定 page used to save. */
+    @PostMapping("/reply-ogp")
+    public String saveReplyOgp(@RequestParam(required = false) String enabled,
+                               @RequestParam(required = false) String title,
+                               @RequestParam(required = false) String description,
+                               @RequestParam(required = false) String imageUrl,
+                               HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        boolean on = enabled != null;
+        domainSettingService.save(com.crm.service.DomainSettingService.KEY_REPLY_OGP_ENABLED, String.valueOf(on));
+        domainSettingService.save(com.crm.service.DomainSettingService.KEY_REPLY_OGP_TITLE, title == null ? "" : title.trim());
+        domainSettingService.save(com.crm.service.DomainSettingService.KEY_REPLY_OGP_DESCRIPTION, description == null ? "" : description.trim());
+        domainSettingService.save(com.crm.service.DomainSettingService.KEY_REPLY_OGP_IMAGE_URL, imageUrl == null ? "" : imageUrl.trim());
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null, "reply.ogp_enabled=" + on);
+        ra.addFlashAttribute("flashSuccess", "返信URLのリンクプレビュー (OGP) を更新しました");
         return "redirect:/manager/line-settings";
     }
 

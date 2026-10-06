@@ -39,9 +39,14 @@ public class HomeController {
                     .body(active.get().getHtmlContent());
         }
         // CsrfInterceptor exposes the session token as a request attribute for the page's forms.
+        // no-store: the forms carry this session's token, so a tab restored / reopened later on a
+        // smartphone must reload the page (fresh token) rather than resubmit a stale copy.
         Object csrf = request.getAttribute("_csrf");
+        String token = csrf == null ? null : csrf.toString();
         return ResponseEntity.ok()
                 .header("Content-Type", "text/html; charset=UTF-8")
-                .body(publicSiteService.renderTop(csrf == null ? null : csrf.toString()));
+                .header("Cache-Control", "no-store")
+                .body(MemberSiteController.fp(request) ? publicSiteService.renderTopFp(token)
+                        : publicSiteService.renderTop(token));
     }
 }

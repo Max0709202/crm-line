@@ -783,19 +783,22 @@
                     <div class="msg-atts" th:if="${attachmentsByMessageId.get(m.id) != null and !attachmentsByMessageId.get(m.id).empty}">
                         <img th:each="a : ${attachmentsByMessageId.get(m.id)}"
                              th:src="@{'/manager/users/' + ${user.id} + '/attachment/' + ${a.id}}"
-                             th:alt="${a.fileName}" th:title="${a.fileName}" onclick="openThreadLightbox(this.src);"/>
+                             th:alt="${a.fileName}" th:title="${a.fileName}" onclick="openPhotoZoom(this.src);"/>
                     </div>
                     <!-- 画像添付 (メール / SMS: 返信画面に📎で表示) / LINE画像挿入 (LINEに画像で送信) -->
                     <div class="msg-out-imgs" th:if="${isOut and outImagesByMessageId.get(m.id) != null}">
                         <span class="msg-out-imgs-tag" th:text="${m.channel == 'LINE'} ? 'LINE画像挿入' : '📎 画像添付（返信画面に表示）'">📎 画像添付</span>
                         <div class="msg-atts">
                             <img th:each="imgId : ${outImagesByMessageId.get(m.id)}" th:src="@{'/img/' + ${imgId}}"
-                                 alt="添付画像" onclick="openThreadLightbox(this.src);"/>
+                                 alt="添付画像" onclick="openPhotoZoom(this.src);"/>
                         </div>
                     </div>
                     <div class="msg-err" th:if="${isOut and m.status == 'FAILED' and m.errorMessage != null}" th:text="${#strings.abbreviate(m.errorMessage, 120)}"></div>
                 </div>
-                <div th:if="${isOut}" class="msg-av is-staff" th:text="${#strings.substring(who, 0, 1)}">運</div>
+                <!-- 送信側アイコン: LINE はキャラ(LINEアカウント)名、メール・SMS はこのやり取りのキャラ名の頭文字 (無ければ 運営) -->
+                <div th:if="${isOut}" class="msg-av is-staff"
+                     th:with="avName=${who == '運営' and charName != null and !#strings.isEmpty(#strings.trim(charName))} ? ${#strings.trim(charName)} : ${who}"
+                     th:text="${#strings.substring(avName, 0, 1)}" th:title="${avName}">運</div>
             </div>
         </div>
 
@@ -1548,7 +1551,7 @@ function openThreadLightbox(src) {
     im.src = src;
     lb.style.display = 'flex';
 }
-/** ユーザー / キャラ の写真: 少し大きく表示（クリック・Escで閉じる） */
+/** ユーザー / キャラ の写真・やり取りの添付画像: キャラ画像と同じサイズで表示（クリック・Escで閉じる） */
 function openPhotoZoom(src) {
     openThreadLightbox(src);
     var lb = document.getElementById('threadLightbox');

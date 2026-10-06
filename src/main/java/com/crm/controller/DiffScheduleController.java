@@ -37,6 +37,7 @@ public class DiffScheduleController {
     private final com.crm.service.HtmlImageService htmlImageService;
     private final com.crm.service.CharaLinkService charaLinkService;
     private final com.crm.service.CharaService charaService;
+    private final com.crm.service.DomainSettingService domainSettingService;
 
     public DiffScheduleController(DiffScheduleService scheduleService,
                                    DiffDefinitionService definitionService,
@@ -45,7 +46,8 @@ public class DiffScheduleController {
                                    com.crm.service.LineAccountService lineAccountService,
                                    com.crm.service.HtmlImageService htmlImageService,
                                    com.crm.service.CharaLinkService charaLinkService,
-                                   com.crm.service.CharaService charaService) {
+                                   com.crm.service.CharaService charaService,
+                                   com.crm.service.DomainSettingService domainSettingService) {
         this.scheduleService = scheduleService;
         this.definitionService = definitionService;
         this.folderSettingService = folderSettingService;
@@ -54,6 +56,7 @@ public class DiffScheduleController {
         this.htmlImageService = htmlImageService;
         this.charaLinkService = charaLinkService;
         this.charaService = charaService;
+        this.domainSettingService = domainSettingService;
     }
 
     /** Parents + their children, flattened, for the LINE-account picker — mirrors
@@ -247,6 +250,8 @@ public class DiffScheduleController {
         model.addAttribute("builtinTags", PlaceholderService.BUILTIN_TAGS);
         model.addAttribute("lineAccounts", allLineAccountsFlat());
         model.addAttribute("htmlImages", htmlImageService.listAll());
+        // LINEステップ: 文字数カウント・注意喚起 (LINE設定の最大文字数)
+        model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         // 送信キャラ (EMAIL / SMS のメッセージステップ): フォルダ → キャラ
         java.util.List<Long> stepIds = new java.util.ArrayList<>();
         for (com.crm.entity.DiffStep st : definitionService.listSteps(id)) stepIds.add(st.getId());

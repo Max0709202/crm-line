@@ -112,9 +112,21 @@ public class CsrfInterceptor implements HandlerInterceptor {
             log.warn("CSRF rejected: method={} path={} ip={}",
                     LogSafe.of(method), LogSafe.of(path),
                     LogSafe.of(ClientIpResolver.resolve(request)));
+            // Write the 403 page here instead of sendError: the /error dispatch is itself a POST and
+            // would be rejected again, leaving an empty body with no Content-Type, which smartphones
+            // show as a file-download screen (会員登録 on a page left open across a restart).
             try {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN,
-                        "CSRF token missing or invalid");
+                boolean member = path != null && path.startsWith("/member/");
+                String back = "/member/register".equals(path) ? "/#register" : member ? "/#login" : "/manager";
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("text/html;charset=UTF-8");
+                response.setHeader("Cache-Control", "no-store");
+                response.getWriter().write("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
+                        + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                        + "<meta name=\"robots\" content=\"noindex\"><title>ページの有効期限切れ</title></head>"
+                        + "<body style=\"font-family:sans-serif;padding:24px;line-height:1.8\">"
+                        + "<p>ページの有効期限が切れました。お手数ですが、もう一度入力してください。</p>"
+                        + "<p><a href=\"" + back + "\">戻る</a></p></body></html>");
             } catch (Exception ignored) { /* best-effort */ }
             return false;
         }
