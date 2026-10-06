@@ -209,6 +209,31 @@
                     <p class="text-xs text-slate-500" style="margin-top:2px;">
                         選択したアカウントと連携済みの顧客のみに送信されます（未連携の顧客はスキップされます）。
                     </p>
+                    <!-- LINE ブロック: 選択ユーザーのうち、選んだキャラをブロックしている人数 -->
+                    <p id="lineBlockNote" class="text-xs" style="margin-top:2px;color:#111827;font-weight:600;" hidden
+                       th:if="${lineBlockedByAccount != null}"
+                       th:attr="data-blocked=${#strings.replace(#strings.replace(lineBlockedByAccount.toString(), '{', ''), '}', '')},data-any=${lineBlockedUsers}"></p>
+                    <script th:if="${lineBlockedByAccount != null}">
+                    (function () {
+                        var note = document.getElementById('lineBlockNote');
+                        var sel = document.querySelector('select[name="lineAccountId"]');
+                        if (!note || !sel) return;
+                        var map = {};   // "12=3, 15=1" → { 12: 3, 15: 1 }
+                        (note.getAttribute('data-blocked') || '').split(',').forEach(function (p) {
+                            var kv = p.trim().split('=');
+                            if (kv.length === 2) map[kv[0]] = Number(kv[1]);
+                        });
+                        function render() {
+                            var n = sel.value === '-1' ? Number(note.getAttribute('data-any')) : (map[sel.value] || 0);
+                            note.hidden = !n;
+                            note.textContent = sel.value === '-1'
+                                ? '■ 選択ユーザーのうち ' + n + '名が、いずれかのキャラをLINEでブロックしています（ブロックしたキャラからは届きません）'
+                                : '■ 選択ユーザーのうち ' + n + '名が、このキャラをLINEでブロックしています（その方には届きません）';
+                        }
+                        sel.addEventListener('change', render);
+                        render();
+                    })();
+                    </script>
                     <p class="text-xs" style="margin-top:2px; color:#dc2626;">
                         ※「紐づきアカ」は配信時点で紐づいているアカウントから配信されます。1人の顧客が複数のLINEアカウントに
                         友だち追加している場合は、LINE設定で優先順位が高い（数字が小さい）アカウントから、1通のみ配信されます。
@@ -354,8 +379,8 @@ function applyTemplateFromElement(el) {
     var max = parseInt(counter.getAttribute('data-max'), 10) || 1000;
     function update() {
         var n = ta.value.length;
-        counter.textContent = max + '文字以内 (' + n + '文字' + (n > max ? ' / 上限超過' : '') + ')';
-        counter.style.color = n > max ? '#dc2626' : '';
+        counter.textContent = max + '文字以内 (' + n + '文字' + (n > max ? ' / ' + max + '文字以降は返信URL先に表示' : '') + ')';
+        counter.style.color = n > max ? '#b45309' : '';
     }
     ta.addEventListener('input', update);
     update();

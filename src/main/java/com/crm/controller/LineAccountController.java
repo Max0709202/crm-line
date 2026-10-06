@@ -34,16 +34,22 @@ public class LineAccountController {
     private final com.crm.service.DomainSettingService domainSettingService;
     private final com.crm.repository.LineUserRepository lineUserRepository;
     private final com.crm.service.AdminAuthService adminAuthService;
+    private final com.crm.service.LineTextService lineTextService;
+    private final com.crm.service.LineAccountPhotoService photoService;
 
     public LineAccountController(LineAccountService service, AuditLogService auditLog,
                                   com.crm.service.DomainSettingService domainSettingService,
                                   com.crm.repository.LineUserRepository lineUserRepository,
-                                  com.crm.service.AdminAuthService adminAuthService) {
+                                  com.crm.service.AdminAuthService adminAuthService,
+                                  com.crm.service.LineTextService lineTextService,
+                                  com.crm.service.LineAccountPhotoService photoService) {
         this.service = service;
         this.auditLog = auditLog;
         this.domainSettingService = domainSettingService;
         this.lineUserRepository = lineUserRepository;
         this.adminAuthService = adminAuthService;
+        this.lineTextService = lineTextService;
+        this.photoService = photoService;
     }
 
     /**
@@ -94,6 +100,10 @@ public class LineAccountController {
         model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         model.addAttribute("lineRatePerMinute", domainSettingService.getLineRatePerMinute());
         model.addAttribute("lineAutoRegisterFolder", domainSettingService.getLineAutoRegisterFolder());
+        model.addAttribute("lineTemplateEnabled", lineTextService.isTemplateEnabled());
+        model.addAttribute("lineTemplateText", lineTextService.getTemplate());
+        model.addAttribute("lineTemplateShortUrl", lineTextService.isShortUrl());
+        model.addAttribute("builtinTags", com.crm.service.PlaceholderService.BUILTIN_TAGS);
         return "line/account-list";
     }
 
@@ -243,6 +253,7 @@ public class LineAccountController {
         model.addAttribute("editing", true);
         model.addAttribute("accountId", id);
         model.addAttribute("parents", service.listParents());
+        model.addAttribute("linePhotoUrl", photoService.photoUrl(id));
         return "line/account-form";
     }
 
@@ -274,7 +285,69 @@ public class LineAccountController {
         model.addAttribute("editing", true);
         model.addAttribute("accountId", id);
         model.addAttribute("parents", service.listParents());
+        model.addAttribute("linePhotoUrl", photoService.photoUrl(id));
         return "line/account-form";
+    }
+
+    /** LINEアカウント編集 › 写真 (resized in the browser) — saved right away, JSON reply. */
+    @PostMapping("/{id}/photo")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<Map<String, Object>> uploadPhoto(
+            @PathVariable Long id,
+            @RequestParam(name = "photo", required = false) org.springframework.web.multipart.MultipartFile photo,
+            HttpSession session) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (!AuthInterceptor.isAdmin(session)) {
+            body.put("error", DENIED_MESSAGE);
+            return org.springframework.http.ResponseEntity.status(403).body(body);
+        }
+        Optional<LineAccount> a = service.findById(id);
+        if (!a.isPresent()) {
+            body.put("error", "LINEアカウントが見つかりません");
+            return org.springframework.http.ResponseEntity.badRequest().body(body);
+        }
+        try {
+            Object admin = session.getAttribute(AuthInterceptor.SESSION_ADMIN_NAME);
+            body.put("url", photoService.save(id, a.get().getName(), photo, admin == null ? null : String.valueOf(admin)));
+            auditLog.record(AuditLogService.ACTION_LINE_ACCOUNT_UPDATE, "LineAccount", id, "写真を登録");
+            return org.springframework.http.ResponseEntity.ok(body);
+        } catch (com.crm.service.LineAccountPhotoService.PhotoException e) {
+            body.put("error", e.getMessage());
+            return org.springframework.http.ResponseEntity.badRequest().body(body);
+        }
+    }
+
+    @PostMapping("/{id}/photo/delete")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<Map<String, Object>> deletePhoto(@PathVariable Long id, HttpSession session) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (!AuthInterceptor.isAdmin(session)) {
+            body.put("error", DENIED_MESSAGE);
+            return org.springframework.http.ResponseEntity.status(403).body(body);
+        }
+        photoService.remove(id);
+        auditLog.record(AuditLogService.ACTION_LINE_ACCOUNT_UPDATE, "LineAccount", id, "写真を削除");
+        body.put("deleted", true);
+        return org.springframework.http.ResponseEntity.ok(body);
+    }
+
+    /** LINE送信の固定テンプレート (使用・内容・短縮URL). */
+    @PostMapping("/fixed-template")
+    public String saveFixedTemplate(@RequestParam(name = "enabled", required = false) String enabled,
+                                    @RequestParam(name = "text", required = false) String text,
+                                    @RequestParam(name = "shortUrl", required = false) String shortUrl,
+                                    HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+        try {
+            lineTextService.saveTemplate("1".equals(enabled), text, "1".equals(shortUrl));
+            auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null,
+                    "line.fixed_template enabled=" + "1".equals(enabled) + " short_url=" + "1".equals(shortUrl));
+            ra.addFlashAttribute("flashSuccess", "LINE送信の固定テンプレートを保存しました");
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("flashError", e.getMessage());
+        }
+        return "redirect:/manager/line-settings";
     }
 
     @PostMapping("/{id}/delete")

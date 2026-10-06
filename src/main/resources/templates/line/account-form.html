@@ -90,7 +90,92 @@
             </button>
         </div>
     </form>
+
+    <!-- 写真（返信画面のキャラ欄に表示）。選ぶとすぐ保存。キャラ登録と同じく長辺640px・約200KBに縮小。 -->
+    <div th:if="${editing}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mt-4"
+         id="linePhotoBox" th:attr="data-account-id=${accountId}">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">写真 <span class="text-xs font-normal text-slate-500">（返信画面のキャラ欄に表示されます）</span></h2>
+        <div class="flex items-center gap-4">
+            <div id="linePhoto" style="width:96px;height:96px;flex:none;overflow:hidden;border-radius:8px;border:1px solid #e2e8f0;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8;">
+                <img th:if="${linePhotoUrl != null}" th:src="${linePhotoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center 25%;"/>
+                <span th:if="${linePhotoUrl == null}">写真なし</span>
+            </div>
+            <div class="flex flex-col gap-2">
+                <label class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md cursor-pointer w-fit">写真を選ぶ<input type="file" id="linePhotoFile" accept="image/*" hidden/></label>
+                <button type="button" id="linePhotoRemove" class="px-3 py-1.5 text-sm border border-red-300 text-red-600 hover:bg-red-50 rounded-md w-fit"
+                        th:style="${linePhotoUrl == null} ? 'display:none;'">写真を削除</button>
+                <span id="linePhotoInfo" class="text-xs text-slate-500"></span>
+            </div>
+        </div>
     </div>
+    </div>
+    <script th:if="${editing}">
+    (function () {
+        var PHOTO = { maxSide: 640, quality: 0.85, maxBytes: 200 * 1024, maxInputBytes: 20 * 1024 * 1024 };
+        var box = document.getElementById('linePhotoBox');
+        if (!box) return;
+        var id = box.getAttribute('data-account-id');
+        var frame = document.getElementById('linePhoto'), file = document.getElementById('linePhotoFile');
+        var removeBtn = document.getElementById('linePhotoRemove'), info = document.getElementById('linePhotoInfo');
+        function csrf() {
+            var m = document.querySelector('meta[name="_csrf"]'), i = document.querySelector('input[name="_csrf"]');
+            return m ? m.getAttribute('content') : (i ? i.value : '');
+        }
+        function show(url) {
+            frame.innerHTML = url ? '<img src="' + url.replace(/"/g, '') + '" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center 25%;">' : '<span>写真なし</span>';
+            removeBtn.style.display = url ? '' : 'none';
+        }
+        function post(url, fd) {
+            fd.append('_csrf', csrf());
+            return fetch(url, { method: 'POST', credentials: 'same-origin', body: fd }).then(function (r) {
+                return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; });
+            });
+        }
+        function resize(f) {
+            return new Promise(function (resolve, reject) {
+                if (!/^image\//.test(f.type)) return reject(new Error('画像ファイルを選んでください'));
+                if (f.size > PHOTO.maxInputBytes) return reject(new Error('元の画像が大きすぎます（20MBまで）'));
+                var u = URL.createObjectURL(f), img = new Image();
+                img.onload = function () {
+                    URL.revokeObjectURL(u);
+                    var r = Math.min(1, PHOTO.maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+                    var c = document.createElement('canvas');
+                    c.width = Math.round(img.naturalWidth * r); c.height = Math.round(img.naturalHeight * r);
+                    var ctx = c.getContext('2d');
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, c.width, c.height);
+                    var q = PHOTO.quality;
+                    (function attempt() {
+                        c.toBlob(function (b) {
+                            if (!b) return reject(new Error('画像を変換できませんでした'));
+                            if (b.size > PHOTO.maxBytes && q > 0.45) { q = Math.round((q - 0.1) * 100) / 100; return attempt(); }
+                            resolve(b);
+                        }, 'image/jpeg', q);
+                    })();
+                };
+                img.onerror = function () { URL.revokeObjectURL(u); reject(new Error('この画像は読み込めません（HEICはJPEG/PNGに変換してください）')); };
+                img.src = u;
+            });
+        }
+        file.addEventListener('change', function () {
+            var f = file.files[0]; file.value = '';
+            if (!f) return;
+            info.textContent = '写真を縮小して保存しています…';
+            resize(f).then(function (b) {
+                var fd = new FormData(); fd.append('photo', b, 'photo.jpg');
+                return post('/manager/line-settings/' + id + '/photo', fd);
+            }).then(function (j) { show(j.url); info.textContent = '写真を保存しました'; })
+              .catch(function (e) { info.textContent = e.message; });
+        });
+        removeBtn.addEventListener('click', function () {
+            if (!confirm('写真を削除します。よろしいですか?')) return;
+            post('/manager/line-settings/' + id + '/photo/delete', new FormData())
+                .then(function () { show(null); info.textContent = '写真を削除しました'; })
+                .catch(function (e) { info.textContent = '削除に失敗しました: ' + e.message; });
+        });
+    })();
+    </script>
 </section>
 </body>
 </html>

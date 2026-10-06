@@ -68,6 +68,7 @@ public class UserController {
     private final com.crm.service.PaymentSettingService paymentSettingService;
     private final com.crm.repository.PaymentPointRepository paymentPointRepository;
     private final com.crm.service.MailTemplateService mailTemplateService;
+    private final com.crm.service.LineBlockService lineBlockService;
 
     public UserController(CrmUserService service,
                           CarrierBindingService bindingService,
@@ -92,7 +93,8 @@ public class UserController {
                           com.crm.service.CharaLinkService charaLinkService,
                           com.crm.service.PaymentSettingService paymentSettingService,
                           com.crm.repository.PaymentPointRepository paymentPointRepository,
-                          com.crm.service.MailTemplateService mailTemplateService) {
+                          com.crm.service.MailTemplateService mailTemplateService,
+                          com.crm.service.LineBlockService lineBlockService) {
         this.service = service;
         this.bindingService = bindingService;
         this.placeholderService = placeholderService;
@@ -117,6 +119,7 @@ public class UserController {
         this.paymentSettingService = paymentSettingService;
         this.paymentPointRepository = paymentPointRepository;
         this.mailTemplateService = mailTemplateService;
+        this.lineBlockService = lineBlockService;
     }
 
     /** Active ad-code choices for autocomplete on the user-detail form. */
@@ -676,15 +679,21 @@ public class UserController {
         // 紐づきキャラ — the LINE accounts (characters) this customer is friends with. One
         // customer can be linked to several; shown here by name (2026-09-29 client request).
         java.util.List<String> linkedCharNames = new java.util.ArrayList<>();
+        java.util.List<Boolean> linkedCharBlocked = new java.util.ArrayList<>();   // LINE ブロック, same order
+        java.util.Set<Long> blockedAccounts = lineBlockService.blockedAccountIds(id);
         java.util.List<com.crm.entity.LineUser> lineLinks = lineUserRepository.findByCrmUserId(id);
         if (!lineLinks.isEmpty()) {
             java.util.Map<Long, String> names = new java.util.HashMap<>();
             java.util.List<Long> accountIds = new java.util.ArrayList<>();
             for (com.crm.entity.LineUser lu : lineLinks) accountIds.add(lu.getLineAccountId());
             for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(accountIds)) names.put(a.getId(), a.getName());
-            for (Long aid : accountIds) linkedCharNames.add(names.getOrDefault(aid, "不明"));
+            for (Long aid : accountIds) {
+                linkedCharNames.add(names.getOrDefault(aid, "不明"));
+                linkedCharBlocked.add(blockedAccounts.contains(aid));
+            }
         }
         model.addAttribute("linkedCharNames", linkedCharNames);
+        model.addAttribute("linkedCharBlocked", linkedCharBlocked);
         model.addAttribute("paymentForm", paymentFormFor(id));
         // User stats for detail sidebar
         model.addAttribute("statTotalOut",   messageRepository.countByUserIdAndDirection(id, com.crm.entity.Message.DIR_OUT));

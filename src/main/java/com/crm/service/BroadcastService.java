@@ -44,6 +44,12 @@ public class BroadcastService {
     private final LineUserRepository lineUserRepository;
     private final LineAccountService lineAccountService;
 
+    /** LINE送信テキスト (最大文字数・固定テンプレート) — optional so hand-built instances (tests) work without it. */
+    private LineTextService lineTextService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setLineTextService(LineTextService lineTextService) { this.lineTextService = lineTextService; }
+
     /** 送信キャラ — optional so hand-built instances (tests) work without it. */
     private CharaLinkService charaLinkService;
 
@@ -435,7 +441,11 @@ public class BroadcastService {
 
             boolean needsAnyUrl = body.contains(MessageService.REPLY_URL_PLACEHOLDER)
                     || body.contains(MessageService.EXTERNAL_URL_PLACEHOLDER);
-            if (needsAnyUrl) {
+            if (lineTextService != null) {
+                // LINE設定: 最大文字数を超えた分は返信URL先へ・固定テンプレート・短縮URL (LineTextService)
+                lineTextService.apply(persisted, user, body);
+                messageRepository.save(persisted);
+            } else if (needsAnyUrl) {
                 String url = replyPageService.createReplyPageFor(persisted);
                 MessageService.applyUrlPlaceholders(persisted, body, url, domainSettingService,
                         replyPageSettingService.getOrCreate().getUrlLeadText(),

@@ -207,7 +207,8 @@ class LineWebhookServiceTest {
         svc.process(account(), payloadOf(follow));
 
         ArgumentCaptor<com.crm.dto.LineComposeForm> cap = ArgumentCaptor.forClass(com.crm.dto.LineComposeForm.class);
-        verify(messageService).composeLine(org.mockito.ArgumentMatchers.eq(999L), org.mockito.ArgumentMatchers.isNull(), cap.capture());
+        verify(messageService).composeLine(org.mockito.ArgumentMatchers.eq(999L), org.mockito.ArgumentMatchers.isNull(), cap.capture(),
+                org.mockito.ArgumentMatchers.eq(false));   // 自動応答: sent as written
         assertThat(cap.getValue().getBody()).isEqualTo("友だち追加ありがとうございます！");
         // replies from the character that was friended, not whichever link comes first
         assertThat(cap.getValue().getLineAccountId()).isEqualTo(1L);
@@ -229,7 +230,8 @@ class LineWebhookServiceTest {
         svc.process(account(), payloadOf(textEvent("evtkw", "Ukeyword", "営業時間を教えて")));
 
         ArgumentCaptor<com.crm.dto.LineComposeForm> cap = ArgumentCaptor.forClass(com.crm.dto.LineComposeForm.class);
-        verify(messageService).composeLine(org.mockito.ArgumentMatchers.eq(777L), org.mockito.ArgumentMatchers.isNull(), cap.capture());
+        verify(messageService).composeLine(org.mockito.ArgumentMatchers.eq(777L), org.mockito.ArgumentMatchers.isNull(), cap.capture(),
+                org.mockito.ArgumentMatchers.eq(false));   // 自動応答: sent as written
         assertThat(cap.getValue().getBody()).isEqualTo("営業時間は9時〜18時です");
     }
 
@@ -244,6 +246,6 @@ class LineWebhookServiceTest {
 
         svc.process(account(), payloadOf(textEvent("evtnokw", "Uno", "こんにちは")));
 
-        verify(messageService, never()).composeLine(any(), any(), any());
+        verify(messageService, never()).composeLine(any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
     }
 }

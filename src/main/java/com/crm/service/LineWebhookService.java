@@ -52,6 +52,12 @@ public class LineWebhookService {
     private final MessageService messageService;
     private final UserActivityService userActivityService;
 
+    /** LINE ブロック — optional so hand-built instances (tests) work without it. */
+    private com.crm.repository.LineUserBlockRepository lineUserBlockRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setLineUserBlockRepository(com.crm.repository.LineUserBlockRepository r) { this.lineUserBlockRepository = r; }
+
     public LineWebhookService(LineAccountRepository lineAccountRepository,
                                LineUserRepository lineUserRepository,
                                MessageRepository messageRepository,
@@ -120,6 +126,10 @@ public class LineWebhookService {
             boolean isNewContact = !lineUserRepository.findByLineAccountIdAndLineUserId(account.getId(), lineUserId).isPresent();
             LineUser lineUser = findOrCreateLineUser(account, lineUserId);
             log.info("[LINE] follow: account={} lineUserId={}", account.getId(), LogSafe.of(lineUserId));
+            // 友だち追加・ブロック解除 → ブロックのフラグを外す
+            if (lineUserBlockRepository != null && lineUser.getId() != null && lineUserBlockRepository.existsById(lineUser.getId())) {
+                lineUserBlockRepository.deleteById(lineUser.getId());
+            }
             if (isNewContact) {
                 sendAutoReplyIfMatched(account, lineUser, com.crm.entity.LineAutoReplyRule.TRIGGER_FOLLOW, null);
             }
@@ -127,6 +137,15 @@ public class LineWebhookService {
         }
         if ("unfollow".equals(type)) {
             log.info("[LINE] unfollow: account={} lineUserId={}", account.getId(), LogSafe.of(lineUserId));
+            // ブロックされた → 紐づきキャラにフラグ (ユーザー詳細・返信画面・一斉送信)
+            if (lineUserBlockRepository != null) {
+                lineUserRepository.findByLineAccountIdAndLineUserId(account.getId(), lineUserId).ifPresent(lu -> {
+                    com.crm.entity.LineUserBlock b = lineUserBlockRepository.findById(lu.getId()).orElseGet(com.crm.entity.LineUserBlock::new);
+                    b.setLineUserRowId(lu.getId());
+                    b.setBlockedAt(LocalDateTime.now());
+                    lineUserBlockRepository.save(b);
+                });
+            }
             return ProcessResult.ok();
         }
         if (!"message".equals(type) || event.getMessage() == null) {
@@ -197,7 +216,8 @@ public class LineWebhookService {
             if (delay != null && delay > 0) {
                 form.setScheduledAt(java.time.LocalDateTime.now().plusMinutes(delay));
             }
-            messageService.composeLine(lineUser.getCrmUserId(), null, form);
+            // 自動応答 is sent as written (no LINE設定 max-length cut / 固定テンプレート)
+            messageService.composeLine(lineUser.getCrmUserId(), null, form, false);
             // 既読 marking now happens inside MessageService.sendNow() itself, at the moment
             // the reply actually sends — correct for both immediate and 何分後に返信-delayed
             // auto-replies (see sendNow()'s non-broadcast OUT-send branch).

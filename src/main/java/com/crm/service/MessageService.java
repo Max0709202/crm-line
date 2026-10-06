@@ -69,6 +69,12 @@ public class MessageService {
     /** 紐づきキャラ — optional so hand-built instances (tests) work without it. */
     private CharaLinkService charaLinkService;
 
+    /** LINE送信テキスト (最大文字数・固定テンプレート) — optional so hand-built instances (tests) work without it. */
+    private LineTextService lineTextService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setLineTextService(LineTextService lineTextService) { this.lineTextService = lineTextService; }
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
@@ -643,6 +649,15 @@ public class MessageService {
      */
     @Transactional
     public Message composeLine(Long userId, Long adminUserId, LineComposeForm form) {
+        return composeLine(userId, adminUserId, form, true);
+    }
+
+    /**
+     * @param lineTextRules false for LINE 自動応答: its reply text is sent as written — the
+     *                      LINE設定 max-length cut and 固定テンプレート apply to 個別返信・一斉送信・差分ステップ
+     */
+    @Transactional
+    public Message composeLine(Long userId, Long adminUserId, LineComposeForm form, boolean lineTextRules) {
         CrmUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new MessageException("ユーザーが見つかりません"));
         // Most recently messaged first — the default sender when no character is chosen.
@@ -673,7 +688,12 @@ public class MessageService {
 
         boolean needsAnyUrl = renderedBody != null
                 && (renderedBody.contains(REPLY_URL_PLACEHOLDER) || renderedBody.contains(EXTERNAL_URL_PLACEHOLDER));
-        if (needsAnyUrl) {
+        if (lineTextRules && lineTextService != null) {
+            // LINE設定: 最大文字数を超えた分は返信URL先へ・固定テンプレート・短縮URL (LineTextService)
+            msg.setStatus(Message.STATUS_DRAFT);
+            msg = messageRepository.save(msg);
+            lineTextService.apply(msg, user, renderedBody);
+        } else if (needsAnyUrl) {
             msg.setStatus(Message.STATUS_DRAFT);
             msg = messageRepository.save(msg);
             // Short token (matches composeSms()'s createShortReplyPageFor()) — LINE bans/flags

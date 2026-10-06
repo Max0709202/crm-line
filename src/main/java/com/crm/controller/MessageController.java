@@ -52,6 +52,8 @@ public class MessageController {
     private final com.crm.repository.CharaFolderRepository charaFolderRepository;
     private final com.crm.service.UserProfileService userProfileService;
     private final com.crm.service.UserPointService userPointService;
+    private final com.crm.service.LineBlockService lineBlockService;
+    private final com.crm.service.LineAccountPhotoService lineAccountPhotoService;
 
     public MessageController(MessageService messageService,
                              CrmUserService userService,
@@ -75,7 +77,9 @@ public class MessageController {
                              com.crm.repository.CharaRepository charaRepository,
                              com.crm.repository.CharaFolderRepository charaFolderRepository,
                              com.crm.service.UserProfileService userProfileService,
-                             com.crm.service.UserPointService userPointService) {
+                             com.crm.service.UserPointService userPointService,
+                             com.crm.service.LineBlockService lineBlockService,
+                             com.crm.service.LineAccountPhotoService lineAccountPhotoService) {
         this.messageService = messageService;
         this.userService = userService;
         this.placeholderService = placeholderService;
@@ -99,6 +103,8 @@ public class MessageController {
         this.charaFolderRepository = charaFolderRepository;
         this.userProfileService = userProfileService;
         this.userPointService = userPointService;
+        this.lineBlockService = lineBlockService;
+        this.lineAccountPhotoService = lineAccountPhotoService;
     }
 
     /** Global recent-messages list with tab filtering. */
@@ -368,6 +374,15 @@ public class MessageController {
                 : (lineParam != null && linkedCharNames.containsKey(lineParam) ? linkedCharNames.get(lineParam) : linkedCharNames.values().iterator().next());
         model.addAttribute("charName", cardChara != null ? cardChara.getName() : lineCharName);
         model.addAttribute("userProfile", userProfileService.get(userId));
+        // LINE ブロック (黒い横線) and the LINE キャラ shown on the card: 写真・緑の「LINE」・公式アカウントID
+        model.addAttribute("blockedLineAccountIds", lineBlockService.blockedAccountIds(userId));
+        com.crm.entity.LineAccount cardLineAccount = null;
+        if (cardChara == null && !linkedCharNames.isEmpty()) {
+            Long lineId = lineParam != null && linkedCharNames.containsKey(lineParam) ? lineParam : linkedCharNames.keySet().iterator().next();
+            cardLineAccount = lineAccountRepository.findById(lineId).orElse(null);
+        }
+        model.addAttribute("cardLineAccount", cardLineAccount);
+        model.addAttribute("cardLinePhoto", cardLineAccount == null ? null : lineAccountPhotoService.photoUrl(cardLineAccount.getId()));
         model.addAttribute("userPoints", userPointService.get(userId));
         model.addAttribute("memberMemo", threadPanelService.getMemo(userId, com.crm.entity.ThreadMemo.TARGET_MEMBER, 0L));
         model.addAttribute("staffMemo", threadPanelService.getMemo(userId, com.crm.entity.ThreadMemo.TARGET_STAFF, 0L));

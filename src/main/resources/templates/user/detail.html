@@ -446,9 +446,15 @@
                             <button type="submit" class="px-1 text-violet-400 hover:text-red-600" title="紐づきを削除">×</button>
                         </form>
                     </span>
-                    <span th:each="n : ${linkedCharNames}"
-                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                          style="background:#d9f7e6;color:#046c3a;" th:text="${n} + '（LINE）'">キャラ名</span>
+                    <!-- LINEでブロックされたキャラは黒い横線＋「ブロック」 -->
+                    <span th:each="n, it : ${linkedCharNames}"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                          th:style="${linkedCharBlocked[it.index]} ? 'background:#f1f5f9;color:#475569;' : 'background:#d9f7e6;color:#046c3a;'"
+                          th:title="${linkedCharBlocked[it.index]} ? 'このキャラはLINEでブロックされています' : null">
+                        <span th:style="${linkedCharBlocked[it.index]} ? 'text-decoration:line-through;text-decoration-color:#000;text-decoration-thickness:2px;' : null"
+                              th:text="${n} + '（LINE）'">キャラ名</span>
+                        <span th:if="${linkedCharBlocked[it.index]}" class="px-1 rounded text-white" style="background:#111827;font-size:10px;">ブロック</span>
+                    </span>
                 </div>
             </div>
 

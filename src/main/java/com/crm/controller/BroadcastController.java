@@ -41,6 +41,7 @@ public class BroadcastController {
     private final com.crm.service.LineAccountService lineAccountService;
     private final com.crm.repository.LineUserRepository lineUserRepository;
     private final com.crm.service.CharaService charaService;
+    private final com.crm.service.LineBlockService lineBlockService;
 
     public BroadcastController(BroadcastService broadcastService,
                                MessageTemplateService templateService,
@@ -54,7 +55,8 @@ public class BroadcastController {
                                com.crm.service.ReplyPageSettingService replyPageSettingService,
                                com.crm.service.LineAccountService lineAccountService,
                                com.crm.repository.LineUserRepository lineUserRepository,
-                               com.crm.service.CharaService charaService) {
+                               com.crm.service.CharaService charaService,
+                               com.crm.service.LineBlockService lineBlockService) {
         this.broadcastService = broadcastService;
         this.templateService = templateService;
         this.userService = userService;
@@ -68,6 +70,7 @@ public class BroadcastController {
         this.lineAccountService = lineAccountService;
         this.lineUserRepository = lineUserRepository;
         this.charaService = charaService;
+        this.lineBlockService = lineBlockService;
     }
 
     /** Email-domain choices for the broadcast filter (replaces old carrierCode dropdown). */
@@ -293,6 +296,14 @@ public class BroadcastController {
         // Pre-resolve selected users for the UI badge
         if (userIds != null && !userIds.isEmpty()) {
             model.addAttribute("selectedUsers", userService.findAllByIds(userIds));
+            // LINE ブロック: how many selected users blocked each キャラ (LINE account) → shown under the sender
+            java.util.Map<Long, Integer> blockedByAccount = new java.util.HashMap<>();
+            java.util.Map<Long, java.util.Set<Long>> blocked = lineBlockService.blockedAccountsByUser(userIds);
+            for (java.util.Set<Long> accounts : blocked.values()) {
+                for (Long a : accounts) blockedByAccount.merge(a, 1, Integer::sum);
+            }
+            model.addAttribute("lineBlockedByAccount", blockedByAccount);
+            model.addAttribute("lineBlockedUsers", blocked.size());
         }
         model.addAttribute("templates", templateService.listAll());
         model.addAttribute("templatePageTitles", templateService.listPageTitles());
