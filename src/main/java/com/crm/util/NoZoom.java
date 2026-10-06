@@ -39,10 +39,11 @@ public final class NoZoom {
         if (vp.find()) {
             String tag = vp.group();
             Matcher c = CONTENT.matcher(tag);
-            String fixed = c.find()
-                    ? tag.substring(0, c.start()) + c.group(1) + c.group(2)
-                      + SCALE_KEYS.matcher(c.group(3)).replaceAll("").trim() + LOCK + c.group(2) + tag.substring(c.end())
-                    : "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1" + LOCK + "\">";
+            String rest = c.find() ? SCALE_KEYS.matcher(c.group(3)).replaceAll("").trim().replaceAll("^,\\s*", "") : "";
+            if (rest.isEmpty()) rest = "width=device-width, initial-scale=1";
+            String fixed = c.find(0)
+                    ? tag.substring(0, c.start()) + c.group(1) + c.group(2) + rest + LOCK + c.group(2) + tag.substring(c.end())
+                    : "<meta name=\"viewport\" content=\"" + rest + LOCK + "\">";
             html = html.substring(0, vp.start()) + fixed + html.substring(vp.end());
         } else {
             Matcher h = HEAD.matcher(html);

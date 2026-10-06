@@ -535,7 +535,7 @@ public class MessageController {
                            Model model) {
         if (br.hasErrors()) {
             ra.addFlashAttribute("flashError", "本文を入力してください");
-            return "redirect:/manager/users/" + userId + redirectSuffixFor(returnTo, charaView, charaId);
+            return "redirect:/manager/users/" + userId + lineRedirectSuffix(returnTo, charaView, charaId, form.getLineAccountId());
         }
         // LINE画像挿入 (the compose form's 画像添付 chips are for メール / SMS)
         form.setImageIds(lineImageIds);
@@ -549,11 +549,14 @@ public class MessageController {
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }
-        // Back on the same LINE キャラ (?line=) the reply was sent as — without it the thread
-        // reopens on the user's first LINE キャラ, which looks like jumping back a page.
+        return "redirect:/manager/users/" + userId + lineRedirectSuffix(returnTo, charaView, charaId, form.getLineAccountId());
+    }
+
+    /** LINE返信: back on the same LINE キャラ (?line=) the reply was sent as — without it the thread
+     *  reopens on the user's first LINE キャラ, which looks like jumping back a page. */
+    private static String lineRedirectSuffix(String returnTo, String charaView, Long charaId, Long lineAccountId) {
         String suffix = redirectSuffixFor(returnTo, charaView, charaId);
-        if ("/thread".equals(suffix) && form.getLineAccountId() != null) suffix += "?line=" + form.getLineAccountId();
-        return "redirect:/manager/users/" + userId + suffix;
+        return "/thread".equals(suffix) && lineAccountId != null ? suffix + "?line=" + lineAccountId : suffix;
     }
 
     /** メッセージボックス per-item reply forms post with returnTo=message-box so the admin
