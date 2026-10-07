@@ -926,9 +926,11 @@ public class SettingController {
      *  erroring, since there's no real CrmUser backing a draft. */
     @GetMapping("/memo-html-bulk/preview")
     public String memoHtmlPreviewDraft(@RequestParam(name = "slot", defaultValue = "1") int slot,
+                                        @RequestParam(name = "siteDefault", defaultValue = "false") boolean siteDefault,
                                         Model model) {
         int effSlot = (slot >= 1 && slot <= com.crm.service.ReplyHtmlSlotService.SLOT_COUNT) ? slot : 1;
-        String rawMemo = replyHtmlSlotService.getDraftSlot(effSlot);
+        // 「使用中 (site default)」: the site-wide 返信画面HTML itself (shown when a user has no 専用HTML)
+        String rawMemo = siteDefault ? null : replyHtmlSlotService.getDraftSlot(effSlot);
         boolean usingDefault = rawMemo == null || rawMemo.trim().isEmpty();
         if (usingDefault) {
             rawMemo = replyPageSettingService.getOrCreate().getDefaultHeaderHtml();
@@ -941,6 +943,7 @@ public class SettingController {
         model.addAttribute("memoText", repaired);
         model.addAttribute("repaired", substituted != null && !substituted.equals(repaired));
         model.addAttribute("usingDefaultHtml", usingDefault);
+        model.addAttribute("siteDefaultPreview", siteDefault);
         model.addAttribute("previewSlot", effSlot);
         model.addAttribute("activeSlot", 1);
         model.addAttribute("bindings", placeholderService.buildBindings(draftUser));

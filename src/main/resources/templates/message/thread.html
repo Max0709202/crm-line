@@ -631,10 +631,9 @@
                             <li class="is-folder" th:style="${folderColors.get(user.folder) != null} ? 'background:' + ${folderColors.get(user.folder)}" th:text="${user.folder}">フォルダ</li>
                         </ul>
                         <div class="dtl-links">
-                            <!-- 専用HTML①使用中 (title → that HTML's preview) / 表示画面を確認 = what the user sees now
+                            <!-- 専用HTML①使用中 (label only, not a link) / 表示画面を確認 = what the user sees now
                                  (会員ページ or 返信画面, read-only) / 受信ボックス確認 = the same, at the user's 受信BOX with 選択削除 -->
-                            <span th:if="${activeMemoLabel != null}"><a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank" rel="noopener"
-                                  th:title="${activeMemoLabel}"><b th:text="'専用HTML' + ${activeMemoCircled} + '使用中'">専用HTML①使用中</b></a></span>
+                            <span th:if="${activeMemoLabel != null}" th:title="${activeMemoLabel}"><b th:text="'専用HTML' + ${activeMemoCircled} + '使用中'">専用HTML①使用中</b></span>
                             <span th:unless="${activeMemoLabel != null}">専用HTML：未使用</span>
                             <a th:href="@{'/manager/users/' + ${user.id} + '/user-view'}" target="_blank" rel="noopener">表示画面を確認 ↗</a>
                             <a th:href="@{'/manager/users/' + ${user.id} + '/user-view'(box=true)}" target="_blank" rel="noopener">受信ボックス確認</a>
@@ -940,15 +939,6 @@
                     <code class="tag-name" data-token="%external_url%">%external_url%</code>
                     <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
                 </div>
-                <div class="tag-row">
-                    <input type="text" class="tag-val" id="urlLeadTextInput" th:value="${urlLeadText}"
-                           placeholder="例: 返信はこちら／本文はこちら（空欄可）" maxlength="500"/>
-                    <span class="tag-desc">URL前文言（下の保存ボタンでまとめて保存されます）</span>
-                </div>
-                <p class="text-xs text-slate-500" style="margin:0 0 8px;">
-                    上記の入力欄に文言を保存すると、以後 %reply_url% / %external_url% を含めて送信する全てのメッセージで、
-                    URLの直上に改行して自動的に挿入されます（空欄の場合は改行のみ）。
-                </p>
                 <div class="tag-row" style="justify-content:flex-end;">
                     <button type="button" class="btn-tag-save" id="btnTagSave"
                             th:attr="data-user-id=${user.id}">保存</button>
@@ -1775,7 +1765,6 @@ function deleteDiffReservation(btn) {
     var btn = document.getElementById('btnTagSave');
     if (!btn) return;
     var uid = btn.getAttribute('data-user-id');
-    var urlLeadTextInput = document.getElementById('urlLeadTextInput');
     btn.addEventListener('click', async function () {
         var body = {};
         document.querySelectorAll('.tag-val[data-tag]').forEach(function (i) {
@@ -1789,13 +1778,6 @@ function deleteDiffReservation(btn) {
                     body: JSON.stringify(body)
                 })
             ];
-            if (urlLeadTextInput) {
-                requests.push(fetch('/manager/api/settings/url-lead-text', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ urlLeadText: urlLeadTextInput.value })
-                }));
-            }
             var results = await Promise.all(requests);
             results.forEach(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
             btn.textContent = '保存しました';

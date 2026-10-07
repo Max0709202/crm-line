@@ -56,6 +56,21 @@ public class BroadcastService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
+    /** サポート窓口 — sender of a send with no 送信キャラ (キャラ指定なし). Optional (tests). */
+    private SupportDeskService supportDeskService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setSupportDeskService(SupportDeskService supportDeskService) { this.supportDeskService = supportDeskService; }
+
+    /** The name a mail goes out as (%staff_name%): the 送信キャラ, or with キャラ指定なし the サポート窓口
+     *  (its 送信者名, else "サポート窓口"). */
+    private String senderName(Long charaId) {
+        String chara = charaLinkService == null ? null : charaLinkService.charaName(charaId);
+        if (chara != null) return chara;
+        String support = supportDeskService == null ? "" : supportDeskService.senderName();
+        return support.isEmpty() ? "サポート窓口" : support;
+    }
+
     /** 画像添付 / LINE画像挿入 — optional (tests). */
     private MessageImageService messageImageService;
 
@@ -236,7 +251,7 @@ public class BroadcastService {
 
         long intervalMs = 60_000L / b.getRatePerMinute();
         boolean mailTemplated = mailMessageTemplateService != null && mailMessageTemplateService.isActive();
-        String charaName = mailTemplated && charaLinkService != null ? charaLinkService.charaName(form.getCharaId()) : null;
+        String charaName = mailTemplated ? senderName(form.getCharaId()) : null;
         for (int i = 0; i < deliverable.size(); i++) {
             CrmUser user = deliverable.get(i);
             CarrierAddressPool pool = userToPool.get(user.getId());
@@ -274,7 +289,6 @@ public class BroadcastService {
                 // Same full-body-vs-clipped-transmit split as MessageService.compose() —
                 // see MessageService.applyUrlPlaceholders() / clipForTransmission().
                 MessageService.applyUrlPlaceholders(persisted, body, url, domainSettingService,
-                        replyPageSettingService.getOrCreate().getUrlLeadText(),
                         domainSettingService.getEmailReplyUrlClipLength());
                 // Historical/audit record only — メッセージボックス visibility is decided at
                 // VIEW time now (see MessageBoxService#listFor), not from this send-time flag.
@@ -378,7 +392,6 @@ public class BroadcastService {
                 // Short (10-char) token — SMS is billed per ~65-char segment.
                 String url = replyPageService.createShortReplyPageFor(persisted);
                 MessageService.applyUrlPlaceholders(persisted, body, url, domainSettingService,
-                        replyPageSettingService.getOrCreate().getUrlLeadText(),
                         smsSettingService.getReplyUrlClipLength());
                 // Historical/audit record only — メッセージボックス visibility is decided at
                 // VIEW time now (see MessageBoxService#listFor), not from this send-time flag.
@@ -488,7 +501,6 @@ public class BroadcastService {
             } else if (needsAnyUrl) {
                 String url = replyPageService.createReplyPageFor(persisted);
                 MessageService.applyUrlPlaceholders(persisted, body, url, domainSettingService,
-                        replyPageSettingService.getOrCreate().getUrlLeadText(),
                         MessageService.LINE_REPLY_URL_CLIP_LENGTH);
                 persisted.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
                 messageRepository.save(persisted);

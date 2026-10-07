@@ -118,9 +118,9 @@ class BroadcastServiceUrlPlaceholderTest {
         // update) — capture the LAST save to see the final body.
         org.mockito.Mockito.verify(messageRepo, org.mockito.Mockito.atLeastOnce()).save(cap.capture());
         Message last = cap.getAllValues().get(cap.getAllValues().size() - 1);
-        // A line break always precedes the URL now (see MessageService.decorateUrl()).
+        // 本文の通りに送信: each URL replaces its tag exactly where it was typed.
         assertThat(last.getBodyText())
-                .isEqualTo("通常:\nhttps://nbbv7g.jp/reply/tokBC 外部:\nhttps://lvit4gp.jp/reply/tokBC");
+                .isEqualTo("通常:https://nbbv7g.jp/reply/tokBC 外部:https://lvit4gp.jp/reply/tokBC");
     }
 
     @Test
@@ -138,7 +138,7 @@ class BroadcastServiceUrlPlaceholderTest {
         ArgumentCaptor<Message> cap = ArgumentCaptor.forClass(Message.class);
         org.mockito.Mockito.verify(messageRepo, org.mockito.Mockito.atLeastOnce()).save(cap.capture());
         Message last = cap.getAllValues().get(cap.getAllValues().size() - 1);
-        assertThat(last.getBodyText()).isEqualTo("リンク: \nhttps://lvit4gp.jp/reply/tokDE");
+        assertThat(last.getBodyText()).isEqualTo("リンク: https://lvit4gp.jp/reply/tokDE");
         assertThat(last.getSentBodyText()).isNull();
     }
 
@@ -162,8 +162,7 @@ class BroadcastServiceUrlPlaceholderTest {
         ArgumentCaptor<Message> cap = ArgumentCaptor.forClass(Message.class);
         org.mockito.Mockito.verify(messageRepo, org.mockito.Mockito.atLeastOnce()).save(cap.capture());
         Message last = cap.getAllValues().get(cap.getAllValues().size() - 1);
-        // The body already ends in "\n" before the tag, so decorateUrl() skips its own leading
-        // "\n" (urlLeadText blank) rather than stacking a blank line before the URL.
+        // Sent as written: the operator's own line break before the tag is kept, nothing added.
         assertThat(last.getSentBodyText()).doesNotContain("%reply_ur");
         assertThat(last.getSentBodyText()).isEqualTo("本日まで\nhttps://nbbv7g.jp/reply/shortTok");
     }

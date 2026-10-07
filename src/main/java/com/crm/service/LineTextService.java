@@ -95,25 +95,24 @@ public class LineTextService {
             externalUrl = domainSettingService.buildExternalUrl(msg.getReplyPageToken());
             msg.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
         }
-        String lead = needPage ? replyPageSettingService.getOrCreate().getUrlLeadText() : null;
-
-        String fullBody = resolve(body, replyUrl, externalUrl, lead);
+        String fullBody = resolve(body, replyUrl, externalUrl);
         msg.setBodyText(fullBody);
 
         StringBuilder sent = new StringBuilder();
         if (clip) {
             boolean[] replyIncluded = {false};
-            sent.append(clipVisible(body, max, replyUrl, externalUrl, lead, replyIncluded));
+            sent.append(clipVisible(body, max, replyUrl, externalUrl, replyIncluded));
             // the rest of the text is on the 返信URL page — make sure the URL is in the message
             if (!replyIncluded[0] && !templateHasReply) {
-                sent.append(decorate(replyUrl, lead, sent.length() > 0 && sent.charAt(sent.length() - 1) == '\n'));
+                if (sent.length() > 0 && sent.charAt(sent.length() - 1) != '\n') sent.append('\n');
+                sent.append(replyUrl);
             }
         } else {
             sent.append(fullBody);
         }
         if (hasTemplate) {
             if (sent.length() > 0 && sent.charAt(sent.length() - 1) != '\n') sent.append('\n');
-            sent.append(resolve(template, replyUrl, externalUrl, lead));
+            sent.append(resolve(template, replyUrl, externalUrl));
         }
         String s = sent.length() > LINE_MAX ? sent.substring(0, LINE_MAX) : sent.toString();
         msg.setSentBodyText(s.equals(fullBody) ? null : s);
@@ -126,19 +125,18 @@ public class LineTextService {
     }
 
     /** The first {@code max} visible characters; tags met on the way are kept (as their URLs). */
-    static String clipVisible(String body, int max, String replyUrl, String externalUrl, String lead, boolean[] replyIncluded) {
+    static String clipVisible(String body, int max, String replyUrl, String externalUrl, boolean[] replyIncluded) {
         StringBuilder out = new StringBuilder();
         int count = 0, i = 0;
         while (i < body.length() && count < max) {
             if (body.startsWith(REPLY, i)) {
-                out.append(decorate(replyUrl, lead, i > 0 && body.charAt(i - 1) == '\n'));
+                out.append(replyUrl);
                 replyIncluded[0] = true;
                 i += REPLY.length();
                 continue;
             }
             if (body.startsWith(EXTERNAL, i)) {
-                String d = decorate(externalUrl, lead, i > 0 && body.charAt(i - 1) == '\n');
-                out.append(d == null ? "" : d);
+                out.append(externalUrl == null ? "" : externalUrl);
                 i += EXTERNAL.length();
                 continue;
             }
@@ -150,27 +148,12 @@ public class LineTextService {
         return out.toString();
     }
 
-    private static String resolve(String text, String replyUrl, String externalUrl, String lead) {
+    /** 本文の通りに送信: each tag becomes the bare URL right where it was typed (no line break / URL前文言 added). */
+    private static String resolve(String text, String replyUrl, String externalUrl) {
         String out = text;
-        if (out.contains(REPLY)) out = out.replace(REPLY, decorate(replyUrl, lead, precededByNewline(out, REPLY)));
-        if (out.contains(EXTERNAL)) {
-            String d = decorate(externalUrl, lead, precededByNewline(out, EXTERNAL));
-            out = out.replace(EXTERNAL, d == null ? "" : d);
-        }
+        if (out.contains(REPLY)) out = out.replace(REPLY, replyUrl == null ? "" : replyUrl);
+        if (out.contains(EXTERNAL)) out = out.replace(EXTERNAL, externalUrl == null ? "" : externalUrl);
         return out;
-    }
-
-    /** Same decoration as MessageService: URL前文言 on its own line above the URL. */
-    private static String decorate(String url, String urlLeadText, boolean precededByNewline) {
-        if (url == null) return null;
-        String lead = urlLeadText == null ? "" : urlLeadText.trim();
-        if (lead.isEmpty()) return precededByNewline ? url : "\n" + url;
-        return "\n" + lead + "\n" + url;
-    }
-
-    private static boolean precededByNewline(String body, String tag) {
-        int idx = body.indexOf(tag);
-        return idx > 0 && body.charAt(idx - 1) == '\n';
     }
 
     private String get(String key) {

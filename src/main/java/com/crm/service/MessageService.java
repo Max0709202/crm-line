@@ -574,7 +574,6 @@ public class MessageService {
             msg.setStatus(Message.STATUS_DRAFT);
             msg = messageRepository.save(msg);
             applyUrlPlaceholders(msg, renderedBody, replyPageService.createReplyPageFor(msg), domainSettingService,
-                    replyPageSettingService.getOrCreate().getUrlLeadText(),
                     domainSettingService.getEmailReplyUrlClipLength());
             // Historical/audit record only — records what the domain's landing mode was AT
             // SEND TIME. メッセージボックス no longer reads this column to decide visibility.
@@ -636,7 +635,6 @@ public class MessageService {
             msg.setStatus(Message.STATUS_DRAFT);
             msg = messageRepository.save(msg);
             applyUrlPlaceholders(msg, renderedBody, replyPageService.createShortReplyPageFor(msg), domainSettingService,
-                    replyPageSettingService.getOrCreate().getUrlLeadText(),
                     smsSettingService.getReplyUrlClipLength());
             // Historical/audit record only — see the matching comment in compose() above.
             msg.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
@@ -724,7 +722,6 @@ public class MessageService {
             // lengths serve the exact same /reply/{token} page on this CRM's own domain; there
             // is no separate relay/short-link server involved for any channel.
             applyUrlPlaceholders(msg, renderedBody, replyPageService.createShortReplyPageFor(msg), domainSettingService,
-                    replyPageSettingService.getOrCreate().getUrlLeadText(),
                     LINE_REPLY_URL_CLIP_LENGTH);
             msg.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
         }
@@ -927,23 +924,17 @@ public class MessageService {
      * @param replyUrl     the already-expanded %reply_url% URL (from ReplyPageService) — reused
      *                     here rather than rebuilt, since token generation is a one-shot side
      *                     effect that already happened when the caller obtained it
-     * @param urlLeadText  operator-configured one-line text (ReplyPageSetting.urlLeadText,
-     *                     e.g. "返信はこちら") inserted on its own line directly above BOTH
-     *                     %reply_url% and %external_url% — null/blank means no extra line,
-     *                     just the line break before the URL
      * @param clipLength   channel-specific clip length (caller resolves EMAIL vs SMS — see
      *                     DomainSettingService#getEmailReplyUrlClipLength /
      *                     SmsSettingService#getReplyUrlClipLength)
      */
     static void applyUrlPlaceholders(Message msg, String renderedBody, String replyUrl,
-                                      DomainSettingService domainSettingService, String urlLeadText,
-                                      int clipLength) {
-        String decoratedReplyUrl = decorateUrl(replyUrl, urlLeadText,
-                isPrecededByNewline(renderedBody, REPLY_URL_PLACEHOLDER));
+                                      DomainSettingService domainSettingService, int clipLength) {
+        // 本文の通りに送信 (2026-10-07 client request): each tag becomes the bare URL right where
+        // it was typed — no automatic line break or URL前文言 is added any more, for any channel.
+        String decoratedReplyUrl = replyUrl;
         String externalUrl = domainSettingService.buildExternalUrl(msg.getReplyPageToken());
-        String decoratedExternalUrl = decorateUrl(externalUrl, urlLeadText,
-                isPrecededByNewline(renderedBody, EXTERNAL_URL_PLACEHOLDER));
-        String decoratedExternalUrlOrEmpty = decoratedExternalUrl == null ? "" : decoratedExternalUrl;
+        String decoratedExternalUrlOrEmpty = externalUrl == null ? "" : externalUrl;
 
         String fullBody = renderedBody
                 .replace(REPLY_URL_PLACEHOLDER, decoratedReplyUrl)
@@ -954,44 +945,13 @@ public class MessageService {
         if (hasReplyUrlTag) {
             // clipForTransmission locates %reply_url% itself; %external_url% (if also present)
             // is substituted first so no raw tag text leaks into the transmitted message even
-            // when it falls before the clip boundary. The line-break + lead-text is baked into
-            // decoratedReplyUrl itself, so it always survives the clip untouched — only the
-            // BODY text before the tag is subject to the 15-char limit.
+            // when it falls before the clip boundary. Only the BODY text before the tag is
+            // subject to the 15-char limit.
             String bodyWithExternalResolved = renderedBody.replace(EXTERNAL_URL_PLACEHOLDER, decoratedExternalUrlOrEmpty);
             msg.setSentBodyText(clipForTransmission(bodyWithExternalResolved, decoratedReplyUrl, clipLength));
         } else {
             msg.setSentBodyText(null);
         }
-    }
-
-    /**
-     * Prepends the operator-configured {@code urlLeadText} (only when non-blank, on its own
-     * line, always preceded by its own line break regardless of {@code precededByNewline} —
-     * that combination is unchanged from before) directly in front of {@code url} — e.g.
-     * "\n返信はこちら\nhttps://nbbv7g.jp/reply/abc" when urlLeadText="返信はこちら".
-     *
-     * <p>When urlLeadText is blank, a line break is added only if the body doesn't already end
-     * with one right before the tag ({@code precededByNewline}) — otherwise an operator who
-     * types their own line break before %reply_url% (common — see the reply/broadcast compose
-     * screens) ends up with a blank line from the two newlines stacking. Returns null unchanged
-     * (callers use null to mean "no active domain" for %external_url%).
-     */
-    private static String decorateUrl(String url, String urlLeadText, boolean precededByNewline) {
-        if (url == null) return null;
-        String trimmedLead = urlLeadText == null ? "" : urlLeadText.trim();
-        if (trimmedLead.isEmpty()) {
-            return precededByNewline ? url : "\n" + url;
-        }
-        return "\n" + trimmedLead + "\n" + url;
-    }
-
-    /** True when {@code body} already ends with a newline immediately before its first
-     *  occurrence of {@code tag} — see decorateUrl(). Mirrors clipForTransmission()'s use of
-     *  indexOf() to locate the tag; only the first occurrence is considered, consistent with
-     *  the rest of this class. */
-    private static boolean isPrecededByNewline(String body, String tag) {
-        int idx = body == null ? -1 : body.indexOf(tag);
-        return idx > 0 && body.charAt(idx - 1) == '\n';
     }
 
     /**
@@ -1009,9 +969,6 @@ public class MessageService {
      */
     public static String clipForTransmission(String renderedBodyBeforeUrlSwap, String expandedUrl, int clipLength) {
         String body = renderedBodyBeforeUrlSwap == null ? "" : renderedBodyBeforeUrlSwap;
-        // expandedUrl may already carry a leading "\n" (+ operator lead text, see decorateUrl())
-        // baked in by the caller — that decoration is simply concatenated after the clipped
-        // prefix below, so it always survives the clip limit untouched.
         String url = expandedUrl == null ? "" : expandedUrl;
         int tagIndex = body.indexOf(REPLY_URL_PLACEHOLDER);
         if (tagIndex < 0) {
@@ -1020,9 +977,11 @@ public class MessageService {
             return body.length() > clipLength ? body.substring(0, clipLength) : body;
         }
         String beforeTag = body.substring(0, tagIndex);
-        String prefix = beforeTag.length() > clipLength
-                ? beforeTag.substring(0, clipLength) : beforeTag;
-        return prefix + url;
+        if (beforeTag.length() <= clipLength) return beforeTag + url;   // as written
+        // The text was cut short — put the URL on its own line so it doesn't run into the
+        // clipped text (the line break the operator typed before the tag may have been cut off).
+        String prefix = beforeTag.substring(0, clipLength);
+        return prefix.endsWith("\n") ? prefix + url : prefix + "\n" + url;
     }
 
     /** Max transient-retry attempts before giving up and marking FAILED. */

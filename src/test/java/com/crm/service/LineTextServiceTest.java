@@ -94,7 +94,7 @@ class LineTextServiceTest {
     void replyUrlInsideTheFirst20_isKeptOnce() {
         // 21 visible characters: the URL (inside the first 20) stays, the 21st goes to the 返信URL page
         Message m = apply("詳細は%reply_url%をご覧くださいませませませませませま");
-        assertThat(m.getSentBodyText()).isEqualTo("詳細は\n" + URL + "をご覧くださいませませませませませ");
+        assertThat(m.getSentBodyText()).isEqualTo("詳細は" + URL + "をご覧くださいませませませませませ");
     }
 
     @Test

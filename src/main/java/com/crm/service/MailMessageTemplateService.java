@@ -65,30 +65,30 @@ public class MailMessageTemplateService {
         boolean tplReply = tplAll.contains(REPLY), tplExternal = tplAll.contains(EXTERNAL);
         boolean bodyReply = body.contains(REPLY), bodyExternal = body.contains(EXTERNAL);
 
-        String replyUrl = null, externalUrl = null, lead = null;
+        String replyUrl = null, externalUrl = null;
         if (tplReply || tplExternal || bodyReply || bodyExternal) {
             replyUrl = replyPageService.createReplyPageFor(msg);
             externalUrl = domainSettingService.buildExternalUrl(msg.getReplyPageToken());
-            lead = replyPageSettingService.getOrCreate().getUrlLeadText();
             msg.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
         }
 
         // 返信画面 / 履歴: the whole message with its URLs
-        msg.setBodyText(resolve(body, replyUrl, externalUrl, lead));
+        msg.setBodyText(resolve(body, replyUrl, externalUrl));
 
         // %body%: the text only — clipped to 本文の文字数設定 when a 返信URL goes with it (the rest is
         // read on the 返信画面), as a mail without the template is
         String text = stripTrailing(body.replace(REPLY, "").replace(EXTERNAL, ""));
         if (replyUrl != null) text = clip(text, domainSettingService.getEmailReplyUrlClipLength());
-        if (bodyReply && !tplReply) text += decorate(replyUrl, lead, text.endsWith("\n"));
-        if (bodyExternal && !tplExternal && externalUrl != null) text += decorate(externalUrl, lead, text.endsWith("\n"));
+        // (the tags were taken out of the text above, so their URLs follow it on a line of their own)
+        if (bodyReply && !tplReply) text += onNewLine(text, replyUrl);
+        if (bodyExternal && !tplExternal && externalUrl != null) text += onNewLine(text, externalUrl);
 
         Map<String, String> extra = new LinkedHashMap<>();
         extra.put("%body%", text);
         extra.put("%message_title%", renderedSubject == null ? "" : renderedSubject);
         extra.put("%staff_name%", charaName == null ? "" : charaName);
-        if (replyUrl != null) extra.put(REPLY, decorate(replyUrl, lead, precededByNewline(tpl[1], REPLY)));
-        extra.put(EXTERNAL, externalUrl == null ? "" : decorate(externalUrl, lead, precededByNewline(tpl[1], EXTERNAL)));
+        if (replyUrl != null) extra.put(REPLY, replyUrl);
+        extra.put(EXTERNAL, externalUrl == null ? "" : externalUrl);
         String[] filled = mailTemplateService.renderMessageTemplate(user, extra);
         msg.setSentBodyText(filled[1]);
 
@@ -118,23 +118,16 @@ public class MailMessageTemplateService {
         return s.substring(0, end);
     }
 
-    private static String resolve(String text, String replyUrl, String externalUrl, String lead) {
+    /** 本文の通りに送信: each tag becomes the bare URL right where it was typed (no line break / URL前文言 added). */
+    private static String resolve(String text, String replyUrl, String externalUrl) {
         String out = text;
-        if (replyUrl != null && out.contains(REPLY)) out = out.replace(REPLY, decorate(replyUrl, lead, precededByNewline(out, REPLY)));
-        if (out.contains(EXTERNAL)) out = out.replace(EXTERNAL, externalUrl == null ? "" : decorate(externalUrl, lead, precededByNewline(out, EXTERNAL)));
+        if (replyUrl != null && out.contains(REPLY)) out = out.replace(REPLY, replyUrl);
+        if (out.contains(EXTERNAL)) out = out.replace(EXTERNAL, externalUrl == null ? "" : externalUrl);
         return out;
     }
 
-    /** Same decoration as MessageService: URL前文言 on its own line above the URL. */
-    private static String decorate(String url, String urlLeadText, boolean precededByNewline) {
-        if (url == null) return "";
-        String lead = urlLeadText == null ? "" : urlLeadText.trim();
-        if (lead.isEmpty()) return precededByNewline ? url : "\n" + url;
-        return "\n" + lead + "\n" + url;
-    }
-
-    private static boolean precededByNewline(String body, String tag) {
-        int idx = body.indexOf(tag);
-        return idx > 0 && body.charAt(idx - 1) == '\n';
+    /** {@code url} on a line of its own after {@code text}. */
+    private static String onNewLine(String text, String url) {
+        return text.endsWith("\n") ? url : "\n" + url;
     }
 }

@@ -7,7 +7,10 @@
     <style>
         /* Override the default layout's main padding so this page fits one screen. */
         main.flex-1.p-6 { padding: 0 !important; }
-        .bcast-wrap { display:grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr;
+        /* 受信ボックスと同じ形: 上 = 送受信履歴、左下 = 新規メッセージ（本文 | 置き換えタグ を横幅半分ずつ）、
+         * 右下 = 定型文（受信ボックスの定型文と同じ表示・検索付き）。 */
+        .bcast-wrap { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+                      grid-template-rows:auto minmax(0,.7fr) minmax(0,1.3fr);
                       gap:8px; padding:12px; height:calc(100vh - 0px); box-sizing:border-box; }
         .bcast-top  { display:flex; align-items:center; gap:10px; grid-column: 1 / span 2; }
         .bcast-pane { background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;
@@ -15,40 +18,126 @@
         .bcast-pane > header { padding:8px 12px; background:#f8fafc; border-bottom:1px solid #e2e8f0;
                                font-size:.82rem; font-weight:700; color:#334155; }
         .bcast-pane > .body { flex:1; overflow-y:auto; overflow-x:hidden; padding:10px 12px; min-height:0; }
-        .tpl-item { padding:7px 9px; border-radius:5px; border:1px solid #e2e8f0; background:#f8fafc;
-                    cursor:pointer; margin-bottom:6px; font-size:.78rem;
-                    display:flex; gap:10px; align-items:center;
-                    /* Constrain the row width to the panel — even when subjects are long Japanese
-                       strings with no break points the .tpl-item must NOT widen the parent and
-                       trigger a horizontal scrollbar. min-width:0 unlocks flex shrinking on the
-                       child spans; border-left-width is the slot for the per-template color frame. */
-                    width:100%; box-sizing:border-box; min-width:0; overflow:hidden;
-                    border-left-width:4px; }
-        .tpl-item:hover { background:#eff6ff; border-color:#2563eb; }
-        /* Same color palette as the thread page so a template's accent is visually
-         * identical wherever it appears. Background tint stays soft (-100) and the
-         * left border is the stronger -400. Hover keeps the colored bg so picking
-         * the right template by eye works in a hover-and-scan flow. */
-        .tpl-item.color-slate   { border-left-color:#94a3b8; background:#f1f5f9; }
-        .tpl-item.color-blue    { border-left-color:#60a5fa; background:#dbeafe; }
-        .tpl-item.color-sky     { border-left-color:#38bdf8; background:#e0f2fe; }
-        .tpl-item.color-cyan    { border-left-color:#22d3ee; background:#cffafe; }
-        .tpl-item.color-emerald { border-left-color:#34d399; background:#d1fae5; }
-        .tpl-item.color-lime    { border-left-color:#a3e635; background:#ecfccb; }
-        .tpl-item.color-amber   { border-left-color:#fbbf24; background:#fef3c7; }
-        .tpl-item.color-rose    { border-left-color:#fb7185; background:#ffe4e6; }
-        .tpl-item.color-pink    { border-left-color:#f472b6; background:#fce7f3; }
-        .tpl-item.color-violet  { border-left-color:#a78bfa; background:#ede9fe; }
-        .tpl-item .name {
-            font-weight:700; color:#1e293b;
-            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-            /* In flex-direction:column children, width must be explicit for ellipsis to engage. */
-            width:100%; max-width:100%; min-width:0;
+        .bcast-hist { grid-column:1 / span 2; grid-row:2; }
+        .bcast-cmp  { grid-column:1; grid-row:3; }
+        .bcast-tpl  { grid-column:2; grid-row:3; }
+        @media (max-width: 1100px) {
+            .bcast-wrap { grid-template-columns:minmax(0,1fr); grid-template-rows:auto; height:auto; }
+            .bcast-top, .bcast-hist, .bcast-cmp, .bcast-tpl { grid-column:1; grid-row:auto; }
+            .bcast-hist { max-height:40vh; }
+            .bcast-tpl  { max-height:70vh; }
         }
-        .tpl-item .subj {
-            color:#475569; font-size:.72rem;
+        .cmp-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:start; }
+        @container bcast-cmp (max-width: 560px) { .cmp-layout { grid-template-columns:minmax(0,1fr); } }
+        .bcast-cmp { container-type:inline-size; container-name:bcast-cmp; }
+        .cmp-layout .tag-col { display:flex; flex-direction:column; gap:8px; }
+        .cmp-layout .tag-col .tag-panel { margin-top:0; }
+        .bcast-tpl { display:flex; flex-direction:column; }
+        .bcast-tpl { container-type:inline-size; container-name:tpl-pane; }
+        .bcast-tpl .tpl-btn {
+            display:inline-flex; align-items:center; gap:3px; padding:3px 10px; font-size:12px; font-weight:600;
+            text-decoration:none; white-space:nowrap; border-radius:4px;
+        }
+        .bcast-tpl .tpl-btn-new  { color:#fff; background:#475569; border:1px solid #475569; }
+        .bcast-tpl .tpl-btn-new:hover  { background:#334155; }
+        .bcast-tpl .tpl-btn-list { color:#475569; background:#fff; border:1px solid #cbd5e1; }
+        .bcast-tpl .tpl-btn-list:hover { background:#f1f5f9; }
+        .bcast-tpl > .tpl-bar { flex:none; display:flex; align-items:stretch; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+        .bcast-tpl .tpl-tabs { display:flex; flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:thin; }
+        .bcast-tpl .tpl-bar-actions { flex:none; display:flex; align-items:center; gap:6px; padding:0 8px 0 10px; border-left:1px solid #e2e8f0; }
+        .bcast-tpl .tpl-tab {
+            appearance:none; flex:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:-1px; padding:6px 10px;
+            font:inherit; font-size:12px; color:#64748b; white-space:nowrap; background:none; border:0; border-bottom:2px solid transparent; cursor:pointer;
+        }
+        .bcast-tpl .tpl-tab:hover { color:#334155; background:#f1f5f9; }
+        .bcast-tpl .tpl-tab[aria-selected="true"] { color:#1e293b; font-weight:600; background:#fff; border-bottom-color:#475569; }
+        .bcast-tpl .tpl-tab-count {
+            min-width:16px; padding:0 4px; font-size:10.5px; font-weight:500; line-height:15px; text-align:center;
+            color:#64748b; background:#e2e8f0; border-radius:8px;
+        }
+        .bcast-tpl.is-searching .tpl-tab { opacity:.45; }
+        .bcast-tpl > .tpl-search { flex:none; padding:8px 10px 6px; border-bottom:1px solid #edf1f5; }
+        .bcast-tpl .tpl-search-box { position:relative; }
+        .bcast-tpl .tpl-search-box input {
+            width:100%; box-sizing:border-box; padding:5px 26px 5px 28px; font:inherit; font-size:12px; color:#334155;
+            background:#f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='m10.5 10.5 3 3'/%3E%3C/svg%3E") 8px center / 13px no-repeat;
+            border:1px solid #e2e8f0; border-radius:6px;
+        }
+        .bcast-tpl .tpl-search-box input::-webkit-search-cancel-button { display:none; -webkit-appearance:none; }
+        .bcast-tpl .tpl-search-box input:focus { outline:none; background-color:#fff; border-color:#94a3b8; box-shadow:0 0 0 3px rgba(100,116,139,.15); }
+        .bcast-tpl .tpl-search-clear {
+            position:absolute; top:50%; right:4px; width:20px; height:20px; padding:0; font-size:14px; line-height:1;
+            color:#94a3b8; background:none; border:0; border-radius:50%; cursor:pointer; transform:translateY(-50%);
+        }
+        .bcast-tpl .tpl-search-clear:hover { color:#334155; background:#e2e8f0; }
+        .bcast-tpl .tpl-search-clear[hidden] { display:none; }
+        .bcast-tpl .tpl-hint { margin-top:4px; font-size:10.5px; color:#94a3b8; }
+        .bcast-tpl > .body { flex:1 1 auto; min-height:0; padding:0; overflow:auto; }
+        .bcast-tpl .tpl-list { margin:0; padding:0; list-style:none; }
+        .bcast-tpl .tpl-list[hidden] { display:none; }
+        .bcast-tpl.is-searching .tpl-list::before {
+            content:attr(data-title); position:sticky; top:0; z-index:1; display:block; padding:4px 12px;
+            font-size:10.5px; font-weight:700; color:#94a3b8; background:#f8fafc; border-bottom:1px solid #edf1f5;
+        }
+        .bcast-tpl .tpl-item { position:relative; border-bottom:1px solid #edf1f5; }
+        .bcast-tpl .tpl-item[hidden] { display:none; }
+        .bcast-tpl .tpl-item.color-slate   { box-shadow:inset 4px 0 0 #94a3b8; }
+        .bcast-tpl .tpl-item.color-blue    { box-shadow:inset 4px 0 0 #60a5fa; }
+        .bcast-tpl .tpl-item.color-sky     { box-shadow:inset 4px 0 0 #38bdf8; }
+        .bcast-tpl .tpl-item.color-cyan    { box-shadow:inset 4px 0 0 #22d3ee; }
+        .bcast-tpl .tpl-item.color-emerald { box-shadow:inset 4px 0 0 #34d399; }
+        .bcast-tpl .tpl-item.color-lime    { box-shadow:inset 4px 0 0 #a3e635; }
+        .bcast-tpl .tpl-item.color-amber   { box-shadow:inset 4px 0 0 #fbbf24; }
+        .bcast-tpl .tpl-item.color-rose    { box-shadow:inset 4px 0 0 #fb7185; }
+        .bcast-tpl .tpl-item.color-pink    { box-shadow:inset 4px 0 0 #f472b6; }
+        .bcast-tpl .tpl-item.color-violet  { box-shadow:inset 4px 0 0 #a78bfa; }
+        .bcast-tpl .tpl-insert {
+            appearance:none; display:block; width:100%; padding:8px 12px 9px; font:inherit; color:inherit;
+            text-align:left; background:none; border:0; cursor:pointer;
+        }
+        .bcast-tpl .tpl-item:hover .tpl-insert { background:#f8fafc; }
+        .bcast-tpl .tpl-insert:focus-visible { outline:2px solid #94a3b8; outline-offset:-2px; }
+        .bcast-tpl .tpl-name {
+            display:block; padding-right:74px; font-size:12.5px; font-weight:700; color:#1e293b;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-            width:100%; max-width:100%; min-width:0;
+        }
+        .bcast-tpl .tpl-subject { display:block; margin-top:1px; font-size:11px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .bcast-tpl .tpl-subject::before { content:"件名："; color:#94a3b8; }
+        .bcast-tpl .tpl-body {
+            display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin-top:3px;
+            font-size:11.5px; line-height:1.55; color:#475569; white-space:normal; overflow-wrap:anywhere;
+        }
+        .bcast-tpl .tpl-item.is-open .tpl-body {
+            display:block; -webkit-line-clamp:unset; white-space:pre-wrap; padding:6px 8px; background:#f8fafc; border:1px solid #edf1f5; border-radius:6px;
+        }
+        .bcast-tpl .tpl-tag { padding:0 3px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10.5px; color:#475569; background:#e2e8f0; border-radius:3px; }
+        .bcast-tpl .tpl-actions { position:absolute; top:5px; right:6px; display:flex; gap:2px; opacity:.6; transition:opacity .12s; }
+        .bcast-tpl .tpl-item:hover .tpl-actions, .bcast-tpl .tpl-item:focus-within .tpl-actions, .bcast-tpl .tpl-item.is-open .tpl-actions { opacity:1; }
+        .bcast-tpl .tpl-peek, .bcast-tpl .tpl-edit {
+            appearance:none; padding:2px 6px; font:inherit; font-size:11px; color:#64748b; text-decoration:none;
+            background:none; border:0; border-radius:4px; cursor:pointer;
+        }
+        .bcast-tpl .tpl-peek:hover, .bcast-tpl .tpl-edit:hover { color:#1e293b; background:#e2e8f0; }
+        .bcast-tpl .tpl-done {
+            position:absolute; top:6px; right:8px; padding:1px 8px; font-size:11px; font-weight:600; color:#fff;
+            background:#15803d; border-radius:10px; opacity:0; transform:translateY(3px); transition:opacity .15s, transform .15s; pointer-events:none;
+        }
+        .bcast-tpl .tpl-item.is-inserted .tpl-done { opacity:1; transform:none; }
+        .bcast-tpl .tpl-item.is-inserted .tpl-insert { background:#f0fdf4; }
+        .bcast-tpl .tpl-item.is-inserted .tpl-actions { opacity:0; }
+        .bcast-tpl .tpl-empty { padding:26px 12px; font-size:12px; line-height:1.7; text-align:center; color:#94a3b8; }
+        .bcast-tpl .tpl-empty[hidden] { display:none; }
+        .bcast-tpl .tpl-nohit { padding:26px 12px; font-size:12px; text-align:center; color:#94a3b8; }
+        .bcast-tpl .tpl-nohit[hidden] { display:none; }
+        @container tpl-pane (min-width: 560px) {
+            .bcast-tpl > .tpl-search { display:flex; align-items:center; gap:12px; }
+            .bcast-tpl .tpl-search-box { flex:0 1 340px; }
+            .bcast-tpl .tpl-hint { margin-top:0; }
+            .bcast-tpl .tpl-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1px; background:#edf1f5; border-bottom:1px solid #edf1f5; }
+            .bcast-tpl .tpl-list[hidden] { display:none; }
+            .bcast-tpl .tpl-item { background:#fff; border-bottom:0; }
+            .bcast-tpl .tpl-empty { grid-column:1 / -1; background:#fff; }
+            .bcast-tpl.is-searching .tpl-list::before { grid-column:1 / -1; }
         }
         .hist-row { padding:7px 0; border-bottom:1px dashed #e2e8f0; font-size:.78rem; display:flex; gap:8px; }
         .hist-row:last-child { border-bottom:none; }
@@ -109,11 +198,6 @@
         }
         .tag-panel code.tag-name:hover { background:#dbeafe; color:#1d4ed8; }
         .tag-panel .tag-desc { font-size:.7rem; color:#64748b; flex:1; }
-        .tag-panel .btn-tag-save {
-            font-size:.7rem; padding:3px 12px; border-radius:4px; border:none; background:#16a34a; color:#fff; cursor:pointer; font-weight:700;
-        }
-        .tag-panel .btn-tag-save:hover { background:#15803d; }
-        .tag-panel .btn-tag-save.saved { background:#94a3b8; }
     </style>
 </head>
 <body>
@@ -126,58 +210,8 @@
         <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/messages/broadcast}">一覧に戻る</a>
     </div>
 
-    <!-- Top-left: templates with 5-page tab strip (operator request 2026-05-25 — mirror
-         the thread / inbox panel so broadcast composing sees the same paginated set as
-         the settings page). Tab click toggles .tpl-item visibility by data-page. -->
-    <div class="bcast-pane">
-        <header>定型文（クリックで挿入）</header>
-        <div id="bcastTplTabs" class="flex border-b border-slate-200 bg-slate-50 text-xs overflow-x-auto" style="flex:0 0 auto;">
-            <button type="button" th:each="p, iter : ${templateActivePages}"
-                    class="bcast-tpl-tab px-3 py-1.5 whitespace-nowrap border-r border-slate-200"
-                    th:classappend="${iter.index == 0 ? 'bg-white text-blue-700 font-semibold border-b-2 border-b-blue-500' : 'text-slate-600 hover:bg-white'}"
-                    th:attr="data-page=${p}"
-                    th:text="${templatePageTitles[iter.index]}">タイトル</button>
-        </div>
-        <div class="body">
-            <div th:if="${templates.empty}" class="text-xs text-slate-400">定型文はまだ登録されていません。</div>
-            <div th:each="t : ${templates}" class="tpl-item"
-                 th:attr="data-page=${t.pageNo},data-subject=${t.subject},data-body=${t.body}"
-                 th:classappend="${t.color != null and t.color != ''} ? 'color-' + ${t.color} : ''"
-                 th:style="${t.pageNo != templateActivePages[0] ? 'display:none;' : null}"
-                 onclick="applyTemplateFromElement(this)"
-                 style="flex-direction:column;align-items:flex-start;">
-                <span class="name" th:text="${t.name}" th:title="${t.name}"></span>
-                <span class="subj" th:text="${t.subject} ?: '(タイトル未設定)'" th:title="${t.subject}" style="font-weight:600;color:#1e293b;"></span>
-                <span class="subj" th:text="${t.body}" th:title="${t.body}"></span>
-            </div>
-        </div>
-        <script>
-        (function () {
-            var tabs = document.querySelectorAll('#bcastTplTabs .bcast-tpl-tab');
-            if (!tabs.length) return;
-            function setActive(page) {
-                tabs.forEach(function (t) {
-                    var active = String(t.getAttribute('data-page')) === String(page);
-                    t.classList.toggle('bg-white', active);
-                    t.classList.toggle('text-blue-700', active);
-                    t.classList.toggle('font-semibold', active);
-                    t.classList.toggle('border-b-2', active);
-                    t.classList.toggle('border-b-blue-500', active);
-                    t.classList.toggle('text-slate-600', !active);
-                });
-                document.querySelectorAll('.bcast-pane .tpl-item').forEach(function (it) {
-                    it.style.display = String(it.getAttribute('data-page')) === String(page) ? '' : 'none';
-                });
-            }
-            tabs.forEach(function (t) {
-                t.addEventListener('click', function () { setActive(t.getAttribute('data-page')); });
-            });
-        })();
-        </script>
-    </div>
-
-    <!-- Right (spans both rows): history -->
-    <div class="bcast-pane" style="grid-row: 2 / span 2; grid-column: 2;">
+    <!-- Top (full width): history -->
+    <div class="bcast-pane bcast-hist">
         <header>送受信履歴（最新50件・時間順）</header>
         <div class="body">
             <div th:if="${history == null or history.empty}" class="text-xs text-slate-400">履歴はまだありません</div>
@@ -198,13 +232,15 @@
         </div>
     </div>
 
-    <!-- Bottom-left: compose form -->
-    <div class="bcast-pane">
+    <!-- Bottom-left: compose — 新規メッセージ | 置き換えタグ を横幅半分ずつ (受信ボックスと同じ形) -->
+    <div class="bcast-pane bcast-cmp">
         <header>新規メッセージ</header>
-        <div class="body compose-body">
+        <div class="body">
+          <div class="cmp-layout">
+            <div class="compose-body">
             <form method="post" th:action="@{/manager/messages/broadcast}" th:object="${form}"
-                  class="flex flex-col gap-2 h-full"
-                  onsubmit="return confirm('対象ユーザーへ一斉送信を登録します。よろしいですか?')">
+                  class="flex flex-col gap-2"
+                  onsubmit="return confirm('対象ユーザーへ一斉送信します。よろしいですか?')">
 
                 <input type="hidden" th:field="*{title}"/>
                 <input type="hidden" th:field="*{channel}"/>
@@ -286,9 +322,13 @@
                               th:placeholder="${form.channel == 'SMS'}
                                   ? '例: %name% 様 いつもありがとうございます。%amount% のお支払いをお願いいたします。'
                                   : '例: %name% 様 いつもありがとうございます。&#10;%amount% のお支払いをお願いいたします。&#10;返信はこちら: %reply_url%'"></textarea>
-                    <span th:if="${form.channel == 'SMS'}" id="smsCharCount" class="text-xs text-slate-400" style="margin-top:2px;">60文字以内で送信 (0文字)</span>
-                    <span th:if="${form.channel == 'LINE'}" id="lineCharCount" class="text-xs text-slate-400" style="margin-top:2px;"
+                </div>
+                <!-- 送信: 受信ボックスの「返信」ボタンと同じく、本文のすぐ下の行・右端 -->
+                <div class="compose-actions">
+                    <span th:if="${form.channel == 'SMS'}" id="smsCharCount" class="text-xs text-slate-400">60文字以内で送信 (0文字)</span>
+                    <span th:if="${form.channel == 'LINE'}" id="lineCharCount" class="text-xs text-slate-400"
                           th:attr="data-max=${lineMaxBodyLength}" th:text="${lineMaxBodyLength} + '文字以内 (0文字)'"></span>
+                    <button type="submit" class="btn-send" style="margin-left:auto;">送信</button>
                 </div>
 
                 <!-- 画像添付（メール・SMS: 本文にURLを入れず、返信画面に📎付きで表示）/ 画像挿入（LINE: LINEに画像で表示） -->
@@ -332,63 +372,209 @@
                         <button type="button" class="chip clear" data-sched-clear>即時開始</button>
                     </div>
                 </div>
-                <div class="compose-actions">
-                    <button type="submit" class="btn-send">登録する</button>
-                </div>
-
-                <!-- 置き換えタグ — 一斉送信は受信者ごとに値が差し替えられるので、ここでは説明のみ。 -->
-                <div class="tag-panel">
-                    <h4>デフォルトの置き換えタグ <span class="text-slate-400" style="font-weight:400;">(クリックで本文に挿入)</span></h4>
-                    <div class="tag-row" th:each="t : ${builtinTags}">
-                        <code class="tag-name" th:text="${t.token}" th:attr="data-token=${t.token}"></code>
-                        <span class="tag-desc" th:text="${t.description}"></span>
-                    </div>
-                </div>
-                <div class="tag-panel">
-                    <h4>置き換えタグ（メッセージ送信時にユーザーごとに差し替え）</h4>
-                    <div class="tag-row">
-                        <code class="tag-name" data-token="%amount%">%amount%</code>
-                        <span class="tag-desc">金額（ユーザー詳細で設定）</span>
-                    </div>
-                    <div class="tag-row">
-                        <code class="tag-name" data-token="%product%">%product%</code>
-                        <span class="tag-desc">商品（ユーザー詳細で設定）</span>
-                    </div>
-                    <div class="tag-row">
-                        <code class="tag-name" data-token="%full_address%">%full_address%</code>
-                        <span class="tag-desc">住所（ユーザー詳細で設定）</span>
-                    </div>
-                    <div class="tag-row">
-                        <code class="tag-name" data-token="%reply_url%">%reply_url%</code>
-                        <span class="tag-desc">返信URL（常にCRM本体の返信画面／メッセージボックスへ、送信時に自動生成）</span>
-                    </div>
-                    <div class="tag-row">
-                        <code class="tag-name" data-token="%external_url%">%external_url%</code>
-                        <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
-                    </div>
-                    <div class="tag-row">
-                        <input type="text" class="tag-val" id="urlLeadTextInput" th:value="${urlLeadText}"
-                               placeholder="例: 返信はこちら／本文はこちら（空欄可）" maxlength="500"
-                               style="flex:1; padding:3px 6px; font-size:.72rem; border:1px solid #cbd5e1; border-radius:4px;"/>
-                        <button type="button" class="btn-tag-save" id="btnUrlLeadTextSave">保存</button>
-                    </div>
-                    <p class="text-xs text-slate-400" style="margin:2px 0 0;">
-                        URL前文言（返信画面設定・メッセージスレッドと共有）。%reply_url% / %external_url% のURL直上に改行して自動挿入されます（空欄可）。
-                    </p>
-                </div>
             </form>
+            </div>
+
+            <div class="tag-col">
+                  <div class="tag-panel">
+                      <h4>デフォルトの置き換えタグ <span class="text-slate-400" style="font-weight:400;">(クリックで本文に挿入)</span></h4>
+                      <div class="tag-row" th:each="t : ${builtinTags}">
+                          <code class="tag-name" th:text="${t.token}" th:attr="data-token=${t.token}"></code>
+                          <span class="tag-desc" th:text="${t.description}"></span>
+                      </div>
+                  </div>
+                  <div class="tag-panel">
+                      <h4>置き換えタグ（メッセージ送信時にユーザーごとに差し替え）</h4>
+                      <div class="tag-row">
+                          <code class="tag-name" data-token="%amount%">%amount%</code>
+                          <span class="tag-desc">金額（ユーザー詳細で設定）</span>
+                      </div>
+                      <div class="tag-row">
+                          <code class="tag-name" data-token="%product%">%product%</code>
+                          <span class="tag-desc">商品（ユーザー詳細で設定）</span>
+                      </div>
+                      <div class="tag-row">
+                          <code class="tag-name" data-token="%full_address%">%full_address%</code>
+                          <span class="tag-desc">住所（ユーザー詳細で設定）</span>
+                      </div>
+                      <div class="tag-row">
+                          <code class="tag-name" data-token="%reply_url%">%reply_url%</code>
+                          <span class="tag-desc">返信URL（常にCRM本体の返信画面／メッセージボックスへ、送信時に自動生成）</span>
+                      </div>
+                      <div class="tag-row">
+                          <code class="tag-name" data-token="%external_url%">%external_url%</code>
+                          <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
+                      </div>
+                  </div>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <!-- Bottom-right: 定型文 — 受信ボックスの定型文と同じ表示 (ページタブ・件数・検索・全文・編集) -->
+    <div class="bcast-pane bcast-tpl">
+        <div class="tpl-bar">
+            <div id="tplTabs" class="tpl-tabs" role="tablist" aria-label="定型文のページ">
+                <button th:each="p, iter : ${templateActivePages}" type="button" class="tpl-tab" role="tab"
+                        th:data-page="${p}" aria-selected="false"><th:block th:text="${templatePageTitles[iter.index]}"/> <span class="tpl-tab-count">0</span></button>
+            </div>
+            <div class="tpl-bar-actions">
+                <a class="tpl-btn tpl-btn-new" th:href="@{/manager/settings/message-templates/new}" target="_blank" rel="noopener">＋ 新規</a>
+                <a class="tpl-btn tpl-btn-list" th:href="@{/manager/settings/message-templates}" target="_blank" rel="noopener">一覧</a>
+            </div>
+        </div>
+        <div class="tpl-search">
+            <div class="tpl-search-box">
+                <input type="search" id="tplSearch" placeholder="定型文を検索（全ページ）" autocomplete="off"/>
+                <button type="button" class="tpl-search-clear" id="tplSearchClear" aria-label="検索をクリア" hidden>×</button>
+            </div>
+            <div class="tpl-hint">クリックで本文に挿入（件名が空なら件名も入ります）</div>
+        </div>
+        <div class="body">
+            <ul th:each="p, iter : ${templateActivePages}" class="tpl-list" th:data-page="${p}" th:data-title="${templatePageTitles[iter.index]}">
+                <li th:each="t : ${templates}" th:if="${t.pageNo == p}" class="tpl-item"
+                    th:classappend="${t.color != null and !#strings.isEmpty(t.color)} ? 'color-' + ${t.color}"
+                    th:data-id="${t.id}" th:data-subject="${t.subject}">
+                    <button type="button" class="tpl-insert" title="クリックで本文に挿入">
+                        <span class="tpl-name" th:text="${t.name}">名前</span>
+                        <span class="tpl-subject" th:if="${t.subject != null and !#strings.isEmpty(t.subject)}" th:text="${t.subject}">件名</span>
+                        <span class="tpl-body" th:text="${t.body}">本文</span>
+                    </button>
+                    <div class="tpl-actions">
+                        <button type="button" class="tpl-peek" aria-expanded="false">全文</button>
+                        <a class="tpl-edit" th:href="@{'/manager/settings/message-templates/' + ${t.id} + '/edit'}" target="_blank" rel="noopener">編集</a>
+                    </div>
+                    <span class="tpl-done" aria-live="polite"></span>
+                </li>
+                <li class="tpl-empty">このページの定型文はまだありません</li>
+            </ul>
+            <div class="tpl-nohit" id="tplNoHit" hidden>該当する定型文はありません</div>
         </div>
     </div>
 
 </div>
 
 <script>
-function applyTemplateFromElement(el) {
-    var s = el.getAttribute('data-subject') || '';
-    var b = el.getAttribute('data-body') || '';
-    document.getElementById('subject').value = s;
-    document.getElementById('body').value = b;
-}
+// 定型文 — same behaviour as the 受信ボックス 定型文 panel (tabs, search, 全文, insert at the caret)
+(function () {
+    var pane = document.querySelector('.bcast-tpl');
+    if (!pane) return;
+    var KEY = 'crmBcastTplPage';
+    var tabs = Array.prototype.slice.call(pane.querySelectorAll('.tpl-tab'));
+    var lists = Array.prototype.slice.call(pane.querySelectorAll('.tpl-list'));
+    var search = document.getElementById('tplSearch');
+    var clearBtn = document.getElementById('tplSearchClear');
+    var nohit = document.getElementById('tplNoHit');
+    var bodyEl = document.getElementById('body');
+    var subjectEl = document.getElementById('subject');
+    if (subjectEl && subjectEl.type === 'hidden') subjectEl = null;   // SMS / LINE: no 件名
+    var caret = null;
+
+    var page = null;
+    try { page = sessionStorage.getItem(KEY); } catch (e) { page = null; }
+    if (!tabs.some(function (t) { return t.getAttribute('data-page') === page; })) page = tabs.length ? tabs[0].getAttribute('data-page') : null;
+
+    function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    pane.querySelectorAll('.tpl-body').forEach(function (b) {
+        b.innerHTML = esc(b.textContent).replace(/%[a-z_]+%/gi, function (m) { return '<span class="tpl-tag">' + m + '</span>'; });
+    });
+    lists.forEach(function (ul) {
+        var tab = pane.querySelector('.tpl-tab[data-page="' + ul.getAttribute('data-page') + '"] .tpl-tab-count');
+        if (tab) tab.textContent = ul.querySelectorAll('.tpl-item').length;
+    });
+
+    function render() {
+        var q = (search ? search.value : '').trim().toLowerCase();
+        pane.classList.toggle('is-searching', !!q);
+        if (clearBtn) clearBtn.hidden = !q;
+        tabs.forEach(function (t) {
+            var on = t.getAttribute('data-page') === page;
+            t.setAttribute('aria-selected', String(on));
+            t.tabIndex = on ? 0 : -1;
+        });
+        var hits = 0;
+        lists.forEach(function (ul) {
+            var items = Array.prototype.slice.call(ul.querySelectorAll('.tpl-item'));
+            var n = 0;
+            items.forEach(function (li) {
+                var ok = !q || li.textContent.toLowerCase().indexOf(q) !== -1;
+                li.hidden = !ok;
+                if (ok) n++;
+            });
+            var empty = ul.querySelector('.tpl-empty');
+            if (empty) empty.hidden = !!q || items.length > 0;
+            ul.hidden = q ? n === 0 : ul.getAttribute('data-page') !== page;
+            hits += n;
+        });
+        if (nohit) nohit.hidden = !q || hits > 0;
+    }
+
+    function insert(li) {
+        if (!bodyEl) return;
+        var text = li.querySelector('.tpl-body').textContent;
+        var subject = li.getAttribute('data-subject') || '';
+        var v = bodyEl.value;
+        var pos = caret == null ? v.length : Math.min(caret, v.length);
+        var before = v.slice(0, pos);
+        var glue = before && !/\n$/.test(before) ? '\n' : '';
+        bodyEl.value = before + glue + text + v.slice(pos);
+        caret = (before + glue + text).length;
+        bodyEl.focus();
+        bodyEl.setSelectionRange(caret, caret);
+        bodyEl.dispatchEvent(new Event('input', { bubbles: true }));
+        var withSubject = false;
+        if (subjectEl && subject && !subjectEl.value.trim()) {
+            subjectEl.value = subject;
+            subjectEl.dispatchEvent(new Event('input', { bubbles: true }));
+            withSubject = true;
+        }
+        var done = li.querySelector('.tpl-done');
+        if (done) done.textContent = withSubject ? '✓ 件名と本文に挿入' : '✓ 本文に挿入';
+        li.classList.add('is-inserted');
+        setTimeout(function () { li.classList.remove('is-inserted'); }, 1300);
+    }
+
+    if (bodyEl) {
+        ['click', 'keyup', 'select', 'input'].forEach(function (ev) {
+            bodyEl.addEventListener(ev, function () { caret = bodyEl.selectionStart; });
+        });
+    }
+    pane.addEventListener('click', function (e) {
+        var tab = e.target.closest('.tpl-tab');
+        if (tab) {
+            page = tab.getAttribute('data-page');
+            try { sessionStorage.setItem(KEY, page); } catch (err) { page = tab.getAttribute('data-page'); }
+            if (search) search.value = '';
+            render();
+            pane.querySelector('.body').scrollTop = 0;
+            return;
+        }
+        var peek = e.target.closest('.tpl-peek');
+        if (peek) {
+            var open = peek.closest('.tpl-item').classList.toggle('is-open');
+            peek.textContent = open ? '閉じる' : '全文';
+            peek.setAttribute('aria-expanded', String(open));
+            return;
+        }
+        var ins = e.target.closest('.tpl-insert');
+        if (ins) insert(ins.closest('.tpl-item'));
+    });
+    pane.addEventListener('keydown', function (e) {
+        var tab = e.target.closest('.tpl-tab');
+        if (!tab || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+        var i = tabs.indexOf(tab);
+        var nextIndex = (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+        var next = tabs[nextIndex];
+        next.click();
+        next.focus();
+    });
+    if (search) {
+        search.addEventListener('input', render);
+        search.addEventListener('keydown', function (e) { if (e.key === 'Escape') { search.value = ''; render(); } });
+    }
+    if (clearBtn) clearBtn.addEventListener('click', function () { search.value = ''; render(); search.focus(); });
+    render();
+})();
 
 // SMS is billed per 65-character segment — nudge staying within 60 for a single message.
 (function () {
@@ -476,30 +662,6 @@ function insertTagToBody(token) {
 document.querySelectorAll('code.tag-name[data-token]').forEach(function (el) {
     el.addEventListener('click', function () { insertTagToBody(el.getAttribute('data-token')); });
 });
-
-// URL前文言 — shared global setting (same ReplyPageSetting row as /manager/settings/reply-page
-// and the message-thread panel). Saving here immediately affects every future %reply_url% /
-// %external_url% expansion, for both single sends and broadcasts.
-(function () {
-    var btn = document.getElementById('btnUrlLeadTextSave');
-    var input = document.getElementById('urlLeadTextInput');
-    if (!btn || !input) return;
-    btn.addEventListener('click', async function () {
-        try {
-            var r = await fetch('/manager/api/settings/url-lead-text', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ urlLeadText: input.value })
-            });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            btn.textContent = '保存しました';
-            btn.classList.add('saved');
-            setTimeout(function () { btn.textContent = '保存'; btn.classList.remove('saved'); }, 1500);
-        } catch (e) {
-            alert('保存に失敗しました: ' + e.message);
-        }
-    });
-})();
 
 // --- Reservation (予約送信) UI ---
 function pad2(n) { return String(n).padStart(2, '0'); }

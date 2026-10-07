@@ -8,8 +8,8 @@
     <style>
         /* Mirror the user-facing reply page (templates/reply/page.html) structurally, but
            per operator request (2026-09-09) the preview's HTML fills the full remaining
-           viewport height — the 入力欄 compose form is fine sitting below the fold, since
-           this is a read-only preview (the send button is disabled here anyway). */
+           viewport height. The 入力欄 / 送信フォーム is not shown here — this preview is
+           for the HTML only (client request 2026-10-07). */
         .reply-header-frame {
             display: block; width: 100%; height: calc(100vh - 52px);
             border: 0; background: #fff;
@@ -29,13 +29,13 @@
         <code th:text="${user.id}" style="background:#fff;padding:1px 6px;border-radius:3px;border:1px solid #fde68a;"></code>
     </span>
     <span th:if="${user.displayName}" th:text="'(' + ${user.displayName} + ')'"></span>
-    <span style="opacity:.85;color:#92400e;">置き換えタグはこのユーザーの値で差し替えています。 / 「送信する」ボタンはプレビュー上では動作しません。</span>
+    <span style="opacity:.85;color:#92400e;">置き換えタグはこのユーザーの値で差し替えています。</span>
     <a href="javascript:history.back()" style="margin-left:auto;color:#2563eb;text-decoration:underline;">戻る</a>
 </div>
 
 <div th:if="${usingDefaultHtml}"
      style="background:#f0f9ff;border-bottom:1px solid #bae6fd;padding:8px 16px;font-size:.78rem;color:#075985;font-family:sans-serif;line-height:1.5;">
-    このユーザーには専用HTMLが未設定です。<strong>設定ページのデフォルト返信画面HTML</strong>を表示しています。
+    <th:block th:unless="${siteDefaultPreview}">このユーザーには専用HTMLが未設定です。</th:block><strong>設定ページのデフォルト返信画面HTML</strong>を表示しています。<th:block th:if="${siteDefaultPreview}">（専用HTMLが未設定のユーザーの返信画面に表示されます）</th:block>
     <a th:href="@{/manager/settings/reply-page}" style="color:#2563eb;text-decoration:underline;margin-left:8px;">設定ページへ</a>
 </div>
 <div th:if="${repaired}"
@@ -51,21 +51,6 @@
     <iframe class="reply-header-frame"
             sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
             th:attr="srcdoc=${memoText} ?: '&lt;p style=&quot;padding:24px;color:#94a3b8;&quot;&gt;専用HTMLが未設定です。&lt;/p&gt;'"></iframe>
-
-    <div class="reply-banner">
-        <h1>入力欄</h1>
-    </div>
-
-    <form class="reply-form" onsubmit="event.preventDefault(); alert('プレビュー時は送信できません。');">
-
-        <div class="field">
-            <textarea id="body" name="body" rows="9" maxlength="10000"></textarea>
-        </div>
-
-        <div class="actions">
-            <button type="submit">送信する</button>
-        </div>
-    </form>
 
 </div>
 

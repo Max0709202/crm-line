@@ -23,6 +23,24 @@
             max-height:16em; overflow-y:auto; line-height:1.45; font-size:.78rem; color:#475569;
             white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
         }
+        /* サポート窓口 (キャラ指定なし) — 他のキャラと区別して目立たせる */
+        .support-badge {
+            display:inline-block; padding:1px 8px; border-radius:999px; font-weight:700;
+            background:#0f766e; color:#fff; white-space:nowrap;
+        }
+        .support-body > summary {
+            list-style:none; cursor:pointer; display:flex; align-items:baseline; gap:8px;
+            font-size:.78rem; color:#475569;
+        }
+        .support-body > summary::-webkit-details-marker { display:none; }
+        .support-body .support-preview { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .support-body .support-toggle { flex:none; font-size:.72rem; font-weight:700; color:#0f766e; }
+        .support-body .support-toggle::before { content:"▼ 全文を表示"; }
+        .support-body[open] .support-toggle::before { content:"▲ 閉じる"; }
+        .support-body[open] .support-preview { visibility:hidden; }
+        .support-body > .body-text {
+            margin-top:4px; padding:6px 8px; max-height:none; background:#f0fdfa; border:1px solid #99f6e4; border-radius:6px;
+        }
         .list-page-footer {
             flex-shrink:0; background:#fff; border-top:1px solid #e2e8f0;
             padding:9px 20px; display:flex; align-items:center; justify-content:flex-end; gap:12px;
@@ -138,8 +156,13 @@
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
                     th:text="${userDisplayNames != null and userDisplayNames.get(m.userId) != null and userDisplayNames.get(m.userId) != ''} ? ${userDisplayNames.get(m.userId)} : '-'"></td>
+                <!-- キャラ指定なしの一斉送信・SMS配信・差分ステップ = サポート窓口から送信 -->
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
-                    th:text="${m.lineAccountId != null and lineAccountNames != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : (${charaNames != null and charaNames.get(m.id) != null} ? ${charaNames.get(m.id)} : '-')"></td>
+                    th:with="fromSupport=${m.direction == 'OUT' and m.broadcastId != null and m.channel != 'LINE' and (charaNames == null or charaNames.get(m.id) == null)}">
+                    <span th:if="${fromSupport}" class="support-badge">🎧 サポート窓口</span>
+                    <th:block th:unless="${fromSupport}"
+                              th:text="${m.lineAccountId != null and lineAccountNames != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : (${charaNames != null and charaNames.get(m.id) != null} ? ${charaNames.get(m.id)} : '-')"></th:block>
+                </td>
                 <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
                     <span th:if="${userFolders != null and userFolders.get(m.userId) != null}"
                           class="inline-block px-1.5 rounded font-semibold text-slate-700 bg-slate-100"
@@ -148,8 +171,14 @@
                     <th:block th:unless="${userFolders != null and userFolders.get(m.userId) != null}">-</th:block>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 truncate" style="max-width:200px;" th:unless="${channel == 'SMS'}" th:text="${m.subject} ?: '(件名なし)'"></td>
-                <td class="px-3 py-2 col-body">
-                    <div class="body-text" th:text="${m.bodyText}"></div>
+                <td class="px-3 py-2 col-body"
+                    th:with="fromSupport=${m.direction == 'OUT' and m.broadcastId != null and m.channel != 'LINE' and (charaNames == null or charaNames.get(m.id) == null)}">
+                    <!-- サポート窓口から送った内容: 折りたたみ — クリックで全文 -->
+                    <details th:if="${fromSupport}" class="support-body">
+                        <summary><span class="support-preview" th:text="${m.bodyText}"></span><span class="support-toggle"></span></summary>
+                        <div class="body-text" th:text="${m.bodyText}"></div>
+                    </details>
+                    <div th:unless="${fromSupport}" class="body-text" th:text="${m.bodyText}"></div>
                 </td>
                 <td class="px-3 py-2">
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
