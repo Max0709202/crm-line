@@ -159,13 +159,23 @@ public class MemberSiteController {
     @GetMapping("/member/inbox")
     public Object inbox(@RequestParam(name = "tab", defaultValue = "all") String tab,
                         @RequestParam(name = "c", required = false) Long charaFilter,
+                        @RequestParam(name = "page", defaultValue = "1") int page,
                         HttpServletRequest request, HttpSession session) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
         touch(session, u);
         boolean fp = fp(request);
         String t = "unread".equals(tab) || "fav".equals(tab) || "sent".equals(tab) ? tab : "all";
-        List<MemberSiteService.InboxItem> items = site.inbox(u, t, charaFilter);
+        boolean sentTab = "sent".equals(t);
+        // 送信済み: the member's own mails (10 per page); the other tabs: one row per キャラ
+        List<MemberSiteService.InboxItem> sentAll = sentTab ? site.inbox(u, t, charaFilter) : java.util.Collections.<MemberSiteService.InboxItem>emptyList();
+        int pages = pageCount(sentAll.size());
+        int p = Math.max(1, Math.min(page, pages));
+        List<MemberSiteService.InboxItem> items = sentAll.subList((p - 1) * MemberSiteService.PAGE_SIZE,
+                Math.min(sentAll.size(), p * MemberSiteService.PAGE_SIZE));
+        List<MemberSiteService.InboxGroup> groups = sentTab ? java.util.Collections.<MemberSiteService.InboxGroup>emptyList()
+                : site.inboxGroups(u, t, charaFilter);
+        String pageBase = "/member/inbox?tab=" + t + (charaFilter == null ? "" : "&c=" + charaFilter);
         Set<Long> friendIds = new LinkedHashSet<>();
         for (Chara c : site.friends(u)) friendIds.add(c.getId());
         StringBuilder b = new StringBuilder();
@@ -177,15 +187,20 @@ public class MemberSiteController {
                 b.append(x[0].equals(t) ? "<b>" + x[1] + "</b>" : "<a href=\"/member/inbox?tab=" + x[0] + "\">" + x[1] + "</a>").append(" ");
             }
             b.append("</div>");
-            if (items.isEmpty()) b.append("<div class=\"mail\">メッセージはありません</div>");
+            if (items.isEmpty() && groups.isEmpty()) b.append("<div class=\"mail\">メッセージはありません</div>");
+            for (MemberSiteService.InboxGroup g : groups) {
+                long cid = g.chara == null ? 0L : g.chara.getId();
+                b.append("<div class=\"mail\"><a href=\"/member/inbox/list?c=").append(cid).append("\"><b>").append(e(name(g.chara))).append("</b></a> ")
+                        .append(unreadBadge(g.unread)).append(g.unread > 0 ? " <span class=new>NEW</span>" : "").append("<br>")
+                        .append(titleAndBody(g.latest, "<br>")).append("<br><small>").append(when(g.latest)).append("</small></div>");
+            }
             for (MemberSiteService.InboxItem it : items) {
                 long cid = it.chara == null ? 0L : it.chara.getId();
-                String href = "/member/reply?c=" + cid + "#m" + it.message.getId();
-                b.append("<div class=\"mail\">").append(it.unread ? "<span class=new>NEW</span> " : "")
-                        .append(it.sent ? "To: " : "").append("<a href=\"").append(href).append("\"><b>").append(e(name(it.chara))).append("</b>")
-                        .append(age(it.chara)).append("</a><br>").append(e(preview(u, it))).append("<br><small>")
+                b.append("<div class=\"mail\">To: <a href=\"/member/inbox/list?c=").append(cid).append("\"><b>").append(e(name(it.chara))).append("</b>")
+                        .append("</a><br>").append(e(preview(u, it))).append("<br><small>")
                         .append(when(it.message)).append("</small></div>");
             }
+            if (sentTab) b.append(pager(pageBase, p, pages, true));
         } else {
             b.append("<div class=\"tabs\">");
             for (String[] x : tabs) {
@@ -199,9 +214,86 @@ public class MemberSiteController {
                         .append(">").append(e(s.getValue())).append("</option>");
             }
             b.append("</select></div>");
+            b.append("<section id=\"ml\"><div class=\"boxline\"></div>");
+            if (items.isEmpty() && groups.isEmpty()) b.append("<div class=\"note\">メッセージはありません</div>");
+            // すべて / 未読 / お気に入り: one row per キャラ — 未読あり(n) / 未読なし in place of the age, the newest
+            // mail's タイトル and 本文, and 受信一覧 (that キャラ's mails)
+            for (MemberSiteService.InboxGroup g : groups) {
+                long cid = g.chara == null ? 0L : g.chara.getId();
+                b.append("<div class=\"msg\" id=\"c").append(cid).append("\"><div class=\"avatar\">").append(avatar(u, g.chara)).append("</div><div><b>")
+                        .append(e(name(g.chara))).append("</b>　").append(unreadBadge(g.unread)).append(g.unread > 0 ? " <span class=\"new\">NEW</span>" : "")
+                        .append("<div class=\"preview\">").append(titleAndBody(g.latest, "<br>")).append("</div></div><div class=\"date\">")
+                        .append(when(g.latest)).append("</div><div class=\"msgactions\">");
+                if (g.chara != null) b.append(charaButtons(request, u, g.chara, friendIds.contains(g.chara.getId()), "/member/inbox?tab=" + t, false));
+                b.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a></div></div>");
+            }
+            // 送信済み: as before (no age), 受信一覧 instead of やり取りを見る
+            for (MemberSiteService.InboxItem it : items) {
+                long cid = it.chara == null ? 0L : it.chara.getId();
+                b.append("<div class=\"msg\" id=\"m").append(it.message.getId()).append("\">");
+                b.append("<div class=\"avatar\">").append(avatar(u, it.chara)).append("</div><div><b>To: ").append(e(name(it.chara)))
+                        .append("</b><div class=\"preview\">").append(e(preview(u, it)))
+                        .append("</div></div><div class=\"date\">").append(when(it.message)).append("</div><div class=\"msgactions\">");
+                if (it.chara != null) b.append(charaButtons(request, u, it.chara, friendIds.contains(it.chara.getId()), pageBase + "&page=" + p, false));
+                b.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a></div></div>");
+            }
+            b.append("<div class=\"boxline\"></div></section>");
+            if (sentTab) b.append(pager(pageBase, p, pages, false));
+        }
+        return render("inbox", request, u, b.toString(), null);
+    }
+
+    /* ===================== 受信一覧 (one キャラ's mails) ===================== */
+
+    @GetMapping("/member/inbox/list")
+    public Object inboxList(@RequestParam(name = "c", defaultValue = "0") long charaId,
+                            @RequestParam(name = "page", defaultValue = "1") int page,
+                            HttpServletRequest request, HttpSession session) {
+        CrmUser u = member(session);
+        if (u == null) return toLogin();
+        touch(session, u);
+        Chara chara = null;
+        if (charaId > 0) {
+            chara = site.chara(charaId).orElse(null);
+            if (chara == null) return "redirect:/member/inbox";
+        }
+        boolean fp = fp(request);
+        // received only, newest first, 10 per page
+        List<MemberSiteService.InboxItem> all = site.charaInbox(u, charaId);
+        int unread = 0;
+        for (MemberSiteService.InboxItem it : all) if (it.unread) unread++;
+        int pages = pageCount(all.size());
+        int p = Math.max(1, Math.min(page, pages));
+        List<MemberSiteService.InboxItem> items = all.subList((p - 1) * MemberSiteService.PAGE_SIZE,
+                Math.min(all.size(), p * MemberSiteService.PAGE_SIZE));
+        String base = "/member/inbox/list?c=" + charaId;
+        StringBuilder b = new StringBuilder();
+        if (fp) {
+            b.append("<div class=\"m\"><a href=\"/member/inbox\">0. 受信BOXへ戻る</a></div>");
+            b.append("<div class=\"row\"><b>").append(e(name(chara))).append("</b> ").append(unreadBadge(unread))
+                    .append(unread > 0 ? " <span class=new>NEW</span>" : "");
+            if (chara != null) {
+                b.append("<br><a href=\"/member/photo?c=").append(chara.getId()).append("\">写真閲覧</a>／<a href=\"/member/chara?c=")
+                        .append(chara.getId()).append("\">プロフ閲覧</a>");
+            }
+            b.append("</div>");
+            if (items.isEmpty()) b.append("<div class=\"mail\">メッセージはありません</div>");
+            for (MemberSiteService.InboxItem it : items) {
+                b.append("<div class=\"mail\"><a href=\"").append(replyHref(charaId, it.message)).append("\">").append(readMark(it.unread))
+                        .append(" <small>").append(when(it.message)).append("</small><br>").append(titleAndBody(it.message, "<br>")).append("</a></div>");
+            }
+            b.append(pager(base, p, pages, true));
+        } else {
+            b.append("<section class=\"box\"><div class=\"boxline\"></div><div class=\"person\"><div class=\"avatar\">").append(avatar(u, chara))
+                    .append("</div><div class=\"grow\"><b>").append(e(name(chara))).append("</b>　").append(unreadBadge(unread))
+                    .append(unread > 0 ? " <span class=\"new\">NEW</span>" : "");
+            if (chara != null) {
+                b.append("<div class=\"pbtns\">").append(charaButtons(request, u, chara, site.isFriend(u, chara.getId()), base + "&page=" + p, true)).append("</div>");
+            }
+            b.append("</div></div>");
             // 管理者プレビュー「受信ボックス確認」: 選択削除 — the same soft delete as the 管理画面's
             // メッセージボックス, so the message leaves this 受信BOX (and the 返信画面's box) for the member.
-            boolean boxDelete = preview(session) && !"sent".equals(t) && !items.isEmpty();
+            boolean boxDelete = preview(session) && !items.isEmpty();
             if (boxDelete) {
                 b.append("<form id=\"pvDel\" method=\"post\" action=\"/manager/users/").append(u.getId()).append("/message-box/delete\"")
                         .append(" style=\"display:flex;gap:12px;align-items:center;margin:8px 0;padding:8px 10px;border:1px dashed #b91c1c;border-radius:6px\">")
@@ -209,32 +301,77 @@ public class MemberSiteController {
                         .append("<label><input type=\"checkbox\" onclick=\"var on=this.checked;document.querySelectorAll('input[form=pvDel]').forEach(function(c){c.checked=on;})\"> 全選択</label>")
                         .append("<button type=\"submit\" class=\"smallbtn\" style=\"background:#dc2626;color:#fff;border:0\" onclick=\"return confirm('選択したメッセージを削除しますか？（ユーザーの受信BOXから消えます）');\">選択削除</button></form>");
             }
-            b.append("<section id=\"ml\"><div class=\"boxline\"></div>");
             if (items.isEmpty()) b.append("<div class=\"note\">メッセージはありません</div>");
+            // each mail → 返信画面 (opening it makes only that mail 既読)
             for (MemberSiteService.InboxItem it : items) {
-                long cid = it.chara == null ? 0L : it.chara.getId();
-                b.append("<div class=\"msg\" id=\"m").append(it.message.getId()).append("\"")
-                        .append(boxDelete ? " style=\"position:relative;padding-left:38px\">" : ">");
-                // (absolute, so the row's grid columns stay as they are)
+                b.append("<div id=\"m").append(it.message.getId()).append("\" style=\"position:relative;border-bottom:1px solid #dfe6ef;background:#fff")
+                        .append(boxDelete ? ";padding-left:38px" : "").append("\">");
                 if (boxDelete) b.append("<input type=\"checkbox\" name=\"ids\" value=\"").append(it.message.getId())
                         .append("\" form=\"pvDel\" style=\"position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px\">");
-                b.append("<div class=\"avatar\">").append(avatar(u, it.chara)).append("</div><div><b>")
-                        .append(it.unread ? "<span class=\"new\">NEW</span>" : "").append(it.sent ? "To: " : "").append(e(name(it.chara)))
-                        .append("　<small>").append(ageText(it.chara)).append("</small></b><div class=\"preview\">").append(e(preview(u, it)))
-                        .append("</div></div><div class=\"date\">").append(when(it.message)).append("</div><div class=\"msgactions\">");
-                if (it.chara != null) b.append(charaButtons(request, u, it.chara, friendIds.contains(it.chara.getId()), "/member/inbox?tab=" + t, false));
-                b.append("<a class=\"smallbtn reply\" href=\"/member/reply?c=").append(cid).append("#m").append(it.message.getId()).append("\">")
-                        .append(it.sent ? "やり取りを見る" : "本文閲覧/返信").append("</a></div></div>");
+                b.append("<a href=\"").append(replyHref(charaId, it.message)).append("\" style=\"display:block;padding:12px;color:inherit;text-decoration:none\">")
+                        .append("<div style=\"display:flex;align-items:center;gap:8px\">").append(readMark(it.unread))
+                        .append("<span class=\"date\" style=\"margin-left:auto\">").append(when(it.message)).append("</span></div>")
+                        .append("<div class=\"preview\" style=\"font-size:13px;color:#18324b\">").append(titleAndBody(it.message, "<br>")).append("</div></a></div>");
             }
-            b.append("<div class=\"boxline\"></div></section>");
+            b.append(pager(base, p, pages, false)).append("<div class=\"boxline\"></div></section>");
         }
-        return render("inbox", request, u, b.toString(), null);
+        return render("inbox", request, u, b.toString(), "受信一覧");
+    }
+
+    private static int pageCount(int size) {
+        return Math.max(1, (size + MemberSiteService.PAGE_SIZE - 1) / MemberSiteService.PAGE_SIZE);
+    }
+
+    /** ‹ 前へ 1 2 … 次へ › (only when there is more than one page). */
+    private static String pager(String base, int page, int pages, boolean fp) {
+        if (pages <= 1) return "";
+        StringBuilder b = new StringBuilder(fp ? "<div class=\"row\">" : "<div style=\"display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:14px 8px\">");
+        if (page > 1) b.append("<a class=\"smallbtn\" href=\"").append(base).append("&amp;page=").append(page - 1).append("\">‹ 前へ</a> ");
+        for (int i = 1; i <= pages; i++) {
+            if (i == page) b.append(fp ? "<b>" + i + "</b> " : "<span class=\"smallbtn active\">" + i + "</span>");
+            else b.append("<a class=\"smallbtn\" href=\"").append(base).append("&amp;page=").append(i).append("\">").append(i).append("</a> ");
+        }
+        if (page < pages) b.append("<a class=\"smallbtn\" href=\"").append(base).append("&amp;page=").append(page + 1).append("\">次へ ›</a>");
+        return b.append("</div>").toString();
+    }
+
+    /** 未読あり(n) — red, white text / 未読なし — grey, white text. */
+    private static String unreadBadge(int unread) {
+        return unread > 0
+                ? "<span style=\"display:inline-block;padding:2px 8px;border-radius:4px;background:#e0313f;color:#fff;font-size:11px;font-weight:800\">未読あり(" + unread + ")</span>"
+                : "<span style=\"display:inline-block;padding:2px 8px;border-radius:4px;background:#9aa3ad;color:#fff;font-size:11px;font-weight:800\">未読なし</span>";
+    }
+
+    /** 受信一覧's mark of one mail: the envelope icon, then 未読 (red, white text) / 既読 (grey, white text). */
+    private static String readMark(boolean unread) {
+        String icon = "<img src=\"/member/images/" + (unread ? "mail-unread.svg" : "mail-read.svg") + "\" alt=\"\" width=\"22\" height=\"" + (unread ? 18 : 20)
+                + "\" style=\"vertical-align:middle\">";
+        String label = "<span style=\"display:inline-block;padding:2px 8px;border-radius:4px;background:" + (unread ? "#e0313f" : "#9aa3ad")
+                + ";color:#fff;font-size:11px;font-weight:800;vertical-align:middle\">" + (unread ? "未読" : "既読") + "</span>";
+        return icon + label;
+    }
+
+    /** A mail's タイトル, then (on the next line) its 本文 up to 表示文字数. */
+    private String titleAndBody(Message m, String br) {
+        String s = m.getSubject() == null ? "" : m.getSubject().trim();
+        String body = MemberSiteService.displayBody(m).replaceAll("\\s+", " ").trim();
+        int max = site.previewLength();
+        if (body.codePointCount(0, body.length()) > max) body = body.substring(0, body.offsetByCodePoints(0, max)) + "…";
+        StringBuilder b = new StringBuilder();
+        if (!s.isEmpty()) b.append("<b>").append(e(s)).append("</b>");
+        if (!body.isEmpty()) b.append(b.length() > 0 ? br : "").append(e(body));
+        return b.length() == 0 ? "メッセージが届いています" : b.toString();
+    }
+
+    private static String replyHref(long charaId, Message m) {
+        return "/member/reply?c=" + charaId + "&amp;m=" + m.getId() + "#m" + m.getId();
     }
 
     /* ===================== 返信 (やり取り・送信) ===================== */
 
     @GetMapping("/member/reply")
     public Object reply(@RequestParam(name = "c", defaultValue = "0") long charaId,
+                        @RequestParam(name = "m", required = false) Long openedId,
                         HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
@@ -246,7 +383,8 @@ public class MemberSiteController {
         }
         boolean fp = fp(request);
         List<MemberSiteService.ConvItem> conv = site.conversation(u, charaId);
-        if (!preview(session)) site.markReadIfFree(u, conv);
+        // 1通ずつ既読: only the mail clicked in 受信一覧 becomes 既読
+        if (!preview(session)) site.markReadIfFree(u, conv, openedId);
         Set<Long> allImages = new LinkedHashSet<>();
         for (MemberSiteService.ConvItem it : conv) allImages.addAll(it.images);
         Set<Long> openImgs = site.openImages(u, allImages);
@@ -483,14 +621,14 @@ public class MemberSiteController {
             b.append("<div class=\"m\">");
             for (Chara c : list) {
                 b.append("<a href=\"/member/reply?c=").append(c.getId()).append("\">").append(e(c.getName())).append(" / ")
-                        .append(e(nz(c.getPref(), "—"))).append(" / ").append(ageText(c).isEmpty() ? "—" : ageText(c)).append("</a>");
+                        .append(e(nz(c.getPref(), "—"))).append("</a>");
             }
             b.append("</div>");
             if (list.isEmpty()) b.append("<div class=\"row\">友達はまだいません</div>");
         } else {
             b.append("<section class=\"box\"><div class=\"boxline\"></div>");
             if (note != null) b.append("<div class=\"note\">").append(e(note)).append("</div>");
-            for (Chara c : list) b.append(person(request, u, c, true, "/member/friends"));
+            for (Chara c : list) b.append(person(request, u, c, true, "/member/friends", false));
             if (list.isEmpty()) b.append("<div class=\"note\">友達はまだいません。受信BOX・条件検索から「友達追加」できます。</div>");
             b.append("<div class=\"boxline\"></div></section>");
         }
@@ -574,7 +712,7 @@ public class MemberSiteController {
                     b.append("<a href=\"/member/chara?c=").append(c.getId()).append("\">").append(e(c.getName())).append(" / ")
                             .append(e(nz(c.getPref(), "—"))).append(" / ").append(ageText(c).isEmpty() ? "—" : ageText(c)).append("</a>");
                 } else {
-                    b.append(person(request, u, c, friendIds.contains(c.getId()), "/member/search"));
+                    b.append(person(request, u, c, friendIds.contains(c.getId()), "/member/search", true));
                 }
             }
             if (result.isEmpty()) b.append(fp ? "<a href=\"/member/search\">条件に合うお相手はいませんでした</a>" : "<div class=\"note\">条件に合うお相手はいませんでした</div>");
@@ -893,21 +1031,23 @@ public class MemberSiteController {
                     .append("<input type=\"hidden\" name=\"c\" value=\"").append(c.getId()).append("\"><input type=\"hidden\" name=\"back\" value=\"")
                     .append(e(back)).append("\"><button class=\"smallbtn\" style=\"cursor:pointer\">友達追加</button></form>");
         }
-        b.append("<a class=\"smallbtn\" href=\"/member/chara?c=").append(c.getId()).append("\">").append(profLabelShort ? "プロフ閲覧" : "プロフィール参照").append("</a>");
+        b.append("<a class=\"smallbtn\" href=\"/member/chara?c=").append(c.getId()).append("\">").append(profLabelShort ? "プロフ閲覧" : "プロフィール閲覧").append("</a>");
         return b.toString();
     }
 
-    /** A キャラ row (友達追加リスト / 検索結果). */
-    private String person(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back) {
+    /** A キャラ row (友達追加リスト — no age next to the name / 検索結果). */
+    private String person(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back, boolean showAge) {
+        String info = showAge ? ageText(c) + (c.getPref() == null ? "" : "　" + e(c.getPref())) : (c.getPref() == null ? "" : e(c.getPref()));
         return "<div class=\"person\"><div class=\"avatar\">" + avatar(u, c) + "</div><div class=\"grow\"><b>" + e(c.getName()) + "</b>　<small>"
-                + ageText(c) + (c.getPref() == null ? "" : "　" + e(c.getPref())) + "</small><div class=\"pbtns\">"
+                + info + "</small><div class=\"pbtns\">"
                 + charaButtons(request, u, c, friend, back, true)
                 + "<a class=\"smallbtn reply\" href=\"/member/reply?c=" + c.getId() + "\">メッセージ送信</a></div></div></div>";
     }
 
     /** The キャラ's photo as the avatar once 写真閲覧 is free / used, else the design's 👤. */
     private String avatar(CrmUser u, Chara c) {
-        if (c == null || c.getPhotoUrl() == null || !site.isOpen(u, MemberUnlockService.PHOTO, c.getId())) return "👤";
+        if (c == null) return "🎧";
+        if (c.getPhotoUrl() == null || !site.isOpen(u, MemberUnlockService.PHOTO, c.getId())) return "👤";
         return "<img src=\"" + e(c.getPhotoUrl()) + "\" alt=\"\" style=\"width:100%;height:100%;object-fit:cover;border-radius:7px\">";
     }
 
@@ -921,8 +1061,9 @@ public class MemberSiteController {
         return s != null && !s.trim().isEmpty() ? s.trim() : "メッセージが届いています";
     }
 
+    /** No キャラ = サポート窓口 (キャラ指定なしの送信). */
     private static String name(Chara c) {
-        return c == null ? "運営" : c.getName();
+        return c == null ? MemberSiteService.SUPPORT_NAME : c.getName();
     }
 
     private static String ageText(Chara c) {

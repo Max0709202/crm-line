@@ -2,7 +2,8 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org">
 <body>
 <!--/* 送信キャラ (キャラ登録) — 1名だけ選択。フォルダを選ぶとそのフォルダのキャラだけが候補になる。
-     キャラ検索（名前・ID）で候補を絞り込める。キャラ指定なし = サポート窓口から送信。
+     キャラ検索（名前・ID）で候補を絞り込める。キャラ指定なし = サポート窓口から送信
+     （⇒ 送信者名: サポート窓口の送信者名＝メールの差出人名。サポート窓口画面の送信者名と共通）。
      Needs ${charaFolders} / ${charas} in the model. Used by 一斉送信・SMS配信 and 差分ステップ. */-->
 <div th:fragment="picker(fieldName, selectedId)" class="chara-picker" data-chara-picker
      style="display:flex; flex-direction:column; gap:3px;">
@@ -24,9 +25,18 @@
                     th:text="'ID:' + ${c.id} + ' ' + ${c.name} + (${c.gender == 'female'} ? '（女性）' : '（男性）')">キャラ</option>
         </select>
     </div>
-    <div style="display:flex; align-items:center; gap:8px; min-height:1.4em;">
+    <div style="display:flex; align-items:center; gap:8px; min-height:1.4em; flex-wrap:wrap;">
         <span data-chara-support
               style="display:none; padding:2px 10px; border-radius:999px; background:#0f766e; color:#fff; font-size:.74rem; font-weight:700; letter-spacing:.02em;">🎧 サポート窓口から送信</span>
+        <!-- ⇒ 送信者名 [　] 保存 (no name attribute: saved on its own, never sent with the form) -->
+        <span data-support-sender style="display:none; align-items:center; gap:4px; font-size:.74rem; font-weight:700; color:#0f766e;">⇒ 送信者名
+            <input type="text" data-support-sender-name maxlength="100" placeholder="サポート窓口"
+                   th:value="${@supportDeskService.senderName()}" title="サポート窓口から送るメールの差出人名"
+                   style="width:11em; padding:1px 6px; font-size:.76rem; font-weight:400; border:1px solid #0f766e; border-radius:4px;"/>
+            <button type="button" data-support-sender-save
+                    style="padding:1px 10px; font-size:.74rem; font-weight:700; color:#fff; background:#0f766e; border:0; border-radius:4px; cursor:pointer;">保存</button>
+            <span data-support-sender-msg style="font-weight:400; color:#64748b;"></span>
+        </span>
         <span data-chara-hint style="font-size:.7rem; color:#94a3b8;"></span>
     </div>
     <script>
@@ -41,6 +51,7 @@
                     var select = box.querySelector('[data-chara-select]');
                     var badge = box.querySelector('[data-chara-support]');
                     var hint = box.querySelector('[data-chara-hint]');
+                    var sender = box.querySelector('[data-support-sender]');
                     var all = Array.prototype.slice.call(select.options, 1).map(function (o) {
                         return { value: o.value, text: o.text, folder: o.getAttribute('data-folder'),
                                  name: (o.getAttribute('data-name') || '').toLowerCase() };
@@ -53,6 +64,7 @@
                     function showSender() {
                         var support = select.value === '';
                         badge.style.display = support ? 'inline-block' : 'none';
+                        sender.style.display = support ? 'inline-flex' : 'none';
                         select.style.borderColor = support ? '#0f766e' : '';
                         select.style.boxShadow = support ? '0 0 0 2px rgba(15,118,110,.2)' : '';
                         select.style.fontWeight = support ? '700' : '';
@@ -95,6 +107,32 @@
                         if (first) { select.value = first.value; showSender(); }
                     });
                     select.addEventListener('change', showSender);
+                    // 送信者名 保存 — the same 送信者名 as サポート窓口 (every picker on the page shows the saved one)
+                    var senderInput = sender.querySelector('[data-support-sender-name]');
+                    var senderMsg = sender.querySelector('[data-support-sender-msg]');
+                    function saveSender() {
+                        var fd = new FormData();
+                        fd.append('name', senderInput.value);
+                        senderMsg.textContent = '保存中…';
+                        fetch('/manager/support/sender-name', { method: 'POST', credentials: 'same-origin', body: fd })
+                            .then(function (r) {
+                                return r.json().catch(function () { return {}; }).then(function (j) {
+                                    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+                                    return j;
+                                });
+                            })
+                            .then(function (j) {
+                                document.querySelectorAll('[data-support-sender-name]').forEach(function (i) { i.value = j.name || ''; });
+                                senderMsg.textContent = '保存しました';
+                            })
+                            .catch(function (e) { senderMsg.textContent = '保存に失敗しました（' + e.message + '）'; });
+                    }
+                    sender.querySelector('[data-support-sender-save]').addEventListener('click', saveSender);
+                    senderInput.addEventListener('keydown', function (e) {
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();   // never submit the send form from here
+                        saveSender();
+                    });
                 });
             };
         }

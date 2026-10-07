@@ -74,6 +74,18 @@ class MemberSiteControllerTest {
         in.setCreatedAt(LocalDateTime.now());
         when(site.inbox(eq(user), anyString(), any())).thenReturn(Arrays.asList(
                 new MemberSiteService.InboxItem(out, mai, true, false), new MemberSiteService.InboxItem(out, null, false, false)));
+        when(site.inboxGroups(eq(user), anyString(), any())).thenReturn(Arrays.asList(
+                new MemberSiteService.InboxGroup(mai, out, 1), new MemberSiteService.InboxGroup(null, out, 0)));
+        Message read = new Message();
+        read.setId(69L);
+        read.setUserId(5L);
+        read.setDirection(Message.DIR_OUT);
+        read.setSubject("おはよう");
+        read.setBodyText("昨日はありがとう");
+        read.setSentAt(LocalDateTime.now().minusHours(3));
+        when(site.charaInbox(user, 2L)).thenReturn(Arrays.asList(
+                new MemberSiteService.InboxItem(out, mai, true, false), new MemberSiteService.InboxItem(read, mai, false, false)));
+        when(site.previewLength()).thenReturn(15);
         Map<Long, String> senders = new LinkedHashMap<>();
         senders.put(2L, "まい");
         when(site.pastSenders(user)).thenReturn(senders);
@@ -120,14 +132,26 @@ class MemberSiteControllerTest {
     @Test
     void everyPage_rendersInBothDesigns_withEscapedData() {
         for (boolean fp : new boolean[]{false, true}) {
-            String inbox = body(controller.inbox("all", null, req(fp), session));
-            assertThat(inbox).contains("まい", "NEW", "/member/reply?c=2", "運営", "なおと&lt;b&gt;").doesNotContain("なおと<b>");
-            String reply = body(controller.reply(2L, req(fp), session, new ExtendedModelMap()));
+            // 受信BOX: one row per キャラ — 未読あり(n) / 未読なし in place of the age, 受信一覧
+            String inbox = body(controller.inbox("all", null, 1, req(fp), session));
+            assertThat(inbox).contains("まい", "未読あり(1)", "未読なし", "NEW", "/member/inbox/list?c=2", "/member/inbox/list?c=0",
+                    "サポート窓口", "こんばんは", "今日は寒いですね", "なおと&lt;b&gt;")
+                    .doesNotContain("なおと<b>", "25歳", "運営", "https://example.jp/reply/x", "本文閲覧/返信");
+            if (!fp) assertThat(inbox).contains("プロフィール閲覧", ">受信一覧<").doesNotContain("プロフィール参照");
+            // 送信済み: no age, 受信一覧 instead of やり取りを見る
+            String sent = body(controller.inbox("sent", null, 1, req(fp), session));
+            assertThat(sent).contains("To: ", "/member/inbox/list?c=2").doesNotContain("25歳", "やり取りを見る");
+            // 受信一覧: received only, newest first, 未読 / 既読 with the envelope icons, each → 返信画面
+            String list = body(controller.inboxList(2L, 1, req(fp), session));
+            assertThat(list).contains("受信一覧", "未読あり(1)", "mail-unread.svg", "mail-read.svg", ">未読<", ">既読<",
+                    "/member/reply?c=2&amp;m=70#m70", "/member/reply?c=2&amp;m=69#m69", "おはよう");
+            assertThat(list.indexOf("m=70")).isLessThan(list.indexOf("m=69"));
+            String reply = body(controller.reply(2L, null, req(fp), session, new ExtendedModelMap()));
             assertThat(reply).contains("本文閲覧（20pt）", "📎", "name=\"_csrf\" value=\"TOKEN\"", "action=\"/member/reply\"",
                     "本当ですね &lt;script&gt;").doesNotContain("今日は寒いですね", "<script>\"");
             assertThat(body(controller.charaProfile(2L, req(fp), session, new ExtendedModelMap()))).contains("プロフィールを見る（20pt）");
             assertThat(body(controller.charaPhoto(2L, req(fp), session, new ExtendedModelMap()))).contains("写真を見る（20pt）");
-            assertThat(body(controller.friends(req(fp), session, new ExtendedModelMap()))).contains("まい");
+            assertThat(body(controller.friends(req(fp), session, new ExtendedModelMap()))).contains("まい", "東京都").doesNotContain("25歳");
             assertThat(body(controller.search(req(fp), session))).contains("name=\"pref\"", "東京都");
             assertThat(body(controller.support(req(fp), session, new ExtendedModelMap()))).contains("naoto@example.jp");
             assertThat(body(controller.profile(req(fp), session, new ExtendedModelMap()))).contains("name=\"nickname\"", "なおと&lt;b&gt;");
@@ -139,6 +163,33 @@ class MemberSiteControllerTest {
 
     @Test
     void notLoggedIn_goesToTheLoginDialog() {
-        assertThat(controller.inbox("all", null, req(false), new MockHttpSession())).isEqualTo("redirect:/#login");
+        assertThat(controller.inbox("all", null, 1, req(false), new MockHttpSession())).isEqualTo("redirect:/#login");
+        assertThat(controller.inboxList(2L, 1, req(false), new MockHttpSession())).isEqualTo("redirect:/#login");
+    }
+
+    @Test
+    void openingOneMail_marksOnlyThatMailRead() {
+        controller.reply(2L, 70L, req(false), session, new ExtendedModelMap());
+        org.mockito.Mockito.verify(site).markReadIfFree(eq(user), any(), eq(70L));
+    }
+
+    @Test
+    void inboxList_pagesByTen() {
+        List<MemberSiteService.InboxItem> many = new ArrayList<>();
+        for (long i = 0; i < 11; i++) {
+            Message m = new Message();
+            m.setId(100L + i);
+            m.setUserId(5L);
+            m.setDirection(Message.DIR_OUT);
+            m.setSubject("件名" + i);
+            m.setBodyText("本文");
+            m.setSentAt(LocalDateTime.now());
+            many.add(new MemberSiteService.InboxItem(m, mai, false, false));
+        }
+        when(site.charaInbox(user, 2L)).thenReturn(many);
+        String p1 = body(controller.inboxList(2L, 1, req(false), session));
+        assertThat(p1).contains("m=109", "page=2").doesNotContain("m=110");
+        String p2 = body(controller.inboxList(2L, 2, req(false), session));
+        assertThat(p2).contains("m=110").doesNotContain("m=109");
     }
 }

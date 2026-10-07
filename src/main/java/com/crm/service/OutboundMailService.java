@@ -19,10 +19,19 @@ public interface OutboundMailService {
         public final String smtpUsername;
         /** Plaintext (already decrypted by caller). Never log this. */
         public final String smtpPassword;
+        /** From display name for this mail (e.g. サポート窓口's 送信者名); null = the adapter's usual one. */
+        public final String displayName;
 
         public OutboundRequest(String fromAddress, String toAddress, String subject, String body,
                                String smtpHost, int smtpPort,
                                String smtpUsername, String smtpPassword) {
+            this(fromAddress, toAddress, subject, body, smtpHost, smtpPort, smtpUsername, smtpPassword, null);
+        }
+
+        public OutboundRequest(String fromAddress, String toAddress, String subject, String body,
+                               String smtpHost, int smtpPort,
+                               String smtpUsername, String smtpPassword, String displayName) {
+            this.displayName = displayName == null || displayName.trim().isEmpty() ? null : displayName.trim();
             this.fromAddress = fromAddress;
             this.toAddress = toAddress;
             this.subject = subject;

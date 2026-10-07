@@ -49,7 +49,12 @@ public class MailMessageTemplateService {
     }
 
     public boolean isActive() {
-        return mailTemplateService.isMessageTemplateActive();
+        return isActive(MailTemplateService.NOTICE);
+    }
+
+    /** Template {@code key} (メール通知 / サポート窓口) is 有効 with {@code %body%}. */
+    public boolean isActive(String key) {
+        return mailTemplateService.isMessageTemplateActive(key);
     }
 
     /**
@@ -59,8 +64,14 @@ public class MailMessageTemplateService {
      */
     @Transactional
     public void apply(Message msg, CrmUser user, String renderedSubject, String renderedBody, String charaName) {
+        apply(msg, user, renderedSubject, renderedBody, charaName, MailTemplateService.NOTICE);
+    }
+
+    /** The same with template {@code key} — サポート窓口 for a キャラ指定なし mail ({@code charaName} = its 送信者名). */
+    @Transactional
+    public void apply(Message msg, CrmUser user, String renderedSubject, String renderedBody, String charaName, String key) {
         String body = renderedBody == null ? "" : renderedBody;
-        String[] tpl = mailTemplateService.messageTemplateSource();
+        String[] tpl = mailTemplateService.messageTemplateSource(key);
         String tplAll = tpl[0] + "\n" + tpl[1];
         boolean tplReply = tplAll.contains(REPLY), tplExternal = tplAll.contains(EXTERNAL);
         boolean bodyReply = body.contains(REPLY), bodyExternal = body.contains(EXTERNAL);
@@ -89,7 +100,7 @@ public class MailMessageTemplateService {
         extra.put("%staff_name%", charaName == null ? "" : charaName);
         if (replyUrl != null) extra.put(REPLY, replyUrl);
         extra.put(EXTERNAL, externalUrl == null ? "" : externalUrl);
-        String[] filled = mailTemplateService.renderMessageTemplate(user, extra);
+        String[] filled = mailTemplateService.renderMessageTemplate(key, user, extra);
         msg.setSentBodyText(filled[1]);
 
         MessageSentSubject s = sentSubjectRepository.findById(msg.getId()).orElseGet(MessageSentSubject::new);

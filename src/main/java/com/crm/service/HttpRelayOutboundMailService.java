@@ -147,7 +147,7 @@ public class HttpRelayOutboundMailService implements OutboundMailService {
     /** Build a copy of {@code req} with a different fromAddress. Other fields are preserved. */
     private static OutboundRequest rewriteFrom(OutboundRequest req, String newFromAddress) {
         return new OutboundRequest(newFromAddress, req.toAddress, req.subject, req.body,
-                req.smtpHost, req.smtpPort, req.smtpUsername, req.smtpPassword);
+                req.smtpHost, req.smtpPort, req.smtpUsername, req.smtpPassword, req.displayName);
     }
 
     @PostConstruct
@@ -166,7 +166,8 @@ public class HttpRelayOutboundMailService implements OutboundMailService {
     @Override
     public SendResult send(OutboundRequest req) {
         // Apply FROM-domain override + sender-name policy regardless of which transport we end up using.
-        String displayName = senderNameResolver.resolve();
+        // (a 送信者名 given with the mail — サポート窓口 — comes before the sender-name policy)
+        String displayName = req.displayName != null ? req.displayName : senderNameResolver.resolve();
         String fromAddress = applyFromDomainOverride(req.fromAddress);
         OutboundRequest effective = (fromAddress.equals(req.fromAddress)) ? req : rewriteFrom(req, fromAddress);
 

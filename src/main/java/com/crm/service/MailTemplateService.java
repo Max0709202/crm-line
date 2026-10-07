@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
 
 /**
  * サイト構成 › メールテンプレート設定 — the mails sent to members automatically (仮登録通知 / 本登録通知 /
- * 決済入金通知 / メール通知): subject, body and 有効・無効. Tags follow the 番組 (member site) spec:
+ * 決済入金通知 / メール通知 / サポート窓口): subject, body and 有効・無効. Tags follow the 番組 (member site) spec:
  * the common ones are the member pages' {@code %sitename% %id% %name% %email% %point%} plus
  * {@code %login_url%} (ID・パスワードを入力するログイン) and {@code %auto_login_url%} (その会員として自動ログイン). 決済入金通知's tags are {@code %pay_…%} (入金履歴's 金額・pt・方法・入金日時) so they
  * never clash with ユーザー詳細's 置き換えタグ such as {@code %amount%}.
@@ -39,6 +39,8 @@ public class MailTemplateService {
     public static final String REGISTERED = "registered";
     public static final String PAYMENT = "payment";
     public static final String NOTICE = "notice";
+    /** サポート窓口: the form of a mail sent with キャラ指定なし (一斉送信 / 差分ステップ), in place of メール通知. */
+    public static final String SUPPORT = "support";
 
     public static final int MAX_SUBJECT = 100;
     public static final int MAX_BODY = 10000;
@@ -71,7 +73,8 @@ public class MailTemplateService {
             new Def(PROVISIONAL, "仮登録通知", "ユーザーがメールアドレスを登録したとき"),
             new Def(REGISTERED, "本登録通知", "本登録用URLから登録が完了したとき"),
             new Def(PAYMENT, "決済入金通知", "決済・入金が確認されたとき"),
-            new Def(NOTICE, "メール通知", "メッセージが届いたとき（新着のお知らせ）")));
+            new Def(NOTICE, "メール通知", "メッセージが届いたとき（新着のお知らせ）"),
+            new Def(SUPPORT, "サポート窓口", "キャラ指定なし（🎧 サポート窓口）で一斉送信・差分ステップのメールを送るとき")));
 
     /** 仮登録通知 sent while the template is unwritten — the text used before this page existed. */
     static final String DEFAULT_PROVISIONAL_SUBJECT = "【%sitename%】本登録のご案内";
@@ -138,6 +141,10 @@ public class MailTemplateService {
         m.put(NOTICE, Arrays.asList(
                 new String[]{"%staff_name%", "送信者（キャラ）名", "サポートA"},
                 new String[]{"%message_title%", "メッセージの件名", "ご注文の件について"},
+                new String[]{"%reply_url%", "返信画面", base + "/reply/…"}));
+        m.put(SUPPORT, Arrays.asList(
+                new String[]{"%staff_name%", "送信者名（サポート窓口）", "サポート窓口"},
+                new String[]{"%message_title%", "メッセージの件名", "ご利用についてのお知らせ"},
                 new String[]{"%reply_url%", "返信画面", base + "/reply/…"}));
         return m;
     }
@@ -247,12 +254,22 @@ public class MailTemplateService {
      * 本文の文字数設定 then counts only the {@code %body%} part (see MailMessageTemplateService).
      */
     public boolean isMessageTemplateActive() {
-        return isEnabled(NOTICE) && !subject(NOTICE).trim().isEmpty() && body(NOTICE).contains("%body%");
+        return isMessageTemplateActive(NOTICE);
+    }
+
+    /** The same for {@code key} (メール通知, or サポート窓口 for a キャラ指定なし mail). */
+    public boolean isMessageTemplateActive(String key) {
+        return isEnabled(key) && !subject(key).trim().isEmpty() && body(key).contains("%body%");
     }
 
     /** メール通知 filled for {@code user}: the common tags plus {@code extra} → {subject, body}. */
     public String[] renderMessageTemplate(CrmUser user, Map<String, String> extra) {
-        String subject = subject(NOTICE), body = body(NOTICE);
+        return renderMessageTemplate(NOTICE, user, extra);
+    }
+
+    /** Template {@code key} (メール通知 / サポート窓口) filled for {@code user} → {subject, body}. */
+    public String[] renderMessageTemplate(String key, CrmUser user, Map<String, String> extra) {
+        String subject = subject(key), body = body(key);
         Map<String, String> values = commonValues(user, subject, body);
         if (extra != null) values.putAll(extra);
         return new String[]{fill(subject, values).replace("\n", " ").trim(), fill(body, values)};
@@ -260,7 +277,12 @@ public class MailTemplateService {
 
     /** Raw メール通知 subject and body (tags not filled). */
     public String[] messageTemplateSource() {
-        return new String[]{subject(NOTICE), body(NOTICE)};
+        return messageTemplateSource(NOTICE);
+    }
+
+    /** Raw subject and body of template {@code key} (tags not filled). */
+    public String[] messageTemplateSource(String key) {
+        return new String[]{subject(key), body(key)};
     }
 
     private Map<String, String> commonValues(CrmUser user, String subject, String body) {

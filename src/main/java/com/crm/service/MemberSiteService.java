@@ -55,7 +55,11 @@ public class MemberSiteService {
 
     public static final int SUBJECT_MAX = 100;
     public static final int BODY_MAX = 5000;
-    private static final int INBOX_MAX = 100;
+    private static final int INBOX_MAX = 500;
+    /** 受信一覧 / 送信済み: mails per page (11通目から2ページ目). */
+    public static final int PAGE_SIZE = 10;
+    /** Who a mail with no キャラ is from on the member pages (キャラ指定なし = サポート窓口から送信). */
+    public static final String SUPPORT_NAME = "サポート窓口";
 
     public static class MemberException extends RuntimeException {
         public MemberException(String msg) { super(msg); }
@@ -64,11 +68,21 @@ public class MemberSiteService {
     /** One 受信BOX row. */
     public static final class InboxItem {
         public final Message message;
-        public final Chara chara;          // null = 運営 (no キャラ)
+        public final Chara chara;          // null = サポート窓口 (no キャラ)
         public final boolean unread;
         public final boolean sent;         // 送信済み tab: the member's own message
         public InboxItem(Message message, Chara chara, boolean unread, boolean sent) {
             this.message = message; this.chara = chara; this.unread = unread; this.sent = sent;
+        }
+    }
+
+    /** 受信BOX row: one キャラ (null = サポート窓口) with its newest mail and how many are 未読. */
+    public static final class InboxGroup {
+        public final Chara chara;
+        public final Message latest;
+        public final int unread;
+        public InboxGroup(Chara chara, Message latest, int unread) {
+            this.chara = chara; this.latest = latest; this.unread = unread;
         }
     }
 
@@ -126,6 +140,17 @@ public class MemberSiteService {
         this.attachmentService = attachmentService;
         this.userActivityService = userActivityService;
         this.passwordEncoder = passwordEncoder;
+    }
+
+    /** メール送信設定's 本文の文字数設定 — how much of a mail the 受信BOX shows. Optional (tests). */
+    private DomainSettingService domainSettingService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setDomainSettingService(DomainSettingService domainSettingService) { this.domainSettingService = domainSettingService; }
+
+    /** 表示文字数: the 本文 shown in the 受信BOX / 受信一覧 — as much as the mail itself showed. */
+    public int previewLength() {
+        return domainSettingService == null ? 30 : domainSettingService.getEmailReplyUrlClipLength();
     }
 
     /* ===================== ログイン ===================== */
@@ -190,7 +215,7 @@ public class MemberSiteService {
 
     /**
      * 受信BOX rows: {@code tab} all / unread (未読) / fav (お気に入り = 友達追加したキャラ) / sent (送信済み);
-     * {@code charaId} narrows to one キャラ (0 = 運営).
+     * {@code charaId} narrows to one キャラ (0 = サポート窓口).
      */
     public List<InboxItem> inbox(CrmUser u, String tab, Long charaId) {
         boolean sentTab = "sent".equals(tab);
@@ -215,7 +240,38 @@ public class MemberSiteService {
         return out;
     }
 
-    /** 過去の受信者から選択: the キャラ that wrote to the member (and 運営 when it did). */
+    /**
+     * 受信BOX (すべて / 未読 / お気に入り): the キャラ that wrote to the member, one row each, newest mail
+     * first, with how many of their mails are 未読. {@code charaId} narrows to one キャラ (0 = サポート窓口).
+     */
+    public List<InboxGroup> inboxGroups(CrmUser u, String tab, Long charaId) {
+        List<InboxItem> items = inbox(u, "fav".equals(tab) ? "fav" : "all", charaId);
+        Map<Long, Chara> charaOf = new LinkedHashMap<>();
+        Map<Long, Message> latest = new LinkedHashMap<>();
+        Map<Long, Integer> unread = new HashMap<>();
+        for (InboxItem it : items) {   // newest first
+            Long key = it.chara == null ? 0L : it.chara.getId();
+            if (!latest.containsKey(key)) {
+                latest.put(key, it.message);
+                charaOf.put(key, it.chara);
+            }
+            if (it.unread) unread.merge(key, 1, Integer::sum);
+        }
+        List<InboxGroup> out = new ArrayList<>();
+        for (Map.Entry<Long, Message> e : latest.entrySet()) {
+            int n = unread.getOrDefault(e.getKey(), 0);
+            if ("unread".equals(tab) && n == 0) continue;
+            out.add(new InboxGroup(charaOf.get(e.getKey()), e.getValue(), n));
+        }
+        return out;
+    }
+
+    /** 受信一覧: the mails one キャラ (0 = サポート窓口) sent to the member — received only, newest first. */
+    public List<InboxItem> charaInbox(CrmUser u, long charaId) {
+        return inbox(u, "all", charaId);
+    }
+
+    /** 過去の受信者から選択: the キャラ that wrote to the member (and サポート窓口 when it did). */
     public Map<Long, String> pastSenders(CrmUser u) {
         List<Message> msgs = inboxMessages(u);
         Map<Long, Long> charaByMsg = charaLinkService.charaIdsOfMessages(msgs);
@@ -224,7 +280,7 @@ public class MemberSiteService {
         for (Message m : msgs) {
             Long cid = charaByMsg.get(m.getId());
             Chara c = cid == null ? null : charas.get(cid);
-            if (c == null) out.putIfAbsent(0L, "運営");
+            if (c == null) out.putIfAbsent(0L, SUPPORT_NAME);
             else out.putIfAbsent(c.getId(), c.getName());
         }
         return out;
@@ -237,7 +293,7 @@ public class MemberSiteService {
     }
 
     /**
-     * The member's messages with one キャラ (0 = 運営 / no キャラ), oldest first: the キャラ's mails / SMS
+     * The member's messages with one キャラ (0 = サポート窓口 / no キャラ), oldest first: the キャラ's mails / SMS
      * and the member's own (Web返信 / mail replies). LINE stays in the LINE app.
      */
     public List<ConvItem> conversation(CrmUser u, long charaId) {
@@ -270,12 +326,17 @@ public class MemberSiteService {
         return out;
     }
 
-    /** 本文閲覧 is free: opening the conversation marks its キャラ messages as read. */
+    /**
+     * 本文閲覧 is free: the mail the member clicked in 受信一覧 ({@code messageId}) becomes 既読 —
+     * only that one, so the キャラ's other mails stay 未読 until each is opened.
+     */
     @Transactional
-    public void markReadIfFree(CrmUser u, List<ConvItem> items) {
-        if (cost(COST_BODY, u) > 0) return;
+    public void markReadIfFree(CrmUser u, List<ConvItem> items, Long messageId) {
+        if (messageId == null || cost(COST_BODY, u) > 0) return;
         for (ConvItem it : items) {
-            if (it.out) unlockService.unlock(u.getId(), MemberUnlockService.BODY, it.message.getId(), 0);
+            if (it.out && messageId.equals(it.message.getId())) {
+                unlockService.unlock(u.getId(), MemberUnlockService.BODY, it.message.getId(), 0);
+            }
         }
     }
 
@@ -339,7 +400,7 @@ public class MemberSiteService {
     }
 
     /**
-     * The member's message to キャラ {@code charaId} (0 = 運営): arrives in the 管理画面 as a Web返信 to
+     * The member's message to キャラ {@code charaId} (0 = サポート窓口): arrives in the 管理画面 as a Web返信 to
      * the キャラ's latest message; アドレス / 電話番号添付 add the member's address / number to the text.
      */
     @Transactional

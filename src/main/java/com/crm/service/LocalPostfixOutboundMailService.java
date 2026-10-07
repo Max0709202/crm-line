@@ -44,7 +44,8 @@ public class LocalPostfixOutboundMailService implements OutboundMailService {
             Session session = Session.getInstance(props);
 
             MimeMessage msg = new MimeMessage(session);
-            msg.setFrom(new InternetAddress(req.fromAddress, false));
+            msg.setFrom(req.displayName == null ? new InternetAddress(req.fromAddress, false)
+                    : new InternetAddress(req.fromAddress, req.displayName, "UTF-8"));
             msg.setRecipient(Message.RecipientType.TO, new InternetAddress(req.toAddress, false));
             msg.setSubject(req.subject == null ? "" : req.subject, "UTF-8");
             msg.setText(req.body == null ? "" : req.body, "UTF-8");

@@ -51,6 +51,12 @@ public class MessageController {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setMessageImageService(com.crm.service.MessageImageService messageImageService) { this.messageImageService = messageImageService; }
+
+    /** 既読 / 未読 of a sent mail = the member opened it on the 会員ページ (本文閲覧). Optional (tests). */
+    private com.crm.service.MemberUnlockService memberUnlockService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMemberUnlockService(com.crm.service.MemberUnlockService memberUnlockService) { this.memberUnlockService = memberUnlockService; }
     private final com.crm.service.CharaLinkService charaLinkService;
     private final com.crm.repository.CharaRepository charaRepository;
     private final com.crm.repository.CharaFolderRepository charaFolderRepository;
@@ -393,6 +399,12 @@ public class MessageController {
             }
         }
         model.addAttribute("directOutIds", directOutIds);
+        // 既読 / 未読 (shown in place of 運営): the sent mails the member has opened on the 会員ページ
+        java.util.List<Long> sentOutIds = new java.util.ArrayList<>();
+        for (Message m : thread) if (Message.DIR_OUT.equals(m.getDirection())) sentOutIds.add(m.getId());
+        model.addAttribute("memberReadIds", memberUnlockService == null || sentOutIds.isEmpty()
+                ? java.util.Collections.<Long>emptySet()
+                : memberUnlockService.unlocked(userId, com.crm.service.MemberUnlockService.BODY, sentOutIds));
         com.crm.entity.CarrierAddressPool boundPool = bindingService.firstBoundFor(userId).orElse(null);
         model.addAttribute("userHasPool", boundPool != null && !Boolean.FALSE.equals(boundPool.getIsActive()));
         // キャラ card: the キャラ of ?chara=, else the user's newest 紐づきキャラ (メール); replies from

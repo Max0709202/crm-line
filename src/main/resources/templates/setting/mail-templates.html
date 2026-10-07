@@ -261,7 +261,8 @@
         user: "%3Ccircle cx='6' cy='5' r='2.6'/%3E%3Cpath d='M1.5 13.5c.4-2.6 2.3-4 4.5-4s4.1 1.4 4.5 4M12.5 5v4M10.5 7h4'/%3E",
         check: "%3Ccircle cx='8' cy='8' r='6.2'/%3E%3Cpath d='m5.2 8.2 2 2 3.8-4'/%3E",
         yen: "%3Ccircle cx='8' cy='8' r='6.2'/%3E%3Cpath d='M5.6 4.8 8 8l2.4-3.2M8 8v3.6M5.8 8.6h4.4M5.8 10.2h4.4'/%3E",
-        bell: "%3Cpath d='M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1 1H3z'/%3E%3Cpath d='M6.6 13.6a1.5 1.5 0 0 0 2.8 0'/%3E"
+        bell: "%3Cpath d='M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1 1H3z'/%3E%3Cpath d='M6.6 13.6a1.5 1.5 0 0 0 2.8 0'/%3E",
+        headset: "%3Cpath d='M3 9.5V8a5 5 0 0 1 10 0v1.5'/%3E%3Crect x='2.4' y='9' width='2.6' height='4.2' rx='1'/%3E%3Crect x='11' y='9' width='2.6' height='4.2' rx='1'/%3E"
     };
     var META = {
         provisional: { icon: 'user', color: '#b45309', bg: '#fef3c7', critical: true, keyTags: ['%verify_url%'],
@@ -271,7 +272,9 @@
         payment: { icon: 'yen', color: '#1d4ed8', bg: '#dbeafe', keyTags: [],
             off: '無効の間は、入金確認メールは送られません（入金・ポイント付与は通常どおり行われます）。' },
         notice: { icon: 'bell', color: '#6d28d9', bg: '#ede9fe', keyTags: ['%reply_url%'],
-            off: '無効の間は、新着メッセージのお知らせメールは送られません（メッセージはマイページで確認できます）。' }
+            off: '無効の間は、新着メッセージのお知らせメールは送られません（メッセージはマイページで確認できます）。' },
+        support: { icon: 'headset', color: '#0f766e', bg: '#ccfbf1', keyTags: ['%body%'],
+            off: '無効の間は、キャラ指定なし（サポート窓口）のメールも「メール通知」の形で送られます。' }
     };
     /* ================================================================ */
 
@@ -397,7 +400,9 @@
             ((TAGS[currentKey] || []).length ? '<div class="tags-row"><span class="tags-label">このメール用</span>' + TAGS[currentKey].map(function (x) { return tagBtn(x, keys.indexOf(x[0]) !== -1); }).join('') + '</div>' : '') +
             '<div class="tags-hint">クリックで、最後に選んだ欄（件名または本文）のカーソル位置に入ります。送信時に実際の値へ置き換わります。</div>' +
             (currentKey === 'notice' ? '<div class="tags-hint" style="color:#475569;">%body%（本文）を入れて「有効」にすると、個別返信・一斉送信・差分のメールがこのテンプレートの形で送信されます。' +
-                'メール送信設定の「本文の文字数設定」は %body% の部分だけに数え、テンプレートの文字は含みません（LINEの固定テンプレートと同じ）。続きは返信URL先で表示されます。</div>' : '');
+                'メール送信設定の「本文の文字数設定」は %body% の部分だけに数え、テンプレートの文字は含みません（LINEの固定テンプレートと同じ）。続きは返信URL先で表示されます。</div>' : '') +
+            (currentKey === 'support' ? '<div class="tags-hint" style="color:#475569;">%body%（本文）を入れて「有効」にすると、一斉送信・差分ステップで「キャラ指定なし → 🎧 サポート窓口」を選んだメールがこのテンプレートの形で送信されます（メール通知の代わり）。' +
+                '%staff_name% は一斉送信・差分ステップの「⇒ 送信者名」（サポート窓口の送信者名）で、メールの差出人名にもなります。</div>' : '');
         counters();
     }
     function tagBtn(x, isKey) {

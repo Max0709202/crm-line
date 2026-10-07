@@ -472,6 +472,10 @@
         .wsx .msg-meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:11px; color:#94a3b8; }
         .wsx .msg.is-out .msg-meta { justify-content:flex-end; }
         .wsx .msg-who { font-weight:700; color:#475569; }
+        /* 既読 (赤文字) / 未読 (黒文字) — 左に開封・未開封の封筒アイコン */
+        .wsx .msg-read { display:inline-flex; align-items:center; gap:3px; font-weight:700; color:#111827; }
+        .wsx .msg-read.is-read { color:#dc2626; }
+        .wsx .msg-read img { width:16px; height:14px; }
         .wsx .msg-time { font-variant-numeric:tabular-nums; }
         .wsx .msg-time b { font-weight:600; color:#64748b; }
         .wsx .msg-flag { padding:0 6px; font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border-radius:4px; }
@@ -779,7 +783,14 @@
                                 th:data-msg-id="${m.id}" onclick="deleteScheduledMessage(this)">削除</button>
                         <span class="msg-time"><b>送信</b> <th:block th:text="${#temporals.format(at, 'M/d H:mm')}"/></span>
                         <th:block th:replace="~{::route(${m.channel == 'EMAIL' and !directOutIds.contains(m.id)} ? 'WEB_REPLY' : ${m.channel})}"/>
-                        <span class="msg-who" th:text="${who}"></span>
+                        <!-- 既読 / 未読 (会員ページで開封したか) — メール・SMS は「運営」の代わりに表示。LINE はキャラ(LINEアカウント)名のまま -->
+                        <span th:if="${m.channel == 'LINE'}" class="msg-who" th:text="${who}"></span>
+                        <span th:if="${m.channel != 'LINE' and m.status == 'SENT'}"
+                              th:with="isRead=${memberReadIds.contains(m.id)}"
+                              class="msg-read" th:classappend="${isRead} ? 'is-read'">
+                            <img th:src="${isRead} ? '/member/images/mail-read.svg' : '/member/images/mail-unread.svg'" alt=""/>
+                            <th:block th:text="${isRead} ? '既読' : '未読'">未読</th:block>
+                        </span>
                     </div>
                     <div class="msg-title" th:text="${m.subject} ?: '(件名なし)'"></div>
                     <div class="msg-body" th:text="${m.bodyText}"></div>

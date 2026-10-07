@@ -250,7 +250,12 @@ public class BroadcastService {
         attachImages(saved, imageIds);
 
         long intervalMs = 60_000L / b.getRatePerMinute();
-        boolean mailTemplated = mailMessageTemplateService != null && mailMessageTemplateService.isActive();
+        // キャラ指定なし = サポート窓口: the メールテンプレート設定 › サポート窓口 template while it is 有効,
+        // else メール通知 as before
+        boolean fromSupport = (charaLinkService == null ? null : charaLinkService.charaName(form.getCharaId())) == null;
+        String templateKey = fromSupport && mailMessageTemplateService != null
+                && mailMessageTemplateService.isActive(MailTemplateService.SUPPORT) ? MailTemplateService.SUPPORT : MailTemplateService.NOTICE;
+        boolean mailTemplated = mailMessageTemplateService != null && mailMessageTemplateService.isActive(templateKey);
         String charaName = mailTemplated ? senderName(form.getCharaId()) : null;
         for (int i = 0; i < deliverable.size(); i++) {
             CrmUser user = deliverable.get(i);
@@ -282,7 +287,7 @@ public class BroadcastService {
                     || body.contains(MessageService.EXTERNAL_URL_PLACEHOLDER);
             if (mailTemplated) {
                 // メール通知 (with %body%) is the form of the mail: the 文字数設定 counts only %body%
-                mailMessageTemplateService.apply(persisted, user, persisted.getSubject(), body, charaName);
+                mailMessageTemplateService.apply(persisted, user, persisted.getSubject(), body, charaName, templateKey);
                 messageRepository.save(persisted);
             } else if (needsAnyUrl) {
                 String url = replyPageService.createReplyPageFor(persisted);

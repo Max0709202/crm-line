@@ -90,6 +90,24 @@ public class MessageService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setMailMessageTemplateService(MailMessageTemplateService s) { this.mailMessageTemplateService = s; }
 
+    /** サポート窓口's 送信者名 — the From name of a キャラ指定なし mail. Optional (tests). */
+    private SupportDeskService supportDeskService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setSupportDeskService(SupportDeskService supportDeskService) { this.supportDeskService = supportDeskService; }
+
+    /**
+     * キャラ指定なし (🎧 サポート窓口) の一斉送信・差分ステップ mail: From's display name is サポート窓口's
+     * 送信者名 ("サポート窓口" while unset), so it arrives from サポート窓口, not a キャラ / 運営 name.
+     * null for every other mail (the sender-name policy applies as before).
+     */
+    private String supportDisplayName(Message msg) {
+        if (supportDeskService == null || charaLinkService == null || msg.getBroadcastId() == null) return null;
+        if (charaLinkService.charaIdOfMessage(msg) != null) return null;
+        String name = supportDeskService.senderName();
+        return name.isEmpty() ? MemberSiteService.SUPPORT_NAME : name;
+    }
+
     public MessageService(MessageRepository messageRepository,
                           CrmUserRepository userRepository,
                           CarrierAddressPoolRepository poolRepository,
@@ -857,7 +875,8 @@ public class MessageService {
                     smtpHost,
                     smtpPort == null ? 587 : smtpPort,
                     smtpUser,
-                    smtpPwd);
+                    smtpPwd,
+                    supportDisplayName(msg));
             OutboundMailService.SendResult result = outboundMailService.send(req);
             success = result.success;
             retriable = result.retriable;
