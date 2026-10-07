@@ -340,6 +340,7 @@ public class MessageController {
                 String circled = com.crm.service.ReplyHtmlSlotService.circled(activeSlot);
             String title = replyHtmlSlotService.getSlotTitle(activeSlot);
             model.addAttribute("activeMemoLabel", title.startsWith(circled) ? title : circled + " " + title);
+            model.addAttribute("activeMemoCircled", circled);
         }
         model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         if (!model.containsAttribute("form")) {

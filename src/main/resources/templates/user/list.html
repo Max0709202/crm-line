@@ -455,7 +455,8 @@
                         th:classappend="${u.status == 'SUSPENDED'} ? 'row-suspended'">
                         <td><input type="checkbox" class="row-check row-item" name="ids" th:value="${u.id}"/></td>
                         <!-- ユーザーID (CRM_USER.ID) — was a sequential row number until 2026-10-02. -->
-                        <td><code class="text-xs text-slate-600" th:text="${u.id}"></code></td>
+                        <!-- ID = the member's own ID (会員登録で 10000〜 のログインID); users without one keep the internal ID -->
+                        <td><code class="text-xs text-slate-600" th:text="${u.loginId != null and !#strings.isEmpty(u.loginId)} ? ${u.loginId} : ${u.id}"></code></td>
                         <td class="text-xs text-slate-600" th:text="${@roleMask.phone(u.phoneNumber)} ?: '-'"></td>
                         <td th:text="${@roleMask.email(u.email)}"></td>
                         <td th:text="${u.displayName}"></td>

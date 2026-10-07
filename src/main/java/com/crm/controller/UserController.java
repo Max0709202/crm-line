@@ -775,35 +775,48 @@ public class UserController {
         return "user/message-box";
     }
 
+    /** Where a メッセージボックス delete goes back to: the 管理画面「受信ボックス確認」 preview it came from
+     *  (会員の受信BOX / 返信画面), else this admin メッセージボックス page. */
+    private static String messageBoxReturn(Long id, String returnTo) {
+        if ("member-inbox".equals(returnTo)) return "/member/inbox";
+        if ("user-view".equals(returnTo)) return "/manager/users/" + id + "/user-view?box=true";
+        return "/manager/users/" + id + "/message-box";
+    }
+
     @PostMapping("/{id}/message-box/delete")
     public String messageBoxDelete(@PathVariable Long id,
                                    @RequestParam(name = "ids", required = false) List<Long> ids,
+                                   @RequestParam(name = "returnTo", required = false) String returnTo,
                                    RedirectAttributes ra) {
         int n = messageBoxService.dismissSelected(id, ids);
         auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_BOX_DELETE, "Message",
                 ids == null ? "" : ids.toString(), n + " 件削除 (user=" + id + ")");
         ra.addFlashAttribute("flashSuccess", n + " 件削除しました");
-        return "redirect:/manager/users/" + id + "/message-box";
+        return "redirect:" + messageBoxReturn(id, returnTo);
     }
 
     @PostMapping("/{id}/message-box/delete-all")
-    public String messageBoxDeleteAll(@PathVariable Long id, RedirectAttributes ra) {
+    public String messageBoxDeleteAll(@PathVariable Long id,
+                                      @RequestParam(name = "returnTo", required = false) String returnTo,
+                                      RedirectAttributes ra) {
         int n = messageBoxService.dismissAll(id);
         auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_BOX_DELETE, "Message",
                 "ALL", n + " 件全件削除 (user=" + id + ")");
         ra.addFlashAttribute("flashSuccess", n + " 件全件削除しました");
-        return "redirect:/manager/users/" + id + "/message-box";
+        return "redirect:" + messageBoxReturn(id, returnTo);
     }
 
     /** 受信履歴 tab's 全件削除 — separate from the 送信履歴 one above since they touch
      *  different directions (see MessageBoxService.dismissAllInbound). */
     @PostMapping("/{id}/message-box/delete-all-inbound")
-    public String messageBoxDeleteAllInbound(@PathVariable Long id, RedirectAttributes ra) {
+    public String messageBoxDeleteAllInbound(@PathVariable Long id,
+                                             @RequestParam(name = "returnTo", required = false) String returnTo,
+                                             RedirectAttributes ra) {
         int n = messageBoxService.dismissAllInbound(id);
         auditLog.record(com.crm.service.AuditLogService.ACTION_MESSAGE_BOX_DELETE, "Message",
                 "ALL_INBOUND", n + " 件全件削除 (user=" + id + ")");
         ra.addFlashAttribute("flashSuccess", n + " 件全件削除しました");
-        return "redirect:/manager/users/" + id + "/message-box";
+        return "redirect:" + messageBoxReturn(id, returnTo);
     }
 
     /** This user's 差分スケジュール — pending + history, with select/all delete. Note that a

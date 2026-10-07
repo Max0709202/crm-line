@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" xml:lang="ja" lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="Cache-Control" content="no-cache" />
+<title th:text="${pageTitle} + '｜' + ${siteName}">ページ</title>
+</head>
+<!-- ガラケー版の member/page (/page/{code}・登録エラー等): 仮登録 / 本登録完了の ガラケーデザイン (site/*_fp.html) と同じ見た目 -->
+<body style="margin:0;padding:0;background-color:#ffffff;color:#16324a;">
+<a name="top" id="top"></a>
+
+<!-- ===== ヘッダー ===== -->
+<div style="text-align:center;padding:2px 0;">
+<a href="/" th:href="${topHref ?: '/'}">
+<img th:if="${logoUrl != null}" th:src="${logoUrl}" th:alt="${siteName}" style="max-width:100%;" />
+<span th:if="${logoUrl == null}" style="color:#dd1470;font-size:medium;"><strong th:text="${siteName}">サイト名</strong></span>
+</a>
+</div>
+<div style="background-color:#0f74c2;color:#ffffff;text-align:center;font-size:x-small;padding:1px 0;">18歳以上限定コミュニティ</div>
+
+<!-- ===== 本文 ===== -->
+<div style="background-color:#dd1470;color:#ffffff;padding:2px 4px;margin-top:4px;">
+<span style="color:#ffffff;" th:text="'■' + ${pageTitle}">■ページ</span>
+</div>
+<div style="font-size:small;padding:6px 4px;word-wrap:break-word;">
+<div th:if="${pageHtml != null and !pageHtml.isEmpty()}" th:utext="${pageHtml}"></div>
+<div th:if="${pageHtml == null or pageHtml.isEmpty()}">現在準備中です。</div>
+</div>
+
+<div style="text-align:center;font-size:small;padding:2px 0 6px;">
+<a href="/" th:href="${topHref ?: '/'}" accesskey="0">[0]トップページへ</a>
+</div>
+
+<!-- ===== フッター ===== -->
+<div style="background-color:#0e2b45;color:#ffffff;font-size:x-small;text-align:center;padding:4px 2px;">
+<span style="color:#ffffff;">18歳未満の方および高校生の方のご利用はお断りしています。</span><br />
+<span style="color:#b9ccdc;" th:text="'© ' + ${#dates.year(#dates.createNow())} + ' ' + ${siteName}">© サイト名</span>
+</div>
+</body>
+</html>

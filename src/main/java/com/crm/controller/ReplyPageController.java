@@ -198,8 +198,15 @@ public class ReplyPageController {
             return "member/handoff";
         }
 
+        addReplyPageModel(model, rp, token, user, boxPage, inboundPage);
+        addOgpAttributes(model);
+        return "reply/page";
+    }
+
+    /** The 返信画面's content (header HTML, 入力欄, attachments, メッセージボックス) — {@code rp} may be null (admin preview of a user with no reply page). */
+    private void addReplyPageModel(Model model, ReplyPage rp, String token, Optional<CrmUser> user, int boxPage, int inboundPage) {
         ReplyPageSetting settings = settingService.getOrCreate();
-        String headerHtml = blankToNull(rp.getHeaderHtml());
+        String headerHtml = rp == null ? null : blankToNull(rp.getHeaderHtml());
         if (headerHtml == null && user.isPresent()) {
             // Honour the operator's 使用中 slot selection (memo / memo2 / memo3).
             headerHtml = blankToNull(user.get().getActiveMemo());
@@ -245,9 +252,45 @@ public class ReplyPageController {
             addBoxImages(model, user.get(), box);
             model.addAttribute("boxPage", boxPage);
         }
-        addOgpAttributes(model);
+    }
+
+    /**
+     * 管理画面 › やり取り「表示画面を確認」(box=false) / 「受信ボックス確認」(box=true): what the user sees now.
+     * A member (ID・パスワードあり, 本登録済み) gets the 会員ページ — their reply URL leads there — opened as that
+     * member in read-only preview ({@link MemberSiteController#SESSION_PREVIEW_ID}); 受信ボックス確認 opens their
+     * 受信BOX, with 選択削除. Anyone else sees this 返信画面 (専用HTML・入力欄・メッセージボックス) — nothing is
+     * recorded (no view / 最終ログイン), its forms are disabled, and box=true adds 選択削除 to the メッセージボックス.
+     */
+    @GetMapping("/manager/users/{id}/user-view")
+    public String userView(@PathVariable Long id,
+                           @RequestParam(name = "box", defaultValue = "false") boolean box,
+                           @RequestParam(name = "box_page", defaultValue = "0") int boxPage,
+                           @RequestParam(name = "inbound_page", defaultValue = "0") int inboundPage,
+                           HttpServletRequest request, Model model) {
+        Optional<CrmUser> user = userRepository.findById(id);
+        if (!user.isPresent()) return "redirect:/manager/users";
+        CrmUser u = user.get();
+        if (u.getLoginPassword() != null && CrmUser.STATUS_ACTIVE.equals(u.getStatus())) {
+            request.getSession(true).setAttribute(MemberSiteController.SESSION_PREVIEW_ID, u.getId());
+            return box ? "redirect:/member/inbox" : "redirect:/member/menu";
+        }
+        ReplyPage rp = replyPageService.latestFor(id).orElse(null);
+        addReplyPageModel(model, rp, rp == null ? "preview" : rp.getToken(), user, boxPage, inboundPage);
+        model.addAttribute("pointShort", false);
+        model.addAttribute("previewUser", u);
+        model.addAttribute("previewBox", box);
         return "reply/page";
     }
+
+    /** 会員ページの管理者プレビューを終了して、そのユーザーのやり取りに戻る. */
+    @GetMapping("/manager/users/preview/end")
+    public String endUserView(HttpServletRequest request) {
+        javax.servlet.http.HttpSession session = request.getSession(false);
+        Object id = session == null ? null : session.getAttribute(MemberSiteController.SESSION_PREVIEW_ID);
+        if (session != null) session.removeAttribute(MemberSiteController.SESSION_PREVIEW_ID);
+        return id == null ? "redirect:/manager/users" : "redirect:/manager/users/" + id + "/thread";
+    }
+
 
     /** Logs the member in (new session ID, same session — an operator's 管理画面 login stays) and
      *  returns the 会員ページ URL of the conversation the reply URL was sent with. */

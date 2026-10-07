@@ -84,6 +84,11 @@ public class ReplyPageService {
         return replyPageRepository.findByToken(token);
     }
 
+    /** The user's newest reply page — its token lets the admin preview show the user's images. */
+    public Optional<ReplyPage> latestFor(Long userId) {
+        return replyPageRepository.findFirstByUserIdOrderByIdDesc(userId);
+    }
+
     /** Bumps view count + last_viewed_at. Caller should already have checked validity. */
     @Transactional
     public void recordView(ReplyPage rp) {

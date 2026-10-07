@@ -631,9 +631,13 @@
                             <li class="is-folder" th:style="${folderColors.get(user.folder) != null} ? 'background:' + ${folderColors.get(user.folder)}" th:text="${user.folder}">フォルダ</li>
                         </ul>
                         <div class="dtl-links">
-                            <span th:if="${activeMemoLabel != null}"><b>専用HTML使用中</b><br/><a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank" rel="noopener" th:text="${activeMemoLabel}">返信HTML</a></span>
+                            <!-- 専用HTML①使用中 (title → that HTML's preview) / 表示画面を確認 = what the user sees now
+                                 (会員ページ or 返信画面, read-only) / 受信ボックス確認 = the same, at the user's 受信BOX with 選択削除 -->
+                            <span th:if="${activeMemoLabel != null}"><a th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank" rel="noopener"
+                                  th:title="${activeMemoLabel}"><b th:text="'専用HTML' + ${activeMemoCircled} + '使用中'">専用HTML①使用中</b></a></span>
                             <span th:unless="${activeMemoLabel != null}">専用HTML：未使用</span>
-                            <a th:href="@{'/manager/users/' + ${user.id} + '/message-box'}" target="_blank" rel="noopener">ユーザーの受信画面を確認 ↗</a>
+                            <a th:href="@{'/manager/users/' + ${user.id} + '/user-view'}" target="_blank" rel="noopener">表示画面を確認 ↗</a>
+                            <a th:href="@{'/manager/users/' + ${user.id} + '/user-view'(box=true)}" target="_blank" rel="noopener">受信ボックス確認</a>
                             <!-- 紐づきキャラ: クリックでそのキャラとのやり取り（返信画面）を別タブで開く -->
                             <span class="dtl-chars" th:if="${!linkedCharas.isEmpty() or !linkedCharNames.isEmpty()}">紐づきキャラ<th:block th:text="${linkedCharas.size() + linkedCharNames.size()} + '人 '"/><th:block
                                 th:each="c, it : ${linkedCharas}"><a th:href="@{'/manager/users/' + ${user.id} + '/thread'(chara=${c.id})}" target="_blank" rel="noopener" th:text="${c.name}">キャラ</a><th:block th:unless="${it.last and linkedCharNames.isEmpty()}"> / </th:block></th:block><th:block

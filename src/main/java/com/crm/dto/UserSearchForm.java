@@ -82,6 +82,11 @@ public class UserSearchForm {
         return out;
     }
 
+    /** {@link #ids} as typed — matched against the login ID too (the ID shown in the list). */
+    public java.util.List<String> idTokens() {
+        return splitTokens(ids);
+    }
+
     private static java.util.List<String> splitTokens(String raw) {
         if (raw == null || raw.trim().isEmpty()) return java.util.Collections.emptyList();
         java.util.List<String> out = new java.util.ArrayList<>();

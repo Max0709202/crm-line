@@ -113,13 +113,13 @@ public class MemberSiteController {
                         HttpServletRequest request, Model model) {
         String key = "member:" + ClientIpResolver.resolve(request);
         if (throttle.isBlocked(key)) {
-            return publicMessage(model, "ログインできません", "<p>ログインの試行回数が多すぎます。しばらく時間をおいてからもう一度お試しください。</p>"
+            return publicMessage(request, model, "ログインできません", "<p>ログインの試行回数が多すぎます。しばらく時間をおいてからもう一度お試しください。</p>"
                     + "<p><a href=\"/#login\">ログイン画面に戻る</a></p>");
         }
         Optional<CrmUser> user = site.authenticate(loginId, password);
         if (!user.isPresent()) {
             throttle.recordFailure(key);
-            return publicMessage(model, "ログインできません", "<p>メールアドレス（ログインID）またはパスワードが正しくありません。"
+            return publicMessage(request, model, "ログインできません", "<p>メールアドレス（ログインID）またはパスワードが正しくありません。"
                     + "本登録がお済みでない場合は、届いたメールのURLから本登録を完了してください。</p>"
                     + "<p><a href=\"/#login\">ログイン画面に戻る</a></p>");
         }
@@ -140,6 +140,7 @@ public class MemberSiteController {
     @GetMapping("/member/logout")
     public String logout(HttpSession session) {
         session.removeAttribute(PublicSiteController.SESSION_MEMBER_ID);
+        session.removeAttribute(SESSION_PREVIEW_ID);
         return "redirect:/";
     }
 
@@ -149,7 +150,7 @@ public class MemberSiteController {
     public Object menu(HttpServletRequest request, HttpSession session) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
-        site.touch(u);
+        touch(session, u);
         return render("menu", request, u, null, null);
     }
 
@@ -161,7 +162,7 @@ public class MemberSiteController {
                         HttpServletRequest request, HttpSession session) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
-        site.touch(u);
+        touch(session, u);
         boolean fp = fp(request);
         String t = "unread".equals(tab) || "fav".equals(tab) || "sent".equals(tab) ? tab : "all";
         List<MemberSiteService.InboxItem> items = site.inbox(u, t, charaFilter);
@@ -197,11 +198,27 @@ public class MemberSiteController {
                 b.append("<option value=\"").append(s.getKey()).append("\"").append(s.getKey().equals(charaFilter) ? " selected" : "")
                         .append(">").append(e(s.getValue())).append("</option>");
             }
-            b.append("</select></div><section id=\"ml\"><div class=\"boxline\"></div>");
+            b.append("</select></div>");
+            // 管理者プレビュー「受信ボックス確認」: 選択削除 — the same soft delete as the 管理画面's
+            // メッセージボックス, so the message leaves this 受信BOX (and the 返信画面's box) for the member.
+            boolean boxDelete = preview(session) && !"sent".equals(t) && !items.isEmpty();
+            if (boxDelete) {
+                b.append("<form id=\"pvDel\" method=\"post\" action=\"/manager/users/").append(u.getId()).append("/message-box/delete\"")
+                        .append(" style=\"display:flex;gap:12px;align-items:center;margin:8px 0;padding:8px 10px;border:1px dashed #b91c1c;border-radius:6px\">")
+                        .append(csrf(request)).append("<input type=\"hidden\" name=\"returnTo\" value=\"member-inbox\">")
+                        .append("<label><input type=\"checkbox\" onclick=\"var on=this.checked;document.querySelectorAll('input[form=pvDel]').forEach(function(c){c.checked=on;})\"> 全選択</label>")
+                        .append("<button type=\"submit\" class=\"smallbtn\" style=\"background:#dc2626;color:#fff;border:0\" onclick=\"return confirm('選択したメッセージを削除しますか？（ユーザーの受信BOXから消えます）');\">選択削除</button></form>");
+            }
+            b.append("<section id=\"ml\"><div class=\"boxline\"></div>");
             if (items.isEmpty()) b.append("<div class=\"note\">メッセージはありません</div>");
             for (MemberSiteService.InboxItem it : items) {
                 long cid = it.chara == null ? 0L : it.chara.getId();
-                b.append("<div class=\"msg\" id=\"m").append(it.message.getId()).append("\"><div class=\"avatar\">").append(avatar(u, it.chara)).append("</div><div><b>")
+                b.append("<div class=\"msg\" id=\"m").append(it.message.getId()).append("\"")
+                        .append(boxDelete ? " style=\"position:relative;padding-left:38px\">" : ">");
+                // (absolute, so the row's grid columns stay as they are)
+                if (boxDelete) b.append("<input type=\"checkbox\" name=\"ids\" value=\"").append(it.message.getId())
+                        .append("\" form=\"pvDel\" style=\"position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px\">");
+                b.append("<div class=\"avatar\">").append(avatar(u, it.chara)).append("</div><div><b>")
                         .append(it.unread ? "<span class=\"new\">NEW</span>" : "").append(it.sent ? "To: " : "").append(e(name(it.chara)))
                         .append("　<small>").append(ageText(it.chara)).append("</small></b><div class=\"preview\">").append(e(preview(u, it)))
                         .append("</div></div><div class=\"date\">").append(when(it.message)).append("</div><div class=\"msgactions\">");
@@ -221,7 +238,7 @@ public class MemberSiteController {
                         HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
-        site.touch(u);
+        touch(session, u);
         Chara chara = null;
         if (charaId > 0) {
             chara = site.chara(charaId).orElse(null);
@@ -229,7 +246,7 @@ public class MemberSiteController {
         }
         boolean fp = fp(request);
         List<MemberSiteService.ConvItem> conv = site.conversation(u, charaId);
-        site.markReadIfFree(u, conv);
+        if (!preview(session)) site.markReadIfFree(u, conv);
         Set<Long> allImages = new LinkedHashSet<>();
         for (MemberSiteService.ConvItem it : conv) allImages.addAll(it.images);
         Set<Long> openImgs = site.openImages(u, allImages);
@@ -327,6 +344,7 @@ public class MemberSiteController {
                        HttpServletRequest request, HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
         MemberSiteService.SendInput in = new MemberSiteService.SendInput();
         in.subject = subject;
         in.body = body;
@@ -349,6 +367,7 @@ public class MemberSiteController {
                        HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
         try {
             if (site.open(u, kind, ref) == MemberUnlockService.Result.NOT_ENOUGH_POINTS) {
                 ra.addFlashAttribute("memberNote", "ポイントが足りません。ポイントを購入してからもう一度お試しください");
@@ -381,7 +400,7 @@ public class MemberSiteController {
         Chara c = site.chara(charaId).orElse(null);
         if (c == null) return "redirect:/member/inbox";
         boolean fp = fp(request);
-        if (site.cost(MemberSiteService.COST_PROFILE, u) <= 0) site.open(u, MemberUnlockService.PROFILE, c.getId());
+        if (!preview(session) && site.cost(MemberSiteService.COST_PROFILE, u) <= 0) site.open(u, MemberUnlockService.PROFILE, c.getId());
         boolean open = site.isOpen(u, MemberUnlockService.PROFILE, c.getId());
         String back = "/member/chara?c=" + c.getId();
         StringBuilder b = new StringBuilder();
@@ -432,7 +451,7 @@ public class MemberSiteController {
         if (c.getPhotoUrl() == null) {
             b.append(fp ? "<div class=\"row\">写真は登録されていません</div>" : "<div class=\"note\">写真は登録されていません</div>");
         } else {
-            if (site.cost(MemberSiteService.COST_PHOTO, u) <= 0) site.open(u, MemberUnlockService.PHOTO, c.getId());
+            if (!preview(session) && site.cost(MemberSiteService.COST_PHOTO, u) <= 0) site.open(u, MemberUnlockService.PHOTO, c.getId());
             if (site.isOpen(u, MemberUnlockService.PHOTO, c.getId())) {
                 b.append("<div style=\"padding:12px;text-align:center\"><img src=\"").append(e(c.getPhotoUrl()))
                         .append("\" alt=\"\" style=\"max-width:100%;").append(fp ? "width:240px" : "max-height:70vh").append(";border-radius:8px\"></div>");
@@ -454,7 +473,7 @@ public class MemberSiteController {
     public Object friends(HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
-        site.touch(u);
+        touch(session, u);
         boolean fp = fp(request);
         List<Chara> list = site.friends(u);
         StringBuilder b = new StringBuilder();
@@ -483,6 +502,7 @@ public class MemberSiteController {
                             HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
         try {
             site.addFriend(u, charaId);
             ra.addFlashAttribute("memberNote", "友達に追加しました");
@@ -498,7 +518,7 @@ public class MemberSiteController {
     public Object search(HttpServletRequest request, HttpSession session) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
-        site.touch(u);
+        touch(session, u);
         return render("search", request, u, searchHtml(request, u, new MemberSiteService.SearchInput(), null, null), null);
     }
 
@@ -511,6 +531,7 @@ public class MemberSiteController {
                            HttpServletRequest request, HttpSession session) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
         MemberSiteService.SearchInput in = new MemberSiteService.SearchInput();
         in.pref = pref;
         in.photo = photo;
@@ -579,6 +600,7 @@ public class MemberSiteController {
                               HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
         try {
             site.support(u, name, email, body);
             ra.addFlashAttribute("memberNote", "お問い合わせを送信しました。担当者からのご連絡をお待ちください。");
@@ -608,7 +630,7 @@ public class MemberSiteController {
     public Object profile(HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
-        site.touch(u);
+        touch(session, u);
         boolean fp = fp(request);
         com.crm.entity.UserProfile p = userProfileService.get(u.getId());
         StringBuilder b = new StringBuilder(fp ? "" : "<section class=\"box\"><div class=\"boxline\"></div>");
@@ -648,6 +670,7 @@ public class MemberSiteController {
                               HttpServletRequest request, HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
         MemberSiteService.ProfileInput in = new MemberSiteService.ProfileInput();
         in.nickname = nickname;
         in.phone = phone;
@@ -713,6 +736,7 @@ public class MemberSiteController {
                       HttpServletRequest request, HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
         TelecomCreditService.Checkout co;
         try {
             String back = ServletUriComponentsBuilder.fromCurrentContextPath().path("/member/points").queryParam("done", "1").toUriString();
@@ -750,7 +774,50 @@ public class MemberSiteController {
     /* ===================== frame / helpers ===================== */
 
     private CrmUser member(HttpSession session) {
+        Object previewId = session.getAttribute(SESSION_PREVIEW_ID);
+        if (previewId != null) return site.member(previewId).orElse(null);
         return site.member(session.getAttribute(PublicSiteController.SESSION_MEMBER_ID)).orElse(null);
+    }
+
+    /* ===================== 管理者プレビュー ===================== */
+
+    /**
+     * 管理画面 › やり取り「表示画面を確認 / 受信ボックス確認」: the operator sees the member's pages exactly as
+     * the member does (their data, folder's HTML areas), read-only — no 最終ログイン update, no free
+     * 既読 / 閲覧, and every member POST (送信・閲覧・検索・購入 …) is refused. Set by
+     * {@link ReplyPageController#userView}, cleared by its プレビュー終了 or /member/logout.
+     */
+    public static final String SESSION_PREVIEW_ID = "memberPreviewUserId";
+
+    static boolean preview(HttpSession session) {
+        return session != null && session.getAttribute(SESSION_PREVIEW_ID) != null;
+    }
+
+    /** 最終ログイン — not while an operator is previewing the member's pages. */
+    private void touch(HttpSession session, CrmUser u) {
+        if (!preview(session)) site.touch(u);
+    }
+
+    /** A member POST during a preview: nothing happens; back to the page it came from with a note. */
+    private static String previewBlocked() {
+        HttpServletRequest req = ((org.springframework.web.context.request.ServletRequestAttributes)
+                org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()).getRequest();
+        org.springframework.web.servlet.FlashMap flash = org.springframework.web.servlet.support.RequestContextUtils.getOutputFlashMap(req);
+        if (flash != null) flash.put("memberNote", "管理者プレビュー中のため、この操作はできません（閲覧のみ）");
+        String ref = req.getHeader("Referer");
+        int at = ref == null ? -1 : ref.indexOf("/member/");
+        return "redirect:" + (at < 0 ? "/member/menu" : ref.substring(at));
+    }
+
+    /** Red bar on top of every previewed page: whose pages these are, and プレビュー終了. */
+    private static String previewBanner(String html, CrmUser u) {
+        String bar = "<div style=\"position:sticky;top:0;z-index:2147483647;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;"
+                + "padding:8px 12px;background:#b91c1c;color:#fff;font:bold 13px/1.5 sans-serif\">"
+                + "管理者プレビュー中：" + e(nz(u.getDisplayName(), "")) + "（ID " + e(nz(u.getLoginId(), String.valueOf(u.getId())))
+                + "）— 閲覧のみ（送信・閲覧・購入などの操作はできません）"
+                + "<a href=\"/manager/users/preview/end\" style=\"margin-left:auto;color:#fff;text-decoration:underline\">プレビュー終了</a></div>";
+        java.util.regex.Matcher body = java.util.regex.Pattern.compile("(?i)<body\\b[^>]*>").matcher(html);
+        return body.find() ? html.substring(0, body.end()) + bar + html.substring(body.end()) : bar + html;
     }
 
     private static String toLogin() {
@@ -771,6 +838,7 @@ public class MemberSiteController {
         values.put("email", nz(u.getEmail(), ""));
         String html = pages.renderMember(code, fp(request) ? "fp" : "sp", values, u.getFolder(), mainHtml, title,
                 site.unreadCount(u), c -> URLS.getOrDefault(c, "/member/menu"));
+        if (preview(request.getSession(false))) html = previewBanner(html, u);
         return html(html);
     }
 
@@ -780,13 +848,13 @@ public class MemberSiteController {
     }
 
     /** A message page outside the member frame (ログイン失敗 etc.), in the public page design. */
-    private String publicMessage(Model model, String title, String html) {
+    private String publicMessage(HttpServletRequest request, Model model, String title, String html) {
         model.addAttribute("siteName", siteDesignService.getSiteName());
         model.addAttribute("logoUrl", siteDesignService.getLogoUrl());
         model.addAttribute("footerHtml", publicSiteService.footerHtml("/#login"));
         model.addAttribute("pageTitle", title);
         model.addAttribute("pageHtml", html);
-        return "member/page";
+        return PublicSiteController.pageView(request);
     }
 
     private static String flash(Model model) {

@@ -25,7 +25,10 @@
     isAdmin     — boolean, gates the delete UI and switches the reply-form target
     userId      — user id (admin context only; used to build the reply POST / pager URLs)
 -->
-<div th:fragment="messageBox(box, inboundBox, token, isAdmin, userId)" class="message-box-shell">
+<div th:fragment="messageBox(box, inboundBox, token, isAdmin, userId)" class="message-box-shell"
+     th:with="delUid=${isAdmin ? userId : (previewBox == true and previewUser != null ? previewUser.id : null)}">
+    <!--/* delUid: 選択削除 / 全件削除 — the admin page, or the 管理画面「受信ボックス確認」 preview of the
+         返信画面 (previewUser / previewBox from ReplyPageController#userView). */-->
     <div class="message-box-head">
         <h2 class="message-box-title">メッセージボックス</h2>
     </div>
@@ -35,12 +38,12 @@
         <button type="button" class="message-box-tab" data-mbtab="sent">送信履歴</button>
     </div>
 
-    <form th:if="${isAdmin}" id="messageBoxDeleteForm" method="post"
-          th:action="@{'/manager/users/' + ${userId} + '/message-box/delete'}"></form>
-    <form th:if="${isAdmin}" id="messageBoxDeleteAllForm" method="post"
-          th:action="@{'/manager/users/' + ${userId} + '/message-box/delete-all'}"></form>
-    <form th:if="${isAdmin}" id="messageBoxDeleteAllInboundForm" method="post"
-          th:action="@{'/manager/users/' + ${userId} + '/message-box/delete-all-inbound'}"></form>
+    <form th:if="${delUid != null}" id="messageBoxDeleteForm" method="post"
+          th:action="@{'/manager/users/' + ${delUid} + '/message-box/delete'}"><input th:unless="${isAdmin}" type="hidden" name="returnTo" value="user-view"/></form>
+    <form th:if="${delUid != null}" id="messageBoxDeleteAllForm" method="post"
+          th:action="@{'/manager/users/' + ${delUid} + '/message-box/delete-all'}"><input th:unless="${isAdmin}" type="hidden" name="returnTo" value="user-view"/></form>
+    <form th:if="${delUid != null}" id="messageBoxDeleteAllInboundForm" method="post"
+          th:action="@{'/manager/users/' + ${delUid} + '/message-box/delete-all-inbound'}"><input th:unless="${isAdmin}" type="hidden" name="returnTo" value="user-view"/></form>
 
     <!-- ===== 受信履歴 (default tab): what the user received — direction=OUT ===== -->
     <div class="message-box-pane" data-mbpane="received">
@@ -49,7 +52,7 @@
              直下の送信フォームは不要). Per-item reply forms below still cover replying to a
              specific past message; use the thread view for a fresh send with no history yet. -->
 
-        <span th:if="${isAdmin}" class="message-box-head-actions" style="margin:8px 0;">
+        <span th:if="${delUid != null}" class="message-box-head-actions" style="margin:8px 0;">
             <button type="submit" form="messageBoxDeleteForm"
                     class="message-box-delete-btn"
                     onclick="return confirm('選択したメッセージを削除しますか？');">選択削除</button>
@@ -62,7 +65,7 @@
 
         <div th:each="item : ${box.content}" class="message-box-item">
             <div class="message-box-item-head">
-                <input th:if="${isAdmin}" type="checkbox" name="ids" th:value="${item.id}"
+                <input th:if="${delUid != null}" type="checkbox" name="ids" th:value="${item.id}"
                        form="messageBoxDeleteForm" class="message-box-checkbox"/>
                 <span class="message-box-date"
                       th:text="'受信時間 : ' + ${#temporals.format(item.sentAt, 'yyyy/MM/dd HH:mm')}"></span>
@@ -139,8 +142,11 @@
                 <a th:if="${p != box.number and isAdmin}"
                    th:href="@{'/manager/users/' + ${userId} + '/message-box'(page=${p})}"
                    th:text="${p + 1}"></a>
-                <a th:if="${p != box.number and !isAdmin}"
+                <a th:if="${p != box.number and !isAdmin and previewUser == null}"
                    th:href="@{'/reply/' + ${token}(box_page=${p})}"
+                   th:text="${p + 1}"></a>
+                <a th:if="${p != box.number and !isAdmin and previewUser != null}"
+                   th:href="@{'/manager/users/' + ${previewUser.id} + '/user-view'(box=${previewBox},box_page=${p})}"
                    th:text="${p + 1}"></a>
                 <strong th:if="${p == box.number}" th:text="${p + 1}"></strong>
             </span>
@@ -149,7 +155,7 @@
 
     <!-- ===== 送信履歴: what the user sent — direction=IN, read-only ===== -->
     <div class="message-box-pane" data-mbpane="sent" style="display:none;">
-        <span th:if="${isAdmin}" class="message-box-head-actions" style="margin:8px 0;">
+        <span th:if="${delUid != null}" class="message-box-head-actions" style="margin:8px 0;">
             <button type="submit" form="messageBoxDeleteForm"
                     class="message-box-delete-btn"
                     onclick="return confirm('選択したメッセージを削除しますか？');">選択削除</button>
@@ -162,7 +168,7 @@
 
         <div th:each="item : ${inboundBox != null ? inboundBox.content : {}}" class="message-box-item">
             <div class="message-box-item-head">
-                <input th:if="${isAdmin}" type="checkbox" name="ids" th:value="${item.id}"
+                <input th:if="${delUid != null}" type="checkbox" name="ids" th:value="${item.id}"
                        form="messageBoxDeleteForm" class="message-box-checkbox"/>
                 <span class="message-box-date"
                       th:text="'送信時間 : ' + ${#temporals.format(item.sentAt, 'yyyy/MM/dd HH:mm')}"></span>
@@ -178,8 +184,11 @@
                 <a th:if="${p != inboundBox.number and isAdmin}"
                    th:href="@{'/manager/users/' + ${userId} + '/message-box'(inboundPage=${p})}"
                    th:text="${p + 1}"></a>
-                <a th:if="${p != inboundBox.number and !isAdmin}"
+                <a th:if="${p != inboundBox.number and !isAdmin and previewUser == null}"
                    th:href="@{'/reply/' + ${token}(inbound_page=${p})}"
+                   th:text="${p + 1}"></a>
+                <a th:if="${p != inboundBox.number and !isAdmin and previewUser != null}"
+                   th:href="@{'/manager/users/' + ${previewUser.id} + '/user-view'(box=${previewBox},inbound_page=${p})}"
                    th:text="${p + 1}"></a>
                 <strong th:if="${p == inboundBox.number}" th:text="${p + 1}"></strong>
             </span>

@@ -71,8 +71,8 @@ public class PublicSiteController {
      * 自動ログインURL ({@code %auto_login_url%} in a mail): logs the member in without ID / password.
      * The session cookie is SameSite=Strict, and a redirect straight from a mail link would still
      * count as cross-site, so the browser would not send the new cookie on it. This page therefore
-     * moves on to the member page itself (same-site), where the session is seen. Unknown token or a
-     * member that isn't 本登録済み → the top page's ログイン.
+     * moves on to the member page itself (same-site), where the session is seen: the member TOP
+     * (MENU). Unknown token or a member that isn't 本登録済み → the top page's ログイン.
      */
     @GetMapping(com.crm.service.MemberAutoLoginService.PATH)
     public ResponseEntity<String> autoLogin(@RequestParam(name = "t", required = false) String token,
@@ -85,7 +85,7 @@ public class PublicSiteController {
             HttpSession session = request.getSession(true);
             if (!session.isNew()) request.changeSessionId();
             session.setAttribute(SESSION_MEMBER_ID, user.get().getId());
-            next = PublicSiteService.PROFILE_URL;
+            next = "/member/menu";
         }
         String html = "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"robots\" content=\"noindex\">"
@@ -112,7 +112,7 @@ public class PublicSiteController {
         // %sitename% in the page body → the ドメイン設定 site name, as on the top page
         model.addAttribute("pageHtml", siteDesignService.getPageHtml(code)
                 .replace("%sitename%", HtmlUtils.htmlEscape(siteDesignService.getSiteName(), "UTF-8")));
-        return "member/page";
+        return pageView(request);
     }
 
     @PostMapping("/member/register")
@@ -130,7 +130,7 @@ public class PublicSiteController {
             addCommon(model);
             model.addAttribute("pageTitle", "入力内容をご確認ください");
             model.addAttribute("pageHtml", errorsHtml(e.getErrors()));
-            return "member/page";
+            return pageView(request);
         }
         return "redirect:/member/register/done";
     }
@@ -153,13 +153,13 @@ public class PublicSiteController {
                 model.addAttribute("pageTitle", "URLの有効期限が切れています");
                 model.addAttribute("pageHtml", "<p>本登録のURLの有効期限（" + MemberRegistrationService.TOKEN_VALID_HOURS
                         + "時間）が切れています。お手数ですが、<a href=\"/#register\">もう一度登録</a>してください。</p>");
-                return "member/page";
+                return pageView(request);
             default:
                 addCommon(model);
                 model.addAttribute("pageTitle", "URLが正しくありません");
                 model.addAttribute("pageHtml", "<p>本登録のURLが正しくないか、すでに使われています。"
                         + "メールに記載されたURLをもう一度ご確認ください。</p>");
-                return "member/page";
+                return pageView(request);
         }
     }
 
@@ -180,6 +180,11 @@ public class PublicSiteController {
         StringBuilder b = new StringBuilder("<ul>");
         for (String e : errors) b.append("<li>").append(HtmlUtils.htmlEscape(e, "UTF-8")).append("</li>");
         return b.append("</ul><p><a href=\"/#register\">登録フォームに戻る</a></p>").toString();
+    }
+
+    /** member/page, or its ガラケー design for feature phones (same model). */
+    static String pageView(HttpServletRequest request) {
+        return MemberSiteController.fp(request) ? "member/page_fp" : "member/page";
     }
 
     private static ResponseEntity<String> html(String body) {

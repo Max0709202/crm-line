@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
  * <pre>
  *   %sitename%        site name (HTML-escaped)
  *   %brand%           header logo image, or the default heart icon + site name
+ *   %fp_brand%        ガラケーTOP header: the logo image only, or the site name when no logo is set
  *   %top_picture%     top image (PC / スマホ), default images unless replaced
  *   %top_blur%        background behind the top image
  *   %year%            current year
@@ -44,7 +45,7 @@ public class PublicSiteService {
     private static final String FP_TOP_TEMPLATE = "site/top_fp.html";
     private static final String DEFAULT_IMAGES = "/member/images/";
     private static final Pattern TAG = Pattern.compile(
-            "%(sitename|brand|top_picture|top_blur|year|csrf|contact_mailto|footer|profile_url)%");
+            "%(sitename|brand|fp_brand|top_picture|top_blur|year|csrf|contact_mailto|footer|profile_url)%");
     /** Where 本登録完了's プロフィール登録 button leads. */
     public static final String PROFILE_URL = "/member/profile";
 
@@ -140,6 +141,9 @@ public class PublicSiteService {
         Map<String, String> values = new HashMap<>();
         values.put("sitename", esc(name));
         values.put("brand", brandHtml(name, logo));
+        values.put("fp_brand", logo != null
+                ? "<img src=\"" + esc(logo) + "\" alt=\"" + esc(name) + "\" style=\"max-width:100%;\" />"
+                : "<span style=\"color:#dd1470;font-size:medium;\"><strong>" + esc(name) + "</strong></span>");
         values.put("top_picture", pictureHtml(pc, sp));
         values.put("top_blur", pc != null ? cssUrl(pc) : DEFAULT_IMAGES + "main_blur.jpg");
         values.put("year", String.valueOf(Year.now().getValue()));

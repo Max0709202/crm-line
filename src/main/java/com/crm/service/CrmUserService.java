@@ -614,9 +614,12 @@ public class CrmUserService {
                 for (String t : phoneTokens) ors.add(cb.like(root.get("phoneNumber"), "%" + t + "%"));
                 predicates.add(cb.or(ors.toArray(new Predicate[0])));
             }
-            List<Long> idFilter = form.idList();
-            if (!idFilter.isEmpty()) {
-                predicates.add(root.get("id").in(idFilter));
+            // ID検索: the list shows the login ID (10000〜) when the user has one, so match either
+            List<String> idTokens = form.idTokens();
+            if (!idTokens.isEmpty()) {
+                List<Long> idFilter = form.idList();
+                predicates.add(idFilter.isEmpty() ? root.get("loginId").in(idTokens)
+                        : cb.or(root.get("id").in(idFilter), root.get("loginId").in(idTokens)));
             }
             if (hasText(form.getStatus())) {
                 predicates.add(cb.equal(root.get("status"), form.getStatus()));

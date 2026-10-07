@@ -73,6 +73,11 @@
     </style>
 </head>
 <body>
+<!-- 管理画面「表示画面を確認 / 受信ボックス確認」(ReplyPageController#userView): read-only look at this user's 返信画面 -->
+<div th:if="${previewUser != null}"
+     style="position:sticky;top:0;z-index:2147483647;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:8px 12px;background:#b91c1c;color:#fff;font:bold 13px/1.5 sans-serif;">
+    <span th:text="'管理者プレビュー中：' + (${previewUser.displayName} ?: '') + '（ID ' + ${previewUser.id} + '）— ' + (${previewBox} ? '受信ボックス確認（選択削除できます）' : '閲覧のみ') + '・返信などの送信はできません'">管理者プレビュー中</span>
+</div>
 <div class="reply-shell">
 
     <iframe th:if="${headerHtml != null and headerVisible}" class="reply-header-frame"
@@ -137,6 +142,15 @@
     <div th:if="${messageBox != null}"
          th:replace="~{fragment/message-box :: messageBox(${messageBox}, ${inboundBox}, ${token}, false, null)}"></div>
 </div>
+
+<!-- Preview: nothing here may be sent as the user (入力欄・返信・写真閲覧) — only the 選択削除 forms stay usable. -->
+<script th:if="${previewUser != null}">
+    document.querySelectorAll('form').forEach(function (f) {
+        if (/^messageBoxDelete/.test(f.id)) return;
+        f.addEventListener('submit', function (e) { e.preventDefault(); });
+        f.querySelectorAll('input, textarea, button, select').forEach(function (el) { el.disabled = true; });
+    });
+</script>
 
 </body>
 </html>
