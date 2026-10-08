@@ -146,13 +146,14 @@
         .wsx .inbox-table .is-num { text-align:right; }
         .wsx .inbox-table .col-check { width:1%; padding:0 0 0 12px; }
         .wsx .inbox-table .col-star { width:1%; padding:0 2px; text-align:center; }
-        .wsx .inbox-row { --bg:#fff; --bg-hover:#f8fafc; --bg-strong:#eef2f6; cursor:pointer; }
-        .wsx .inbox-row[data-gender="male"]   { --bg:#eaf2fd; --bg-hover:#dfeafb; --bg-strong:#d2e2f9; }
-        .wsx .inbox-row[data-gender="female"] { --bg:#fcedf4; --bg-hover:#f9e2ec; --bg-strong:#f5d3e3; }
+        .wsx .inbox-row { --bg:#fff; --bg-hover:#f8fafc; cursor:pointer; }
+        .wsx .inbox-row[data-gender="male"]   { --bg:#eaf2fd; --bg-hover:#dfeafb; }
+        .wsx .inbox-row[data-gender="female"] { --bg:#fcedf4; --bg-hover:#f9e2ec; }
         .wsx .inbox-row td { background:var(--bg); transition:background-color .12s; }
         .wsx .inbox-row:hover td { background:var(--bg-hover); }
-        .wsx .inbox-row.is-selected td, .wsx .inbox-row.is-current td { background:var(--bg-strong); }
-        .wsx .inbox-row.is-current td:first-child { box-shadow:inset 3px 0 0 #475569; }
+        /* 選択中 / 表示中 is one color regardless of 性別色 (2026-10-08 client request) */
+        .wsx .inbox-row.is-selected td, .wsx .inbox-row.is-current td { background:#fef3c7; }
+        .wsx .inbox-row.is-current td:first-child { box-shadow:inset 3px 0 0 #d97706; }
         .wsx .inbox-check-wrap { display:flex; align-items:center; height:32px; cursor:pointer; }
         .wsx .inbox-check-wrap input { width:14px; height:14px; margin:0; accent-color:#475569; cursor:pointer; }
         .wsx .inbox-star {
@@ -564,7 +565,7 @@
                 <tr th:each="r : ${inboxRows}" th:with="iu=${inboxUsers.get(r.userId)},
                                   rowHref=${r.charaId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(chara=${r.charaId})}
                                      : (${r.lineAccountId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(line=${r.lineAccountId})} : @{'/manager/users/' + ${r.userId} + '/thread'})"
-                    class="inbox-row" th:classappend="${r.userId == user.id and (viewChara == null or viewChara.id == r.charaId)} ? 'is-current'"
+                    class="inbox-row" th:classappend="${r == currentInboxRow} ? 'is-current'"
                     th:data-id="${r.userId}"
                     th:data-href="${rowHref}"
                     th:data-gender="${iu != null and iu.gender == 'M'} ? 'male' : (${iu != null and iu.gender == 'F'} ? 'female' : '')"
@@ -585,7 +586,7 @@
                         <span th:case="*" class="inbox-route is-direct">直アド</span>
                     </td>
                     <td class="inbox-member"><a th:href="${rowHref}" th:text="${r.displayName}">ユーザー</a></td>
-                    <td class="inbox-staff" th:text="${r.charaName} ?: (${r.charaId == null and r.lineAccountId == null} ? 'サポート窓口' : '—')">—</td>
+                    <td class="inbox-staff" th:text="${r.charaName} ?: '—'">—</td>
                     <td class="inbox-point" th:text="${inboxPoints.get(r.userId) != null} ? ${#numbers.formatInteger(inboxPoints.get(r.userId), 1, 'COMMA')} + 'pt' : '0pt'">0pt</td>
                     <td class="inbox-date">
                         <th:block th:if="${r.latestAt != null}"><span class="d" th:text="${#temporals.format(r.latestAt, 'M/d')}"></span><th:block th:text="${#temporals.format(r.latestAt, 'H:mm')}"/></th:block>

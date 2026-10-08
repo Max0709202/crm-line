@@ -249,8 +249,9 @@ public class MessageService {
      * 受信ボックス (thread page): {@link #inboxByUser} split into one row per user × キャラ — a user who
      * wrote to Emily Carter and to じいさん shows as two rows. A message's キャラ comes from
      * {@code charaIdsOfMessages} (message ID → キャラ ID); without one, a LINE message counts under its
-     * LINE account, anything else under サポート窓口 (no キャラ). 未返信 = no OUT of that キャラ after its
-     * latest IN.
+     * LINE account, and a Web返信 etc. under the キャラ / LINE account of the message it answers.
+     * Messages with none of these (サポート窓口) are not listed (2026-10-08 client request).
+     * 未返信 = no OUT of that キャラ after its latest IN.
      */
     public List<InboxRow> inboxByUserAndChara(java.util.function.Function<java.util.Collection<Long>, java.util.Map<Long, Long>> charaIdsOfMessages) {
         List<InboxRow> users = inboxByUser(false);
@@ -261,8 +262,10 @@ public class MessageService {
         java.util.List<Long> ids = new java.util.ArrayList<>();
         for (Object[] m : msgs) ids.add(((Number) m[0]).longValue());
         java.util.Map<Long, Long> charaOf = ids.isEmpty() ? java.util.Collections.<Long, Long>emptyMap() : charaIdsOfMessages.apply(ids);
+        java.util.Map<Long, Object[]> msgRowById = new java.util.HashMap<>();
+        for (Object[] m : msgs) msgRowById.put(((Number) m[0]).longValue(), m);
 
-        // key "userId:c<charaId>" / "userId:l<lineAccountId>" / "userId:-" → the group's messages (IN and OUT)
+        // key "userId:c<charaId>" / "userId:l<lineAccountId>" → the group's messages (IN and OUT); サポート窓口 = no group
         java.util.Map<String, InboxRow> groups = new java.util.LinkedHashMap<>();
         java.util.Map<String, Long> latestInId = new java.util.HashMap<>();
         java.util.Map<String, LocalDateTime> latestInAt = new java.util.HashMap<>(), latestOutAt = new java.util.HashMap<>();
@@ -271,9 +274,9 @@ public class MessageService {
             Long uid = ((Number) m[1]).longValue();
             InboxRow base = userRow.get(uid);
             if (base == null) continue;
-            Long cid = charaOf.get(id);
-            Long lid = m[6] == null ? null : ((Number) m[6]).longValue();
-            String key = uid + ":" + (cid != null ? "c" + cid : lid != null ? "l" + lid : "-");
+            String target = inboxTarget(m, charaOf, msgRowById);
+            if (target == null) continue;
+            String key = uid + ":" + target;
             boolean in = Message.DIR_IN.equals(m[2]);
             LocalDateTime at = toLdt(m[5]);
             if (!in) {
@@ -289,8 +292,8 @@ public class MessageService {
                 g.email = base.email;
                 g.phoneNumber = base.phoneNumber;
                 g.smsOutCount = base.smsOutCount;
-                g.charaId = cid;
-                g.lineAccountId = cid == null ? lid : null;
+                g.charaId = target.startsWith("c") ? Long.valueOf(target.substring(1)) : null;
+                g.lineAccountId = target.startsWith("l") ? Long.valueOf(target.substring(1)) : null;
                 groups.put(key, g);
             }
             if (m[4] == null) g.unreadCount++;
@@ -304,10 +307,8 @@ public class MessageService {
         // OUT count per group
         for (Object[] m : msgs) {
             if (!Message.DIR_OUT.equals(m[2])) continue;
-            Long id = ((Number) m[0]).longValue();
-            Long cid = charaOf.get(id);
-            Long lid = m[6] == null ? null : ((Number) m[6]).longValue();
-            InboxRow g = groups.get(((Number) m[1]).longValue() + ":" + (cid != null ? "c" + cid : lid != null ? "l" + lid : "-"));
+            String target = inboxTarget(m, charaOf, msgRowById);
+            InboxRow g = target == null ? null : groups.get(((Number) m[1]).longValue() + ":" + target);
             if (g != null) g.outCount++;
         }
 
@@ -339,6 +340,21 @@ public class MessageService {
         }
         out.sort((a, b) -> Long.compare(b.latestMessageId == null ? 0L : b.latestMessageId, a.latestMessageId == null ? 0L : a.latestMessageId));
         return out;
+    }
+
+    /**
+     * 受信ボックス group of one {@link MessageRepository#inboxMessagesOfInboxUsers} row: "c<キャラID>" /
+     * "l<LINEアカウントID>" of the message itself, else of the message it answers (Web返信 to a LINE
+     * message, and a reply to that Web返信); null = サポート窓口.
+     */
+    private static String inboxTarget(Object[] m, java.util.Map<Long, Long> charaOf, java.util.Map<Long, Object[]> msgRowById) {
+        for (int hop = 0; m != null && hop < 4; hop++) {
+            Long cid = charaOf.get(((Number) m[0]).longValue());
+            if (cid != null) return "c" + cid;
+            if (m[6] != null) return "l" + ((Number) m[6]).longValue();
+            m = m[8] == null ? null : msgRowById.get(((Number) m[8]).longValue());
+        }
+        return null;
     }
 
     private static String preview(String body, int max) {

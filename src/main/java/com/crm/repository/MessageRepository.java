@@ -291,10 +291,10 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
 
     /**
      * 受信ボックス split per キャラ: every message (ID, USER_ID, DIRECTION, CHANNEL, READ_AT,
-     * CREATED_AT, LINE_ACCOUNT_ID, INBOX_DISMISSED_AT) of the users that have a non-dismissed IN.
+     * CREATED_AT, LINE_ACCOUNT_ID, INBOX_DISMISSED_AT, REPLY_TO_MESSAGE_ID) of the users that have a non-dismissed IN.
      */
     @org.springframework.data.jpa.repository.Query(nativeQuery = true, value =
-            "SELECT m.ID, m.USER_ID, m.DIRECTION, m.CHANNEL, m.READ_AT, m.CREATED_AT, m.LINE_ACCOUNT_ID, m.INBOX_DISMISSED_AT " +
+            "SELECT m.ID, m.USER_ID, m.DIRECTION, m.CHANNEL, m.READ_AT, m.CREATED_AT, m.LINE_ACCOUNT_ID, m.INBOX_DISMISSED_AT, m.REPLY_TO_MESSAGE_ID " +
             "FROM MESSAGE m WHERE m.USER_ID IN (SELECT i.USER_ID FROM MESSAGE i WHERE i.DIRECTION='IN' AND i.INBOX_DISMISSED_AT IS NULL)")
     java.util.List<Object[]> inboxMessagesOfInboxUsers();
 

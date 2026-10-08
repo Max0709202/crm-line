@@ -302,23 +302,35 @@ public class MessageController {
         java.util.Map<Long, CrmUser> inboxUsers = new java.util.HashMap<>();
         for (CrmUser u : userService.findAllByIds(inboxUserIds)) inboxUsers.put(u.getId(), u);
         model.addAttribute("inboxUsers", inboxUsers);
-        // キャラ / ポイント columns: the キャラ the latest inbound message was sent to (メール/Web: its
-        // キャラ record; LINE: the LINE account), and the user's point balance.
-        java.util.List<Long> latestInIds = new java.util.ArrayList<>();
-        for (MessageService.InboxRow r : inboxRows) if (r.getLatestMessageId() != null) latestInIds.add(r.getLatestMessageId());
-        java.util.Map<Long, Long> charaIdByMsg = charaLinkService.charaIdsOf(com.crm.entity.CharaRef.OWNER_MESSAGE, latestInIds);
-        java.util.Map<Long, String> charaNameById = new java.util.HashMap<>();
-        if (!charaIdByMsg.isEmpty()) {
-            for (com.crm.entity.Chara c : charaRepository.findAllById(new java.util.HashSet<>(charaIdByMsg.values()))) {
-                charaNameById.put(c.getId(), c.getName());
-            }
+        // キャラ / ポイント columns: the row's キャラ (メール/Web: its キャラ record; LINE: the LINE
+        // account), and the user's point balance.
+        java.util.Set<Long> inboxCharaIds = new java.util.HashSet<>(), inboxLineIds = new java.util.HashSet<>();
+        for (MessageService.InboxRow r : inboxRows) {
+            if (r.getCharaId() != null) inboxCharaIds.add(r.getCharaId());
+            if (r.getLineAccountId() != null) inboxLineIds.add(r.getLineAccountId());
+        }
+        java.util.Map<Long, String> charaNameById = new java.util.HashMap<>(), lineNameById = new java.util.HashMap<>();
+        if (!inboxCharaIds.isEmpty()) {
+            for (com.crm.entity.Chara c : charaRepository.findAllById(inboxCharaIds)) charaNameById.put(c.getId(), c.getName());
+        }
+        if (!inboxLineIds.isEmpty()) {
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(inboxLineIds)) lineNameById.put(a.getId(), a.getName());
         }
         for (MessageService.InboxRow r : inboxRows) {
-            Long cid = r.getLatestMessageId() == null ? null : charaIdByMsg.get(r.getLatestMessageId());
-            String name = cid == null ? null : charaNameById.get(cid);
-            if (name == null) name = r.getLatestLineAccountName();
-            r.charaName = name;
+            r.charaName = r.getCharaId() != null ? charaNameById.get(r.getCharaId()) : lineNameById.get(r.getLineAccountId());
         }
+        // The one row this page shows (?chara= / ?line=, else the user's newest row) is highlighted —
+        // the user's other キャラ rows are separate conversations and stay unmarked.
+        MessageService.InboxRow currentInboxRow = null;
+        for (MessageService.InboxRow r : inboxRows) {
+            if (!userId.equals(r.getUserId())) continue;
+            if (charaParam != null ? charaParam.equals(r.getCharaId())
+                    : lineParam == null || lineParam.equals(r.getLineAccountId())) {
+                currentInboxRow = r;
+                break;
+            }
+        }
+        model.addAttribute("currentInboxRow", currentInboxRow);
         model.addAttribute("inboxPoints", userPointService.getAll(inboxUserIds));
         model.addAttribute("starredUserIds", threadPanelService.starredUserIds());
         model.addAttribute("folderColors", folderSettingService.colorMap());
@@ -431,7 +443,7 @@ public class MessageController {
             // 受信ボックスの「キャラ」列と同じ: the キャラ the user's latest inbound message was sent to.
             for (MessageService.InboxRow r : inboxRows) {
                 if (!userId.equals(r.getUserId()) || r.getLatestMessageId() == null) continue;
-                Long cid = charaIdByMsg.get(r.getLatestMessageId());
+                Long cid = r.getCharaId();
                 if (cid != null) cardChara = charaRepository.findById(cid).orElse(null);
                 break;
             }
