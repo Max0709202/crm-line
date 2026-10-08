@@ -62,7 +62,7 @@ class BroadcastServiceEmailOnlyGuardTest {
                 .thenReturn(java.util.Optional.empty());
         when(domainSettingService.buildFromAddress()).thenReturn("info@example.com");
         when(placeholderService.substitute(org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(CrmUser.class)))
+                org.mockito.ArgumentMatchers.any(CrmUser.class), org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(inv -> inv.getArgument(0));

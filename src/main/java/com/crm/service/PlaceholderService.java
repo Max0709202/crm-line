@@ -17,7 +17,9 @@ import java.util.Map;
  * Built-in tags (always available, derived from system/user):
  *   %name%      -> display_name
  *   %email%     -> email
- *   %date_jp%   -> today in Japanese format (2026年4月19日)
+ *   %datey_jp%  -> the day before the day the user receives it (2026年4月18日)
+ *   %date_jp%   -> the day the user receives it, in Japanese format (2026年4月19日)
+ *   %datet_jp%  -> the day after the day the user receives it (2026年4月20日)
  *
  * Per-user custom tags: admin configures up to 5 (tag1..tag5) key/value pairs
  * on the user edit screen. The key becomes the placeholder name.
@@ -31,7 +33,9 @@ public class PlaceholderService {
     public static final List<BuiltinTag> BUILTIN_TAGS = Arrays.asList(
             new BuiltinTag("%name%", "表示名"),
             new BuiltinTag("%email%", "メールアドレス"),
-            new BuiltinTag("%date_jp%", "当日の日付 (例: 2026年4月19日)")
+            new BuiltinTag("%datey_jp%", "昨日の日付 (例: 2026年4月18日)"),
+            new BuiltinTag("%date_jp%", "当日の日付 (例: 2026年4月19日)"),
+            new BuiltinTag("%datet_jp%", "明日の日付 (例: 2026年4月20日)")
     );
 
     private static final DateTimeFormatter JP_DATE =
@@ -52,8 +56,14 @@ public class PlaceholderService {
 
     /** Replace all known placeholders in template with values from this user. Null template -> null. */
     public String substitute(String template, CrmUser user) {
+        return substitute(template, user, LocalDate.now());
+    }
+
+    /** The same, with the date tags (%datey_jp% / %date_jp% / %datet_jp%) based on {@code receivedOn} —
+     *  the day the user receives it (a 予約 send: its scheduled day). */
+    public String substitute(String template, CrmUser user, LocalDate receivedOn) {
         if (template == null) return null;
-        Map<String, String> bindings = buildBindings(user);
+        Map<String, String> bindings = buildBindings(user, receivedOn);
         String out = template;
         for (Map.Entry<String, String> e : bindings.entrySet()) {
             out = out.replace(e.getKey(), e.getValue());
@@ -64,10 +74,18 @@ public class PlaceholderService {
 
     /** Ordered map from placeholder token (with surrounding %) to replacement value. */
     public Map<String, String> buildBindings(CrmUser u) {
+        return buildBindings(u, LocalDate.now());
+    }
+
+    /** {@link #buildBindings(CrmUser)} with the date tags based on {@code receivedOn} (null = today). */
+    public Map<String, String> buildBindings(CrmUser u, LocalDate receivedOn) {
+        LocalDate day = receivedOn == null ? LocalDate.now() : receivedOn;
         Map<String, String> m = new LinkedHashMap<>();
         m.put("%name%", safe(u == null ? null : u.getDisplayName()));
         m.put("%email%", safe(u == null ? null : u.getEmail()));
-        m.put("%date_jp%", LocalDate.now().format(JP_DATE));
+        m.put("%datey_jp%", day.minusDays(1).format(JP_DATE));
+        m.put("%date_jp%", day.format(JP_DATE));
+        m.put("%datet_jp%", day.plusDays(1).format(JP_DATE));
         if (u != null) {
             addCustom(m, u.getTag1Key(), u.getTag1Value());
             addCustom(m, u.getTag2Key(), u.getTag2Value());

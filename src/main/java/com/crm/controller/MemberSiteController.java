@@ -160,11 +160,12 @@ public class MemberSiteController {
     public Object inbox(@RequestParam(name = "tab", defaultValue = "all") String tab,
                         @RequestParam(name = "c", required = false) Long charaFilter,
                         @RequestParam(name = "page", defaultValue = "1") int page,
-                        HttpServletRequest request, HttpSession session) {
+                        HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
         touch(session, u);
         boolean fp = fp(request);
+        String note = flash(model);
         String t = "unread".equals(tab) || "fav".equals(tab) || "sent".equals(tab) ? tab : "all";
         boolean sentTab = "sent".equals(t);
         // 送信済み: the member's own mails (10 per page); the other tabs: one row per キャラ
@@ -182,6 +183,7 @@ public class MemberSiteController {
         String[][] tabs = {{"all", "すべて"}, {"unread", "未読"}, {"fav", "お気に入り"}, {"sent", "送信済み"}};
         Map<Long, String> senders = site.pastSenders(u);
         if (fp) {
+            if (note != null) b.append("<div class=\"row\">").append(e(note)).append("</div>");
             b.append("<div class=\"m\"><a href=\"/member/menu\">0. MENUへ戻る</a></div><div class=\"row\">");
             for (String[] x : tabs) {
                 b.append(x[0].equals(t) ? "<b>" + x[1] + "</b>" : "<a href=\"/member/inbox?tab=" + x[0] + "\">" + x[1] + "</a>").append(" ");
@@ -215,6 +217,7 @@ public class MemberSiteController {
             }
             b.append("</select></div>");
             b.append("<section id=\"ml\"><div class=\"boxline\"></div>");
+            if (note != null) b.append("<div class=\"note\">").append(e(note)).append("</div>");
             if (items.isEmpty() && groups.isEmpty()) b.append("<div class=\"note\">メッセージはありません</div>");
             // すべて / 未読 / お気に入り: one row per キャラ — 未読あり(n) / 未読なし in place of the age, the newest
             // mail's タイトル and 本文, and 受信一覧 (that キャラ's mails)
@@ -282,7 +285,7 @@ public class MemberSiteController {
                 b.append("<div class=\"mail\"><a href=\"").append(replyHref(charaId, it.message)).append("\">").append(readMark(it.unread))
                         .append(" <small>").append(when(it.message)).append("</small><br>").append(titleAndBody(it.message, "<br>")).append("</a></div>");
             }
-            b.append(pager(base, p, pages, true));
+            b.append(prevNextPager(base, p, pages, true));
         } else {
             b.append("<section class=\"box\"><div class=\"boxline\"></div><div class=\"person\"><div class=\"avatar\">").append(avatar(u, chara))
                     .append("</div><div class=\"grow\"><b>").append(e(name(chara))).append("</b>　").append(unreadBadge(unread))
@@ -313,7 +316,7 @@ public class MemberSiteController {
                         .append("<span class=\"date\" style=\"margin-left:auto\">").append(when(it.message)).append("</span></div>")
                         .append("<div class=\"preview\" style=\"font-size:13px;color:#18324b\">").append(titleAndBody(it.message, "<br>")).append("</div></a></div>");
             }
-            b.append(pager(base, p, pages, false)).append("<div class=\"boxline\"></div></section>");
+            b.append(prevNextPager(base, p, pages, false)).append("<div class=\"boxline\"></div></section>");
         }
         return render("inbox", request, u, b.toString(), "受信一覧");
     }
@@ -331,6 +334,15 @@ public class MemberSiteController {
             if (i == page) b.append(fp ? "<b>" + i + "</b> " : "<span class=\"smallbtn active\">" + i + "</span>");
             else b.append("<a class=\"smallbtn\" href=\"").append(base).append("&amp;page=").append(i).append("\">").append(i).append("</a> ");
         }
+        if (page < pages) b.append("<a class=\"smallbtn\" href=\"").append(base).append("&amp;page=").append(page + 1).append("\">次へ ›</a>");
+        return b.append("</div>").toString();
+    }
+
+    /** 受信一覧's page move: page 1 → 次へ only; page 2 and after → 戻る and 次へ (次へ while there is a next page). */
+    private static String prevNextPager(String base, int page, int pages, boolean fp) {
+        if (pages <= 1) return "";
+        StringBuilder b = new StringBuilder(fp ? "<div class=\"row\">" : "<div style=\"display:flex;justify-content:center;gap:12px;padding:14px 8px\">");
+        if (page > 1) b.append("<a class=\"smallbtn\" href=\"").append(base).append("&amp;page=").append(page - 1).append("\">‹ 戻る</a> ");
         if (page < pages) b.append("<a class=\"smallbtn\" href=\"").append(base).append("&amp;page=").append(page + 1).append("\">次へ ›</a>");
         return b.append("</div>").toString();
     }
@@ -382,15 +394,25 @@ public class MemberSiteController {
             if (chara == null) return "redirect:/member/inbox";
         }
         boolean fp = fp(request);
+        boolean support = charaId == 0;
         List<MemberSiteService.ConvItem> conv = site.conversation(u, charaId);
-        // 1通ずつ既読: only the mail clicked in 受信一覧 becomes 既読
-        if (!preview(session)) site.markReadIfFree(u, conv, openedId);
+        // 受信一覧 で1通クリック → その1通だけ表示
+        if (openedId != null) {
+            List<MemberSiteService.ConvItem> one = new java.util.ArrayList<>();
+            for (MemberSiteService.ConvItem it : conv) if (openedId.equals(it.message.getId())) one.add(it);
+            conv = one;
+        }
+        // 1通ずつ既読: only the mail clicked in 受信一覧 becomes 既読 (サポート窓口: no 閲覧pt)
+        if (!preview(session)) {
+            if (support) site.openSupportMails(u, conv, openedId);
+            else site.markReadIfFree(u, conv, openedId);
+        }
         Set<Long> allImages = new LinkedHashSet<>();
         for (MemberSiteService.ConvItem it : conv) allImages.addAll(it.images);
-        Set<Long> openImgs = site.openImages(u, allImages);
+        Set<Long> openImgs = support ? allImages : site.openImages(u, allImages);
         int bodyCost = site.cost(MemberSiteService.COST_BODY, u);
         int photoCost = site.cost(MemberSiteService.COST_PHOTO, u);
-        String back = "/member/reply?c=" + charaId;
+        String back = "/member/reply?c=" + charaId + (openedId == null ? "" : "&m=" + openedId);
         StringBuilder b = new StringBuilder();
         String note = flash(model);
         if (fp) {
@@ -411,7 +433,7 @@ public class MemberSiteController {
             b.append("</div></div>");
         }
 
-        // やり取り (oldest first, the latest 30)
+        // やり取り (oldest first, the latest 30) — from 受信一覧: the one mail clicked
         int from = Math.max(0, conv.size() - 30);
         for (int i = from; i < conv.size(); i++) {
             MemberSiteService.ConvItem it = conv.get(i);
@@ -447,24 +469,32 @@ public class MemberSiteController {
         }
         if (conv.isEmpty()) b.append(fp ? "<div class=\"row\">まだやり取りはありません</div>" : "<div class=\"note\">まだやり取りはありません</div>");
 
-        // 送信フォーム
+        if (support) {
+            // サポート窓口: 本文の下に サポート窓口 の送信画面 (送信後はこの画面に戻る)
+            b.append(supportForm(request, u, fp, back));
+            if (!fp) b.append("<div class=\"boxline\"></div></section>");
+            return render("reply", request, u, b.toString(), null);
+        }
+
+        // 送信フォーム — タイトル・本文の入力欄は受信メールと同じ文字サイズ; 写真添付 / アドレス添付・電話番号添付 (ポイント表示なし)
         boolean address = site.offered(MemberSiteService.COST_ADDRESS, u);
         boolean tel = site.offered(MemberSiteService.COST_TEL, u);
         int mailCost = site.cost(MemberSiteService.COST_MAIL, u);
+        String sameSize = " style=\"font-size:inherit;font-family:inherit\"";
         b.append("<form method=\"post\" action=\"/member/reply\" enctype=\"multipart/form-data\">").append(csrf(request))
                 .append("<input type=\"hidden\" name=\"c\" value=\"").append(charaId).append("\">")
-                .append(field(fp, "タイトル", "<input type=\"text\" name=\"subject\" maxlength=\"" + MemberSiteService.SUBJECT_MAX + "\">"))
-                .append(field(fp, "本文", "<textarea name=\"body\" maxlength=\"" + MemberSiteService.BODY_MAX + "\" required></textarea>"));
-        if (address) {
-            b.append(field(fp, "アドレス添付", "<label><input type=\"checkbox\" name=\"address\" value=\"true\"> アドレスを添付 <span class=\"cost\">（"
-                    + site.cost(MemberSiteService.COST_ADDRESS, u) + "ポイント）</span></label>"));
+                .append(openedId == null ? "" : "<input type=\"hidden\" name=\"m\" value=\"" + openedId + "\">")
+                .append(field(fp, "タイトル", "<input type=\"text\" name=\"subject\" maxlength=\"" + MemberSiteService.SUBJECT_MAX + "\"" + sameSize + ">"))
+                .append(field(fp, "本文", "<textarea name=\"body\" maxlength=\"" + MemberSiteService.BODY_MAX + "\" required" + sameSize + "></textarea>"));
+        StringBuilder attach = new StringBuilder();
+        attach.append("<div><label style=\"display:inline;font-weight:800\">写真添付</label> <input type=\"file\" name=\"photo\" accept=\"image/*\"></div>");
+        if (address || tel) {
+            attach.append("<div style=\"margin-top:10px;display:flex;flex-wrap:wrap;gap:8px 28px\">");
+            if (address) attach.append("<label style=\"display:inline;font-weight:800\"><input type=\"checkbox\" name=\"address\" value=\"true\"> アドレス添付</label>");
+            if (tel) attach.append("<label style=\"display:inline;font-weight:800\"><input type=\"checkbox\" name=\"tel\" value=\"true\"> 電話番号添付</label>");
+            attach.append("</div>");
         }
-        if (tel) {
-            b.append(field(fp, "電話番号添付", "<label><input type=\"checkbox\" name=\"tel\" value=\"true\"> 電話番号を添付 <span class=\"cost\">（"
-                    + site.cost(MemberSiteService.COST_TEL, u) + "ポイント）</span></label>"));
-        }
-        b.append(field(fp, "写真添付", "<input type=\"file\" name=\"photo\" accept=\"image/*\"> <span class=\"cost\">"
-                + site.cost(MemberSiteService.COST_PHOTO_ATTACH, u) + "ポイント</span>"));
+        b.append(fp ? "<div class=\"row\">" + attach + "</div>" : "<div class=\"row\" style=\"display:block;padding:12px 15px\">" + attach + "</div>");
         b.append(fp ? "<div class=\"row\"><button class=\"btn\">送信</button>（" + mailCost + "ポイント）</div>"
                 : "<div class=\"actions\"><button class=\"btn\">送信</button><div class=\"note\" style=\"padding:6px 0 0\">メール送信 " + mailCost + "ポイント</div></div>");
         b.append("</form>");
@@ -474,6 +504,7 @@ public class MemberSiteController {
 
     @PostMapping("/member/reply")
     public Object send(@RequestParam(name = "c", defaultValue = "0") long charaId,
+                       @RequestParam(name = "m", required = false) Long openedId,
                        @RequestParam(name = "subject", required = false) String subject,
                        @RequestParam(name = "body", required = false) String body,
                        @RequestParam(name = "address", defaultValue = "false") boolean address,
@@ -491,11 +522,13 @@ public class MemberSiteController {
         in.photo = photo;
         try {
             site.send(u, charaId, in, ClientIpResolver.resolve(request), request.getHeader("User-Agent"));
+            // 送信後: 「メッセージを送信しました」で 送信済み へ
             ra.addFlashAttribute("memberNote", "メッセージを送信しました");
+            return "redirect:/member/inbox?tab=sent";
         } catch (MemberSiteService.MemberException e) {
             ra.addFlashAttribute("memberNote", e.getMessage());
         }
-        return "redirect:/member/reply?c=" + charaId;
+        return "redirect:/member/reply?c=" + charaId + (openedId == null ? "" : "&m=" + openedId);
     }
 
     /** 本文閲覧 / プロフィール閲覧 / 写真閲覧 (uses the points once). */
@@ -628,7 +661,7 @@ public class MemberSiteController {
         } else {
             b.append("<section class=\"box\"><div class=\"boxline\"></div>");
             if (note != null) b.append("<div class=\"note\">").append(e(note)).append("</div>");
-            for (Chara c : list) b.append(person(request, u, c, true, "/member/friends", false));
+            for (Chara c : list) b.append(person(request, u, c, true, "/member/friends", false, false));
             if (list.isEmpty()) b.append("<div class=\"note\">友達はまだいません。受信BOX・条件検索から「友達追加」できます。</div>");
             b.append("<div class=\"boxline\"></div></section>");
         }
@@ -712,7 +745,7 @@ public class MemberSiteController {
                     b.append("<a href=\"/member/chara?c=").append(c.getId()).append("\">").append(e(c.getName())).append(" / ")
                             .append(e(nz(c.getPref(), "—"))).append(" / ").append(ageText(c).isEmpty() ? "—" : ageText(c)).append("</a>");
                 } else {
-                    b.append(person(request, u, c, friendIds.contains(c.getId()), "/member/search", true));
+                    b.append(person(request, u, c, friendIds.contains(c.getId()), "/member/search", true, true));
                 }
             }
             if (result.isEmpty()) b.append(fp ? "<a href=\"/member/search\">条件に合うお相手はいませんでした</a>" : "<div class=\"note\">条件に合うお相手はいませんでした</div>");
@@ -735,6 +768,7 @@ public class MemberSiteController {
     public Object sendSupport(@RequestParam(name = "name", required = false) String name,
                               @RequestParam(name = "email", required = false) String email,
                               @RequestParam(name = "body", required = false) String body,
+                              @RequestParam(name = "back", required = false) String back,
                               HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
@@ -745,21 +779,28 @@ public class MemberSiteController {
         } catch (MemberSiteService.MemberException e) {
             ra.addFlashAttribute("memberNote", e.getMessage());
         }
-        return "redirect:/member/support";
+        // サポート窓口からのメールの画面 (受信一覧 → 1通) から送ったときは、その画面に戻る
+        return "redirect:" + (back == null ? "/member/support" : safeBack(back));
     }
 
     private String supportHtml(HttpServletRequest request, CrmUser u, String note) {
         boolean fp = fp(request);
         StringBuilder b = new StringBuilder(fp ? "" : "<section class=\"box\"><div class=\"boxline\"></div>");
         if (note != null) b.append(fp ? "<div class=\"row\">" + e(note) + "</div>" : "<div class=\"note\">" + e(note) + "</div>");
-        b.append("<form method=\"post\" action=\"/member/support\">").append(csrf(request))
-                .append(field(fp, "お名前", "<input type=\"text\" name=\"name\" maxlength=\"100\" value=\"" + e(nz(u.getDisplayName(), "")) + "\">"))
-                .append(field(fp, "メールアドレス", "<input type=\"email\" name=\"email\" maxlength=\"255\" value=\"" + e(nz(u.getEmail(), "")) + "\">"))
-                .append(field(fp, "お問い合わせ内容", "<textarea name=\"body\" required></textarea>"))
-                .append(fp ? "<div class=\"row\"><button class=\"btn\">送信する</button></div>" : "<div class=\"actions\"><button class=\"btn\">送信する</button></div>")
-                .append("</form>");
+        b.append(supportForm(request, u, fp, null));
         if (!fp) b.append("<div class=\"boxline\"></div></section>");
         return b.toString();
+    }
+
+    /** サポート窓口's 送信画面 (お名前・メールアドレス・お問い合わせ内容); {@code back} = the page to return to after sending (null = サポート窓口). */
+    private static String supportForm(HttpServletRequest request, CrmUser u, boolean fp, String back) {
+        return "<form method=\"post\" action=\"/member/support\">" + csrf(request)
+                + (back == null ? "" : "<input type=\"hidden\" name=\"back\" value=\"" + e(back) + "\">")
+                + field(fp, "お名前", "<input type=\"text\" name=\"name\" maxlength=\"100\" value=\"" + e(nz(u.getDisplayName(), "")) + "\">")
+                + field(fp, "メールアドレス", "<input type=\"email\" name=\"email\" maxlength=\"255\" value=\"" + e(nz(u.getEmail(), "")) + "\">")
+                + field(fp, "お問い合わせ内容", "<textarea name=\"body\" required></textarea>")
+                + (fp ? "<div class=\"row\"><button class=\"btn\">送信する</button></div>" : "<div class=\"actions\"><button class=\"btn\">送信する</button></div>")
+                + "</form>";
     }
 
     /* ===================== プロフ編集 ===================== */
@@ -1021,11 +1062,17 @@ public class MemberSiteController {
 
     /** 写真閲覧 / 友達追加 / プロフ閲覧 buttons of a キャラ. */
     private String charaButtons(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back, boolean profLabelShort) {
+        return charaButtons(request, u, c, friend, back, profLabelShort, true);
+    }
+
+    /** The same; {@code showFriendAdded} false = no 友達追加済 (友達追加リスト — every キャラ there is a friend). */
+    private String charaButtons(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back, boolean profLabelShort,
+                                boolean showFriendAdded) {
         StringBuilder b = new StringBuilder();
         b.append(c.getPhotoUrl() == null ? "<span class=\"smallbtn\" style=\"opacity:.4\">写真閲覧</span>"
                 : "<a class=\"smallbtn\" href=\"/member/photo?c=" + c.getId() + "\">写真閲覧</a>");
         if (friend) {
-            b.append("<span class=\"smallbtn\" style=\"opacity:.55\">友達追加済</span>");
+            if (showFriendAdded) b.append("<span class=\"smallbtn\" style=\"opacity:.55\">友達追加済</span>");
         } else {
             b.append("<form method=\"post\" action=\"/member/friends/add\" style=\"display:contents\">").append(csrf(request))
                     .append("<input type=\"hidden\" name=\"c\" value=\"").append(c.getId()).append("\"><input type=\"hidden\" name=\"back\" value=\"")
@@ -1035,12 +1082,12 @@ public class MemberSiteController {
         return b.toString();
     }
 
-    /** A キャラ row (友達追加リスト — no age next to the name / 検索結果). */
-    private String person(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back, boolean showAge) {
+    /** A キャラ row (友達追加リスト — no age next to the name, no 友達追加済 / 検索結果). */
+    private String person(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back, boolean showAge, boolean showFriendAdded) {
         String info = showAge ? ageText(c) + (c.getPref() == null ? "" : "　" + e(c.getPref())) : (c.getPref() == null ? "" : e(c.getPref()));
         return "<div class=\"person\"><div class=\"avatar\">" + avatar(u, c) + "</div><div class=\"grow\"><b>" + e(c.getName()) + "</b>　<small>"
                 + info + "</small><div class=\"pbtns\">"
-                + charaButtons(request, u, c, friend, back, true)
+                + charaButtons(request, u, c, friend, back, true, showFriendAdded)
                 + "<a class=\"smallbtn reply\" href=\"/member/reply?c=" + c.getId() + "\">メッセージ送信</a></div></div></div>";
     }
 

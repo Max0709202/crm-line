@@ -314,7 +314,8 @@ public class MemberSiteService {
         List<Long> outIds = new ArrayList<>();
         for (Message m : mine) if (Message.DIR_OUT.equals(m.getDirection())) outIds.add(m.getId());
         Set<Long> read = unlockService.unlocked(u.getId(), MemberUnlockService.BODY, outIds);
-        boolean free = cost(COST_BODY, u) <= 0;
+        // サポート窓口 is not a キャラ: its mails are read without 本文閲覧 points
+        boolean free = charaId == 0 || cost(COST_BODY, u) <= 0;
         Map<Long, List<Long>> images = messageImageService.imageIdsOfMessages(mine);
         List<ConvItem> out = new ArrayList<>();
         for (Message m : mine) {
@@ -337,6 +338,19 @@ public class MemberSiteService {
             if (it.out && messageId.equals(it.message.getId())) {
                 unlockService.unlock(u.getId(), MemberUnlockService.BODY, it.message.getId(), 0);
             }
+        }
+    }
+
+    /**
+     * サポート窓口 (no キャラ): opened without ポイント設定's 閲覧pt — the mail clicked in 受信一覧
+     * ({@code messageId}) becomes 既読 (only that one), and the attached images of {@code items} open.
+     */
+    @Transactional
+    public void openSupportMails(CrmUser u, List<ConvItem> items, Long messageId) {
+        for (ConvItem it : items) {
+            if (!it.out) continue;
+            if (it.message.getId().equals(messageId)) unlockService.unlock(u.getId(), MemberUnlockService.BODY, it.message.getId(), 0);
+            for (Long img : it.images) unlockService.unlock(u.getId(), MemberUnlockService.IMAGE, img, 0);
         }
     }
 

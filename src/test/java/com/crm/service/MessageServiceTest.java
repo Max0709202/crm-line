@@ -240,7 +240,7 @@ class MessageServiceTest {
         user.setId(108L);
         user.setPhoneNumber("09093749952");
         when(userRepo.findById(108L)).thenReturn(Optional.of(user));
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createShortReplyPageFor(any(Message.class)))
@@ -263,7 +263,7 @@ class MessageServiceTest {
         user.setId(108L);
         user.setPhoneNumber("09093749952");
         when(userRepo.findById(108L)).thenReturn(Optional.of(user));
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(outboundSms.send(any())).thenReturn(OutboundSmsService.SendResult.ok());
@@ -394,7 +394,7 @@ class MessageServiceTest {
         when(userRepo.findById(50L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(50L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class)))
@@ -429,7 +429,7 @@ class MessageServiceTest {
         when(userRepo.findById(57L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(57L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class)))
@@ -458,7 +458,7 @@ class MessageServiceTest {
         when(userRepo.findById(58L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(58L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class)))
@@ -493,7 +493,7 @@ class MessageServiceTest {
         when(userRepo.findById(59L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(59L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class)))
@@ -528,7 +528,7 @@ class MessageServiceTest {
         when(userRepo.findById(53L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(53L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class)))
@@ -555,7 +555,7 @@ class MessageServiceTest {
         when(userRepo.findById(54L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(54L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class))).thenAnswer(inv -> {
@@ -587,7 +587,7 @@ class MessageServiceTest {
         when(userRepo.findById(55L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(55L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class))).thenAnswer(inv -> {
@@ -615,7 +615,7 @@ class MessageServiceTest {
         when(userRepo.findById(56L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(56L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class))).thenAnswer(inv -> {
@@ -644,7 +644,7 @@ class MessageServiceTest {
         when(userRepo.findById(51L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(51L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(outboundMail.send(any())).thenReturn(OutboundMailService.SendResult.ok());
@@ -668,7 +668,7 @@ class MessageServiceTest {
         when(userRepo.findById(52L)).thenReturn(Optional.of(user));
         when(bindingService.firstBoundFor(52L)).thenReturn(Optional.empty());
         when(domainSettings.buildFromAddress()).thenReturn("from@example.com");
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createReplyPageFor(any(Message.class)))
@@ -691,7 +691,7 @@ class MessageServiceTest {
         user.setId(53L);
         user.setPhoneNumber("09012345678");
         when(userRepo.findById(53L)).thenReturn(Optional.of(user));
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createShortReplyPageFor(any(Message.class)))
@@ -735,7 +735,7 @@ class MessageServiceTest {
         lineUser.setLineAccountId(5L);
         lineUser.setLineUserId("Uabc123");
         when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(61L))).thenReturn(java.util.Collections.singletonList(lineUser));
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -771,7 +771,7 @@ class MessageServiceTest {
         lineUser.setLineAccountId(5L);
         lineUser.setLineUserId("Ushort");
         when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(63L))).thenReturn(java.util.Collections.singletonList(lineUser));
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(replyPageService.createShortReplyPageFor(any(Message.class)))
@@ -803,7 +803,7 @@ class MessageServiceTest {
         lineUser.setLineAccountId(5L);
         lineUser.setLineUserId("Uabc999");
         when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(62L))).thenReturn(java.util.Collections.singletonList(lineUser));
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -830,7 +830,7 @@ class MessageServiceTest {
         viaB.setLineUserId("Usame");
         when(lineUserRepo.findByCrmUserIdInOrderByLastMessageAtDesc(java.util.Collections.singletonList(64L)))
                 .thenReturn(java.util.Arrays.asList(viaA, viaB));
-        when(placeholderService.substitute(anyString(), any(CrmUser.class)))
+        when(placeholderService.substitute(anyString(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
 

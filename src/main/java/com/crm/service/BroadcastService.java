@@ -273,8 +273,8 @@ public class BroadcastService {
             m.setAdminUserId(adminUserId);
             m.setDirection(Message.DIR_OUT);
             m.setChannel(Message.CHANNEL_BROADCAST);
-            m.setSubject(placeholderService.substitute(form.getSubject(), user));
-            String body = MessageService.withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
+            m.setSubject(placeholderService.substitute(form.getSubject(), user, when.toLocalDate()));
+            String body = MessageService.withReplyUrlForImages(placeholderService.substitute(form.getBody(), user, when.toLocalDate()), imageIds);
             m.setBodyText(body);
             m.setFromAddress(fromAddr);
             m.setToAddress(user.getEmail());
@@ -380,7 +380,7 @@ public class BroadcastService {
             m.setAdminUserId(adminUserId);
             m.setDirection(Message.DIR_OUT);
             m.setChannel(Message.CHANNEL_SMS);
-            String body = MessageService.withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
+            String body = MessageService.withReplyUrlForImages(placeholderService.substitute(form.getBody(), user, when.toLocalDate()), imageIds);
             m.setBodyText(body);
             // Resolved per-recipient (not once for the whole broadcast) so RANDOM_* sender-name
             // modes actually rotate identities across the batch instead of reusing one value.
@@ -489,7 +489,7 @@ public class BroadcastService {
             m.setDirection(Message.DIR_OUT);
             m.setChannel(Message.CHANNEL_LINE);
             m.setLineAccountId(lineAccountId);
-            String body = placeholderService.substitute(form.getBody(), user);
+            String body = placeholderService.substitute(form.getBody(), user, when.toLocalDate());
             m.setBodyText(body);
             m.setToAddress(lineUser.getLineUserId());
             m.setBroadcastId(saved.getId());

@@ -39,7 +39,7 @@
 
             <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 flex items-center gap-3">
                 基本情報
-                <span class="text-xs font-normal text-slate-500">ユーザーID: <span class="font-semibold text-slate-700 tabular-nums" th:text="${user.id}">0</span></span>
+                <span class="text-xs font-normal text-slate-500">ユーザーID: <span class="font-semibold text-slate-700 tabular-nums" th:text="${user.loginId != null and !#strings.isEmpty(user.loginId)} ? ${user.loginId} : ${user.id}">0</span></span>
                 <!-- 所持ポイント（目立つ枠） -->
                 <span class="ml-auto inline-flex items-baseline gap-1 px-3 py-1 rounded-md border-2 border-amber-400 bg-amber-50 text-amber-700"
                       title="所持ポイント">

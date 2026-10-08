@@ -67,7 +67,7 @@ class BroadcastServiceUrlPlaceholderTest {
         when(domainSettingService.buildFromAddress()).thenReturn("info@example.com");
         when(domainSettingService.getEmailReplyUrlClipLength()).thenReturn(15);
         when(smsSettingService.getReplyUrlClipLength()).thenReturn(15);
-        when(placeholderService.substitute(any(), any(CrmUser.class)))
+        when(placeholderService.substitute(any(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(broadcastRepo.save(any())).thenAnswer(inv -> {

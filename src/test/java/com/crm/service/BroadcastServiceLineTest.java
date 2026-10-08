@@ -64,7 +64,7 @@ class BroadcastServiceLineTest {
         lineAccountService = mock(LineAccountService.class);
 
         when(replyPageSettingService.getOrCreate()).thenReturn(new com.crm.entity.ReplyPageSetting());
-        when(placeholderService.substitute(any(), any(CrmUser.class)))
+        when(placeholderService.substitute(any(), any(CrmUser.class), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(messageRepo.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
         when(broadcastRepo.save(any(Broadcast.class))).thenAnswer(inv -> {

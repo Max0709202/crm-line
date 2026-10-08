@@ -46,7 +46,7 @@
         これを設定しないと、友達追加やメッセージが届いても本システムには反映されません。
     </p>
 
-    <!-- 上の3つの設定（左）＋ LINE送信の固定テンプレート（中）＋ 返信URLのリンクプレビュー (OGP)（右） -->
+    <!-- 上の2つの設定（左）＋ LINE送信の固定テンプレート・友達追加 初期フォルダ（中）＋ 返信URLのリンクプレビュー (OGP)（右） -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4 items-start">
     <div>
         <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex flex-wrap items-center gap-3">
@@ -69,17 +69,9 @@
             <span class="text-xs text-slate-400">LINE一斉送信専用の送信間隔です（メール一斉送信の間隔とは独立しています）。</span>
         </div>
 
-        <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex flex-wrap items-center gap-3">
-            <label class="text-sm font-medium text-slate-700 whitespace-nowrap">友だち追加時の自動割当フォルダ</label>
-            <form method="post" th:action="@{/manager/line-settings/auto-register-folder}" class="flex items-center gap-2">
-                <input type="hidden" name="_csrf" th:value="${_csrf}"/>
-                <input type="text" name="folder" th:value="${lineAutoRegisterFolder}" placeholder="例: LINE" class="tw-input" style="width:160px;"/>
-                <button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button>
-            </form>
-            <span class="text-xs text-slate-400">LINE友だち追加で自動作成される顧客に、このフォルダを自動で割り当てます（空欄=未割当）。</span>
-        </div>
     </div>
 
+    <div>
     <form method="post" th:action="@{/manager/line-settings/fixed-template}"
           class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 flex flex-col gap-2">
         <input type="hidden" name="_csrf" th:value="${_csrf}"/>
@@ -102,6 +94,27 @@
         </div>
         <div><button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button></div>
     </form>
+
+    <!-- 友達追加 初期フォルダ (LINE送信の固定テンプレートの下): LINE友だち追加で自動作成される顧客のフォルダ -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mt-4 flex flex-col gap-2"
+         th:with="lineFolders=${@folderSettingService.listFolders()}">
+        <span class="text-sm font-medium text-slate-700">友達追加 初期フォルダ</span>
+        <form method="post" th:action="@{/manager/line-settings/auto-register-folder}" class="flex items-center gap-2">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <select name="folder" class="tw-input text-sm" style="width:220px;">
+                <option value="" th:selected="${lineAutoRegisterFolder == null}">未設定</option>
+                <option th:each="f : ${lineFolders}" th:value="${f}" th:text="${f}" th:selected="${f == lineAutoRegisterFolder}">フォルダ</option>
+                <!-- 保存済みのフォルダがフォルダ設定から消えている場合も、そのまま表示 -->
+                <option th:if="${lineAutoRegisterFolder != null and !lineFolders.contains(lineAutoRegisterFolder)}"
+                        th:value="${lineAutoRegisterFolder}" th:text="${lineAutoRegisterFolder} + '（フォルダ設定にありません）'" selected>保存済み</option>
+            </select>
+            <button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button>
+        </form>
+        <div class="text-xs text-slate-500 leading-relaxed">
+            LINEで初めて友達追加されたユーザーは、このフォルダに入ります（未設定のときは「未設定」フォルダ）。
+        </div>
+    </div>
+    </div>
 
     <!-- 返信URLのリンクプレビュー (OGP) — ドメイン設定から移動 -->
     <form method="post" th:action="@{/manager/line-settings/reply-ogp}"

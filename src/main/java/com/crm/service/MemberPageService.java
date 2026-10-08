@@ -124,9 +124,28 @@ public class MemberPageService {
                 mainHtml, title, Math.max(0, unread)));
     }
 
-    /** Member pages can't be zoomed ({@link com.crm.util.NoZoom}); the ガラケー design is left as is. */
+    /** Member pages can't be zoomed ({@link com.crm.util.NoZoom}); the ガラケー design gets {@link #fpViewport} instead. */
     private static String noZoom(String device, String html) {
-        return "fp".equals(device) ? html : com.crm.util.NoZoom.apply(html);
+        return "fp".equals(device) ? fpViewport(html) : com.crm.util.NoZoom.apply(html);
+    }
+
+    /**
+     * ガラケー design: the same viewport / text size on every page (MENU and every page after it).
+     * The fp/ designs had no viewport, so a browser fell back to its own (wide) default width and
+     * showed the pages after MENU shrunk; long words wrap instead of widening the page.
+     */
+    private static final String FP_HEAD = "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            + "<style>html{-webkit-text-size-adjust:100%;text-size-adjust:100%}body{overflow-wrap:break-word;word-wrap:break-word}</style>";
+    private static final Pattern FP_CHARSET = Pattern.compile("(?i)<meta\\s+charset=[\"']?utf-8[\"']?\\s*/?>");
+
+    private static String fpViewport(String html) {
+        if (html == null) return null;
+        int headEnd = html.indexOf("</head>");
+        if (headEnd >= 0 && html.substring(0, headEnd).contains("name=\"viewport\"")) return html;
+        Matcher m = FP_CHARSET.matcher(html);
+        if (m.find()) return html.substring(0, m.end()) + FP_HEAD + html.substring(m.end());
+        int head = html.indexOf("<head>");
+        return head < 0 ? html : html.substring(0, head + 6) + FP_HEAD + html.substring(head + 6);
     }
 
     /** Where a member page's live content goes (put in after the tags are filled, so a member's

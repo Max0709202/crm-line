@@ -133,13 +133,13 @@ class MemberSiteControllerTest {
     void everyPage_rendersInBothDesigns_withEscapedData() {
         for (boolean fp : new boolean[]{false, true}) {
             // 受信BOX: one row per キャラ — 未読あり(n) / 未読なし in place of the age, 受信一覧
-            String inbox = body(controller.inbox("all", null, 1, req(fp), session));
+            String inbox = body(controller.inbox("all", null, 1, req(fp), session, new ExtendedModelMap()));
             assertThat(inbox).contains("まい", "未読あり(1)", "未読なし", "NEW", "/member/inbox/list?c=2", "/member/inbox/list?c=0",
                     "サポート窓口", "こんばんは", "今日は寒いですね", "なおと&lt;b&gt;")
                     .doesNotContain("なおと<b>", "25歳", "運営", "https://example.jp/reply/x", "本文閲覧/返信");
             if (!fp) assertThat(inbox).contains("プロフィール閲覧", ">受信一覧<").doesNotContain("プロフィール参照");
             // 送信済み: no age, 受信一覧 instead of やり取りを見る
-            String sent = body(controller.inbox("sent", null, 1, req(fp), session));
+            String sent = body(controller.inbox("sent", null, 1, req(fp), session, new ExtendedModelMap()));
             assertThat(sent).contains("To: ", "/member/inbox/list?c=2").doesNotContain("25歳", "やり取りを見る");
             // 受信一覧: received only, newest first, 未読 / 既読 with the envelope icons, each → 返信画面
             String list = body(controller.inboxList(2L, 1, req(fp), session));
@@ -163,7 +163,7 @@ class MemberSiteControllerTest {
 
     @Test
     void notLoggedIn_goesToTheLoginDialog() {
-        assertThat(controller.inbox("all", null, 1, req(false), new MockHttpSession())).isEqualTo("redirect:/#login");
+        assertThat(controller.inbox("all", null, 1, req(false), new MockHttpSession(), new ExtendedModelMap())).isEqualTo("redirect:/#login");
         assertThat(controller.inboxList(2L, 1, req(false), new MockHttpSession())).isEqualTo("redirect:/#login");
     }
 
@@ -189,7 +189,67 @@ class MemberSiteControllerTest {
         when(site.charaInbox(user, 2L)).thenReturn(many);
         String p1 = body(controller.inboxList(2L, 1, req(false), session));
         assertThat(p1).contains("m=109", "page=2").doesNotContain("m=110");
+        // 1ページ目は「次へ」だけ、2ページ目以降は「戻る」と「次へ」(ページ番号なし)
+        assertThat(p1).contains("次へ").doesNotContain("戻る", "前へ");
         String p2 = body(controller.inboxList(2L, 2, req(false), session));
         assertThat(p2).contains("m=110").doesNotContain("m=109");
+        assertThat(p2).contains("戻る", "page=1").doesNotContain("前へ");
+    }
+
+    @Test
+    void replyFromInboxList_showsOnlyTheClickedMail_withPlainAttachRows() {
+        for (boolean fp : new boolean[]{false, true}) {
+            String reply = body(controller.reply(2L, 70L, req(fp), session, new ExtendedModelMap()));
+            assertThat(reply).contains("id=\"m70\"", "写真添付", "アドレス添付", "電話番号添付", "name=\"m\" value=\"70\"",
+                    "font-size:inherit").doesNotContain("id=\"m71\"", "本当ですね", "アドレスを添付", "電話番号を添付", "20ポイント）</span>");
+            assertThat(reply.indexOf("写真添付")).isLessThan(reply.indexOf("アドレス添付"));
+            assertThat(reply.indexOf("アドレス添付")).isLessThan(reply.indexOf("電話番号添付"));
+        }
+    }
+
+    @Test
+    void afterSending_goesToSentWithTheNote() {
+        org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap ra = new org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap();
+        Object res = controller.send(2L, 70L, "件名", "本文", false, false, null, req(false), session, ra);
+        assertThat(res).isEqualTo("redirect:/member/inbox?tab=sent");
+        assertThat(ra.getFlashAttributes().get("memberNote")).isEqualTo("メッセージを送信しました");
+        ExtendedModelMap model = new ExtendedModelMap();
+        model.addAttribute("memberNote", "メッセージを送信しました");
+        assertThat(body(controller.inbox("sent", null, 1, req(false), session, model))).contains("メッセージを送信しました");
+    }
+
+    @Test
+    void supportMail_isOpenedWithoutPoints_withTheSupportFormBelow() {
+        Message sup = new Message();
+        sup.setId(80L);
+        sup.setUserId(5L);
+        sup.setDirection(Message.DIR_OUT);
+        sup.setSubject("お知らせ");
+        sup.setBodyText("サポートからのご案内");
+        sup.setSentAt(LocalDateTime.now());
+        List<MemberSiteService.ConvItem> conv = Collections.singletonList(new MemberSiteService.ConvItem(sup, true, true, Collections.<Long>emptyList()));
+        when(site.conversation(user, 0L)).thenReturn(conv);
+        for (boolean fp : new boolean[]{false, true}) {
+            String page = body(controller.reply(0L, 80L, req(fp), session, new ExtendedModelMap()));
+            assertThat(page).contains("サポートからのご案内", "action=\"/member/support\"", "name=\"back\" value=\"/member/reply?c=0&amp;m=80\"",
+                    "お問い合わせ内容").doesNotContain("本文閲覧（", "action=\"/member/reply\"");
+            assertThat(page.indexOf("サポートからのご案内")).isLessThan(page.indexOf("action=\"/member/support\""));
+        }
+        org.mockito.Mockito.verify(site, org.mockito.Mockito.atLeastOnce()).openSupportMails(eq(user), any(), eq(80L));
+        org.mockito.Mockito.verify(site, org.mockito.Mockito.never()).markReadIfFree(eq(user), any(), eq(80L));
+    }
+
+    @Test
+    void friends_listsWithoutFriendAddedLabel() {
+        assertThat(body(controller.friends(req(false), session, new ExtendedModelMap()))).contains("まい", "メッセージ送信").doesNotContain("友達追加済");
+    }
+
+    @Test
+    void featurePhonePages_allHaveTheSameViewport() {
+        String vp = "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
+        assertThat(body(controller.menu(req(true), session))).contains(vp);
+        assertThat(body(controller.inboxList(2L, 1, req(true), session))).contains(vp);
+        assertThat(body(controller.friends(req(true), session, new ExtendedModelMap()))).contains(vp);
+        assertThat(body(controller.reply(2L, 70L, req(true), session, new ExtendedModelMap()))).contains(vp);
     }
 }

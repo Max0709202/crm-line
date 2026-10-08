@@ -542,6 +542,11 @@ public class MessageService {
         return messageRepository.findAll(spec, pageable);
     }
 
+    /** The day the user receives a send — its 予約 day when scheduled ahead, else today (%date_jp% etc.). */
+    private static java.time.LocalDate receivedOn(LocalDateTime scheduledAt) {
+        return scheduledAt != null && scheduledAt.isAfter(LocalDateTime.now()) ? scheduledAt.toLocalDate() : java.time.LocalDate.now();
+    }
+
     /**
      * Send immediately or queue a scheduled send. Subject + body are substituted
      * against the user's placeholder bindings before storage/sending.
@@ -563,9 +568,10 @@ public class MessageService {
             throw new MessageException("送信元アドレスが解決できません (キャリア未割当かつ from.base_domain 未設定)");
         }
 
-        String renderedSubject = placeholderService.substitute(form.getSubject(), user);
+        java.time.LocalDate receivedOn = receivedOn(form.getScheduledAt());
+        String renderedSubject = placeholderService.substitute(form.getSubject(), user, receivedOn);
         List<Long> imageIds = validImages(form.getImageIds(), false);
-        String renderedBody = withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
+        String renderedBody = withReplyUrlForImages(placeholderService.substitute(form.getBody(), user, receivedOn), imageIds);
 
         Message msg = new Message();
         msg.setUserId(userId);
@@ -630,7 +636,7 @@ public class MessageService {
         }
 
         List<Long> imageIds = validImages(form.getImageIds(), false);
-        String renderedBody = withReplyUrlForImages(placeholderService.substitute(form.getBody(), user), imageIds);
+        String renderedBody = withReplyUrlForImages(placeholderService.substitute(form.getBody(), user, receivedOn(form.getScheduledAt())), imageIds);
 
         Message msg = new Message();
         msg.setUserId(userId);
@@ -710,7 +716,7 @@ public class MessageService {
                     .orElseThrow(() -> new MessageException("選択したキャラ（LINEアカウント）とこのユーザーは友だちではありません"));
         }
 
-        String renderedBody = placeholderService.substitute(form.getBody(), user);
+        String renderedBody = placeholderService.substitute(form.getBody(), user, receivedOn(form.getScheduledAt()));
         // LINE画像挿入: sent to LINE as images after the text (not counted in the 最大文字数)
         List<Long> imageIds = validImages(form.getImageIds(), true);
 

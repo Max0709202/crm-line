@@ -427,7 +427,7 @@ public class LineAccountController {
         domainSettingService.save(com.crm.service.DomainSettingService.KEY_LINE_AUTO_REGISTER_FOLDER, trimmed);
         auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null,
                 "line.auto_register_folder=" + trimmed);
-        ra.addFlashAttribute("flashSuccess", "LINE自動登録フォルダを更新しました");
+        ra.addFlashAttribute("flashSuccess", "友達追加 初期フォルダを更新しました");
         return "redirect:/manager/line-settings";
     }
 

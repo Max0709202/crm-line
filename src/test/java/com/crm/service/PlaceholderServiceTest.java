@@ -42,6 +42,13 @@ class PlaceholderServiceTest {
     }
 
     @Test
+    void dateTags_areTheDayBeforeAndAfterTheReceivedDay() {
+        CrmUser u = user("X", "x@x");
+        assertThat(svc.substitute("%datey_jp%/%date_jp%/%datet_jp%", u, LocalDate.of(2026, 5, 1)))
+                .isEqualTo("2026年4月30日/2026年5月1日/2026年5月2日");
+    }
+
+    @Test
     void nullTemplate_returnsNull() {
         assertThat(svc.substitute(null, user("a", "b@c"))).isNull();
     }

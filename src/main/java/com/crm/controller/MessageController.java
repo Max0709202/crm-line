@@ -405,6 +405,17 @@ public class MessageController {
         model.addAttribute("memberReadIds", memberUnlockService == null || sentOutIds.isEmpty()
                 ? java.util.Collections.<Long>emptySet()
                 : memberUnlockService.unlocked(userId, com.crm.service.MemberUnlockService.BODY, sentOutIds));
+        // 送信側アイコン (メール・SMS): the message's own 送信キャラ (one-to-one / 一斉送信 / 差分), and
+        // キャラ指定なし = サポート窓口 (サ, red frame)
+        java.util.List<Message> outMails = new java.util.ArrayList<>();
+        for (Message m : thread) {
+            if (Message.DIR_OUT.equals(m.getDirection()) && !Message.CHANNEL_LINE.equals(m.getChannel())) outMails.add(m);
+        }
+        java.util.Map<Long, Long> outCharaIds = charaLinkService.charaIdsOfMessages(outMails);
+        java.util.Set<Long> supportOutIds = new java.util.HashSet<>();
+        for (Message m : outMails) if (!outCharaIds.containsKey(m.getId())) supportOutIds.add(m.getId());
+        model.addAttribute("outCharaNames", charaLinkService.charaNamesOfMessages(outMails));
+        model.addAttribute("supportOutIds", supportOutIds);
         com.crm.entity.CarrierAddressPool boundPool = bindingService.firstBoundFor(userId).orElse(null);
         model.addAttribute("userHasPool", boundPool != null && !Boolean.FALSE.equals(boundPool.getIsActive()));
         // キャラ card: the キャラ of ?chara=, else the user's newest 紐づきキャラ (メール); replies from

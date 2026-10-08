@@ -460,6 +460,7 @@
         .wsx .msg-av.is-male   { color:#1e40af; background:#d2e2f9; }
         .wsx .msg-av.is-female { color:#9d174d; background:#f5d3e3; }
         .wsx .msg-av.is-staff  { color:#fff; background:#64748b; }
+        .wsx .msg-av.is-support { color:#b91c1c; background:#fee2e2; border:2px solid #dc2626; }
         .wsx .msg-bubble {
             flex:0 1 76%; min-width:260px; max-width:900px; margin:0; padding:7px 12px 9px; white-space:normal; line-height:1.5; font-size:inherit;
             background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 1px rgba(15,23,42,.03);
@@ -628,7 +629,7 @@
                             <span class="dtl-img is-empty" th:if="${userProfile.photoUrl == null}">画像</span>
                             <div class="dtl-ident">
                                 <div class="dtl-name"><span th:text="${uname}">ユーザー</span><span th:if="${ugender == 'male'}" class="dtl-gender is-male">男性</span><span th:if="${ugender == 'female'}" class="dtl-gender is-female">女性</span></div>
-                                <a class="dtl-id" th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + ${user.id}">ID</a>
+                                <a class="dtl-id" th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + (${user.loginId != null and !#strings.isEmpty(user.loginId)} ? ${user.loginId} : ${user.id})">ID</a>
                             </div>
                         </div>
                         <ul class="dtl-attrs" th:if="${user.folder != null and !#strings.isEmpty(user.folder)}">
@@ -718,7 +719,7 @@
 
         <div class="dtl-mini" id="dtlMini" hidden>
             <span><b th:text="${uname}">ユーザー</b><span th:if="${ugender == 'male'}" class="dtl-gender is-male">男性</span><span th:if="${ugender == 'female'}" class="dtl-gender is-female">女性</span></span>
-            <span><a th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + ${user.id}">ID</a></span>
+            <span><a th:href="@{'/manager/users/' + ${user.id}}" target="_blank" rel="noopener" th:text="'ID ' + (${user.loginId != null and !#strings.isEmpty(user.loginId)} ? ${user.loginId} : ${user.id})">ID</a></span>
             <span th:if="${user.folder != null and !#strings.isEmpty(user.folder)}" class="dtl-mini-folder" th:style="${folderColors.get(user.folder) != null} ? 'background:' + ${folderColors.get(user.folder)}" th:text="${user.folder}">フォルダ</span>
             <span><i>広告コード</i><th:block th:text="${user.adCode != null and !#strings.isEmpty(user.adCode)} ? ${user.adCode} : '—'"/></span>
             <span><i>都道府県</i><th:block th:text="${userProfile.pref} ?: '未設定'"/></span>
@@ -809,9 +810,13 @@
                     </div>
                     <div class="msg-err" th:if="${isOut and m.status == 'FAILED' and m.errorMessage != null}" th:text="${#strings.abbreviate(m.errorMessage, 120)}"></div>
                 </div>
-                <!-- 送信側アイコン: LINE はキャラ(LINEアカウント)名、メール・SMS はこのやり取りのキャラ名の頭文字 (無ければ 運営) -->
-                <div th:if="${isOut}" class="msg-av is-staff"
-                     th:with="avName=${who == '運営' and charName != null and !#strings.isEmpty(#strings.trim(charName))} ? ${#strings.trim(charName)} : ${who}"
+                <!-- 送信側アイコン: LINE はキャラ(LINEアカウント)名、メール・SMS はそのメールの送信キャラ名の頭文字
+                     (無ければ このやり取りのキャラ → 運営)。キャラ指定なし = サポート窓口 は「サ」(赤枠) -->
+                <div th:if="${isOut and supportOutIds.contains(m.id)}" class="msg-av is-staff is-support" title="サポート窓口">サ</div>
+                <div th:if="${isOut and !supportOutIds.contains(m.id)}" class="msg-av is-staff"
+                     th:with="ownChara=${outCharaNames.get(m.id)},
+                              avName=${ownChara != null and !#strings.isEmpty(#strings.trim(ownChara))} ? ${#strings.trim(ownChara)}
+                                     : (${who == '運営' and charName != null and !#strings.isEmpty(#strings.trim(charName))} ? ${#strings.trim(charName)} : ${who})"
                      th:text="${#strings.substring(avName, 0, 1)}" th:title="${avName}">運</div>
             </div>
         </div>
