@@ -27,7 +27,12 @@
 <div th:if="${pageHtml == null or pageHtml.isEmpty()}">現在準備中です。</div>
 </div>
 
-<div style="text-align:center;font-size:small;padding:2px 0 6px;">
+<!-- 会員 (MENU の利用規約 etc. から): 会員ページと同じ「戻る / TOP　受信BOX　ポイント購入」 -->
+<div th:if="${topHref == '/member/menu'}" style="font-size:small;padding:6px 4px;border-top:2px solid #07545f;">
+<a href="/member/menu">戻る</a><br />
+<a href="/member/menu">TOP</a>　<a href="/member/inbox">受信BOX</a>　<a href="/member/points">ポイント購入</a>
+</div>
+<div th:unless="${topHref == '/member/menu'}" style="text-align:center;font-size:small;padding:2px 0 6px;">
 <a href="/" th:href="${topHref ?: '/'}" accesskey="0">[0]トップページへ</a>
 </div>
 

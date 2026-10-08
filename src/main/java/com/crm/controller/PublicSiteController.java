@@ -110,9 +110,29 @@ public class PublicSiteController {
         // 利用規約 etc. opened from the member MENU: トップへ戻る / logo go back to the MENU, not the pre-login top
         if (loggedInMember(request)) model.addAttribute("topHref", "/member/menu");
         // %sitename% in the page body → the ドメイン設定 site name, as on the top page
-        model.addAttribute("pageHtml", siteDesignService.getPageHtml(code)
-                .replace("%sitename%", HtmlUtils.htmlEscape(siteDesignService.getSiteName(), "UTF-8")));
+        String pageHtml = siteDesignService.getPageHtml(code)
+                .replace("%sitename%", HtmlUtils.htmlEscape(siteDesignService.getSiteName(), "UTF-8"));
+        model.addAttribute("pageHtml", MemberSiteController.fp(request) ? fpPageHtml(pageHtml) : pageHtml);
         return pageView(request);
+    }
+
+    /**
+     * 利用規約 / 料金表 etc. on a ガラケー: the page body is written for スマホ (large 見出し, paragraphs,
+     * a wide-padded table), so its 見出し become the ガラケー design's small bars and lines (as on the
+     * ガラケー top page) and the paragraphs / table get the ガラケー spacing.
+     */
+    static String fpPageHtml(String html) {
+        if (html == null) return null;
+        return html
+                .replaceAll("(?is)<h[12]\\b[^>]*>(.*?)</h[12]\\s*>", "<div style=\"font-weight:bold;color:#dd1470;\">$1</div>")
+                .replaceAll("(?is)<h[3-6]\\b[^>]*>(.*?)</h[3-6]\\s*>",
+                        "<div style=\"background-color:#0f74c2;color:#ffffff;padding:1px 4px;margin-top:6px;\">$1</div>")
+                .replaceAll("(?i)<p\\b[^>]*>", "<div style=\"margin:2px 0 6px;\">")
+                .replaceAll("(?i)</p\\s*>", "</div>")
+                .replaceAll("(?i)(<table\\b[^>]*?)\\scellpadding=\"\\d+\"", "$1 cellpadding=\"2\"")
+                .replaceAll("(?i)<table\\b", "<div style=\"font-size:small;\"><table")
+                .replaceAll("(?i)</table\\s*>", "</table></div>")
+                .replaceAll("(?i)<hr\\b[^>]*>", "<hr size=\"1\" />");
     }
 
     @PostMapping("/member/register")

@@ -8,6 +8,53 @@
     <title layout:title-pattern="$CONTENT_TITLE | CRM">CRM</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" th:href="@{/css/admin.css}"/>
+    <!--/* 画面縮小: when the browser window is narrower than the screen, the whole page (left menu
+         included) shrinks with it, like the browser's own zoom-out, instead of only the main area
+         getting squeezed. Full-height panes (height:100vh) are divided by the same factor so they
+         still reach the bottom. Phones / tablets (screen < 1024px) are left as they are. */-->
+    <script>
+    (function () {
+        var orig = typeof WeakMap === 'function' ? new WeakMap() : null;
+        var zoom = 1;
+        function factor() {
+            var base = window.screen && window.screen.availWidth || 0;
+            if (base < 1024 || window.innerWidth >= base - 16) return 1;
+            return Math.max(0.5, window.innerWidth / base);
+        }
+        function fixVh() {
+            if (!orig) return;
+            Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+                var rules;
+                try { rules = sheet.cssRules; } catch (e) { return; }  // cross-origin sheet
+                if (!rules) return;
+                Array.prototype.forEach.call(rules, function (r) {
+                    if (!r.style) return;
+                    ['height', 'min-height', 'max-height'].forEach(function (p) {
+                        var key = r.style, saved = orig.get(key) || {};
+                        if (!(p in saved)) {
+                            var v = r.style.getPropertyValue(p);
+                            if (!/vh/.test(v)) return;
+                            saved[p] = { v: v, prio: r.style.getPropertyPriority(p) };
+                            orig.set(key, saved);
+                        }
+                        var o = saved[p];
+                        r.style.setProperty(p, zoom === 1 ? o.v : o.v.replace(/(-?[\d.]+)vh/g, 'calc($1vh / ' + zoom + ')'), o.prio);
+                    });
+                });
+            });
+        }
+        function apply() {
+            var z = factor();
+            if (z === zoom) return;
+            zoom = z;
+            document.documentElement.style.zoom = z === 1 ? '' : String(z);
+            fixVh();
+        }
+        apply();
+        document.addEventListener('DOMContentLoaded', fixVh);
+        window.addEventListener('resize', apply);
+    })();
+    </script>
 </head>
 <body class="bg-slate-50 text-slate-800">
 <div class="min-h-screen flex">

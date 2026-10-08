@@ -290,6 +290,15 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
     java.util.List<Object[]> inboxGroupByUser();
 
     /**
+     * 受信ボックス split per キャラ: every message (ID, USER_ID, DIRECTION, CHANNEL, READ_AT,
+     * CREATED_AT, LINE_ACCOUNT_ID, INBOX_DISMISSED_AT) of the users that have a non-dismissed IN.
+     */
+    @org.springframework.data.jpa.repository.Query(nativeQuery = true, value =
+            "SELECT m.ID, m.USER_ID, m.DIRECTION, m.CHANNEL, m.READ_AT, m.CREATED_AT, m.LINE_ACCOUNT_ID, m.INBOX_DISMISSED_AT " +
+            "FROM MESSAGE m WHERE m.USER_ID IN (SELECT i.USER_ID FROM MESSAGE i WHERE i.DIRECTION='IN' AND i.INBOX_DISMISSED_AT IS NULL)")
+    java.util.List<Object[]> inboxMessagesOfInboxUsers();
+
+    /**
      * Dismiss every non-dismissed inbound message for one user. Called when the operator
      * clicks the per-row × button on the thread page's left-upper 受信 list — the user is
      * removed from the inbox aggregate, while every Message row stays in place so the

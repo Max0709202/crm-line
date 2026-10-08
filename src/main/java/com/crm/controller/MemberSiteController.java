@@ -184,17 +184,22 @@ public class MemberSiteController {
         Map<Long, String> senders = site.pastSenders(u);
         if (fp) {
             if (note != null) b.append("<div class=\"row\">").append(e(note)).append("</div>");
-            b.append("<div class=\"m\"><a href=\"/member/menu\">0. MENUへ戻る</a></div><div class=\"row\">");
-            for (String[] x : tabs) {
-                b.append(x[0].equals(t) ? "<b>" + x[1] + "</b>" : "<a href=\"/member/inbox?tab=" + x[0] + "\">" + x[1] + "</a>").append(" ");
+            // すべて　未読　お気に入り　送信済み
+            b.append("<div class=\"row\">");
+            for (int i = 0; i < tabs.length; i++) {
+                String[] x = tabs[i];
+                if (i > 0) b.append("　");
+                b.append(x[0].equals(t) ? "<b>" + x[1] + "</b>" : "<a href=\"/member/inbox?tab=" + x[0] + "\">" + x[1] + "</a>");
             }
             b.append("</div>");
             if (items.isEmpty() && groups.isEmpty()) b.append("<div class=\"mail\">メッセージはありません</div>");
+            // one キャラ per block: 名前　未読あり(n)NEW / タイトル / 本文 / 時刻
             for (MemberSiteService.InboxGroup g : groups) {
                 long cid = g.chara == null ? 0L : g.chara.getId();
-                b.append("<div class=\"mail\"><a href=\"/member/inbox/list?c=").append(cid).append("\"><b>").append(e(name(g.chara))).append("</b></a> ")
-                        .append(unreadBadge(g.unread)).append(g.unread > 0 ? " <span class=new>NEW</span>" : "").append("<br>")
-                        .append(titleAndBody(g.latest, "<br>")).append("<br><small>").append(when(g.latest)).append("</small></div>");
+                b.append("<div class=\"mail\"><a href=\"/member/inbox/list?c=").append(cid).append("\"><b>").append(e(name(g.chara))).append("</b></a>　")
+                        .append(unreadBadge(g.unread)).append(g.unread > 0 ? "<span class=new>NEW</span>" : "").append("<br>")
+                        .append(fpTitle(g.latest)).append("<br>").append(fpBody(g.latest)).append("<br>")
+                        .append(when(g.latest)).append("</div>");
             }
             for (MemberSiteService.InboxItem it : items) {
                 long cid = it.chara == null ? 0L : it.chara.getId();
@@ -227,7 +232,7 @@ public class MemberSiteController {
                         .append(e(name(g.chara))).append("</b>　").append(unreadBadge(g.unread)).append(g.unread > 0 ? " <span class=\"new\">NEW</span>" : "")
                         .append("<div class=\"preview\">").append(titleAndBody(g.latest, "<br>")).append("</div></div><div class=\"date\">")
                         .append(when(g.latest)).append("</div><div class=\"msgactions\">");
-                if (g.chara != null) b.append(charaButtons(request, u, g.chara, friendIds.contains(g.chara.getId()), "/member/inbox?tab=" + t, false));
+                if (g.chara != null) b.append(charaButtons(request, u, g.chara, friendIds.contains(g.chara.getId()), pageBase, false));
                 b.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a></div></div>");
             }
             // 送信済み: as before (no age), 受信一覧 instead of やり取りを見る
@@ -276,8 +281,8 @@ public class MemberSiteController {
             b.append("<div class=\"row\"><b>").append(e(name(chara))).append("</b> ").append(unreadBadge(unread))
                     .append(unread > 0 ? " <span class=new>NEW</span>" : "");
             if (chara != null) {
-                b.append("<br><a href=\"/member/photo?c=").append(chara.getId()).append("\">写真閲覧</a>／<a href=\"/member/chara?c=")
-                        .append(chara.getId()).append("\">プロフ閲覧</a>");
+                b.append("<br><a href=\"/member/photo?c=").append(chara.getId()).append(fromParam(base + "&page=" + p)).append("\">写真閲覧</a>／<a href=\"/member/chara?c=")
+                        .append(chara.getId()).append(fromParam(base + "&page=" + p)).append("\">プロフ閲覧</a>");
             }
             b.append("</div>");
             if (items.isEmpty()) b.append("<div class=\"mail\">メッセージはありません</div>");
@@ -375,6 +380,19 @@ public class MemberSiteController {
         return b.length() == 0 ? "メッセージが届いています" : b.toString();
     }
 
+    /** ガラケー 受信BOX: the mail's タイトル (one line; none = empty). */
+    private static String fpTitle(Message m) {
+        return m.getSubject() == null ? "" : e(m.getSubject().trim());
+    }
+
+    /** ガラケー 受信BOX: the mail's 本文 up to 表示文字数 (one line). */
+    private String fpBody(Message m) {
+        String body = MemberSiteService.displayBody(m).replaceAll("\\s+", " ").trim();
+        int max = site.previewLength();
+        if (body.codePointCount(0, body.length()) > max) body = body.substring(0, body.offsetByCodePoints(0, max)) + "…";
+        return e(body);
+    }
+
     private static String replyHref(long charaId, Message m) {
         return "/member/reply?c=" + charaId + "&amp;m=" + m.getId() + "#m" + m.getId();
     }
@@ -384,6 +402,8 @@ public class MemberSiteController {
     @GetMapping("/member/reply")
     public Object reply(@RequestParam(name = "c", defaultValue = "0") long charaId,
                         @RequestParam(name = "m", required = false) Long openedId,
+                        @RequestParam(name = "page", defaultValue = "1") int page,
+                        @RequestParam(name = "send", defaultValue = "false") boolean sendOnly,
                         HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
@@ -395,7 +415,9 @@ public class MemberSiteController {
         }
         boolean fp = fp(request);
         boolean support = charaId == 0;
-        List<MemberSiteService.ConvItem> conv = site.conversation(u, charaId);
+        // 送信 (友達追加リスト・条件検索 → メッセージを送る): only the 送信画面, without the やり取り
+        sendOnly = sendOnly && !support && openedId == null;
+        List<MemberSiteService.ConvItem> conv = sendOnly ? new java.util.ArrayList<MemberSiteService.ConvItem>() : site.conversation(u, charaId);
         // 受信一覧 で1通クリック → その1通だけ表示
         if (openedId != null) {
             List<MemberSiteService.ConvItem> one = new java.util.ArrayList<>();
@@ -412,15 +434,15 @@ public class MemberSiteController {
         Set<Long> openImgs = support ? allImages : site.openImages(u, allImages);
         int bodyCost = site.cost(MemberSiteService.COST_BODY, u);
         int photoCost = site.cost(MemberSiteService.COST_PHOTO, u);
-        String back = "/member/reply?c=" + charaId + (openedId == null ? "" : "&m=" + openedId);
+        String back = "/member/reply?c=" + charaId + (openedId == null ? "" : "&m=" + openedId) + (sendOnly ? "&send=1" : "");
         StringBuilder b = new StringBuilder();
         String note = flash(model);
         if (fp) {
             b.append(note == null ? "" : "<div class=\"row\">" + e(note) + "</div>");
             b.append("<div class=\"row\"><b>").append(e(name(chara))).append("</b>").append(age(chara));
             if (chara != null) {
-                b.append("<br><a href=\"/member/photo?c=").append(chara.getId()).append("\">写真閲覧</a>／<a href=\"/member/chara?c=")
-                        .append(chara.getId()).append("\">プロフ閲覧</a>");
+                b.append("<br><a href=\"/member/photo?c=").append(chara.getId()).append(fromParam(back)).append("\">写真閲覧</a>／<a href=\"/member/chara?c=")
+                        .append(chara.getId()).append(fromParam(back)).append("\">プロフ閲覧</a>");
             }
             b.append("</div>");
         } else {
@@ -428,14 +450,24 @@ public class MemberSiteController {
                     .append("<div class=\"person\"><div class=\"avatar\">").append(avatar(u, chara)).append("</div><div class=\"grow\"><b>")
                     .append(e(name(chara))).append("</b>　<small>").append(ageText(chara)).append("</small>");
             if (chara != null) {
-                b.append("<div class=\"pbtns\">").append(charaButtons(request, u, chara, site.isFriend(u, chara.getId()), back, true)).append("</div>");
+                b.append("<div class=\"pbtns\">").append(charaButtons(request, u, chara, site.isFriend(u, chara.getId()), back, true, true,
+                        sendOnly ? null : back)).append("</div>");
             }
             b.append("</div></div>");
         }
 
-        // やり取り (oldest first, the latest 30) — from 受信一覧: the one mail clicked
-        int from = Math.max(0, conv.size() - 30);
-        for (int i = from; i < conv.size(); i++) {
+        // やり取り (oldest first, the latest 30) — from 受信一覧: the one mail clicked.
+        // ガラケー: 10 per page (送信・受信), the newest first page; 次へ = the older ones.
+        int from = Math.max(0, conv.size() - 30), to = conv.size();
+        String fpPager = "";
+        if (fp && openedId == null) {
+            int pages = pageCount(conv.size());
+            int p = Math.max(1, Math.min(page, pages));
+            to = conv.size() - (p - 1) * MemberSiteService.PAGE_SIZE;
+            from = Math.max(0, to - MemberSiteService.PAGE_SIZE);
+            fpPager = prevNextPager("/member/reply?c=" + charaId, p, pages, true);
+        }
+        for (int i = from; i < to; i++) {
             MemberSiteService.ConvItem it = conv.get(i);
             Message m = it.message;
             String head = when(m) + (it.out ? "　受信" : "　送信");
@@ -467,7 +499,8 @@ public class MemberSiteController {
                         .append("</div><div class=\"field\">").append(body).append("</div></div>");
             }
         }
-        if (conv.isEmpty()) b.append(fp ? "<div class=\"row\">まだやり取りはありません</div>" : "<div class=\"note\">まだやり取りはありません</div>");
+        if (conv.isEmpty() && !sendOnly) b.append(fp ? "<div class=\"row\">まだやり取りはありません</div>" : "<div class=\"note\">まだやり取りはありません</div>");
+        b.append(fpPager);
 
         if (support) {
             // サポート窓口: 本文の下に サポート窓口 の送信画面 (送信後はこの画面に戻る)
@@ -484,6 +517,7 @@ public class MemberSiteController {
         b.append("<form method=\"post\" action=\"/member/reply\" enctype=\"multipart/form-data\">").append(csrf(request))
                 .append("<input type=\"hidden\" name=\"c\" value=\"").append(charaId).append("\">")
                 .append(openedId == null ? "" : "<input type=\"hidden\" name=\"m\" value=\"" + openedId + "\">")
+                .append(sendOnly ? "<input type=\"hidden\" name=\"send\" value=\"true\">" : "")
                 .append(field(fp, "タイトル", "<input type=\"text\" name=\"subject\" maxlength=\"" + MemberSiteService.SUBJECT_MAX + "\"" + sameSize + ">"))
                 .append(field(fp, "本文", "<textarea name=\"body\" maxlength=\"" + MemberSiteService.BODY_MAX + "\" required" + sameSize + "></textarea>"));
         StringBuilder attach = new StringBuilder();
@@ -499,12 +533,13 @@ public class MemberSiteController {
                 : "<div class=\"actions\"><button class=\"btn\">送信</button><div class=\"note\" style=\"padding:6px 0 0\">メール送信 " + mailCost + "ポイント</div></div>");
         b.append("</form>");
         if (!fp) b.append("<div class=\"boxline\"></div></section>");
-        return render("reply", request, u, b.toString(), null);
+        return render("reply", request, u, b.toString(), sendOnly ? "送信" : null);
     }
 
     @PostMapping("/member/reply")
     public Object send(@RequestParam(name = "c", defaultValue = "0") long charaId,
                        @RequestParam(name = "m", required = false) Long openedId,
+                       @RequestParam(name = "send", defaultValue = "false") boolean sendOnly,
                        @RequestParam(name = "subject", required = false) String subject,
                        @RequestParam(name = "body", required = false) String body,
                        @RequestParam(name = "address", defaultValue = "false") boolean address,
@@ -528,7 +563,7 @@ public class MemberSiteController {
         } catch (MemberSiteService.MemberException e) {
             ra.addFlashAttribute("memberNote", e.getMessage());
         }
-        return "redirect:/member/reply?c=" + charaId + (openedId == null ? "" : "&m=" + openedId);
+        return "redirect:/member/reply?c=" + charaId + (openedId == null ? "" : "&m=" + openedId) + (sendOnly ? "&send=1" : "");
     }
 
     /** 本文閲覧 / プロフィール閲覧 / 写真閲覧 (uses the points once). */
@@ -565,7 +600,8 @@ public class MemberSiteController {
     /* ===================== プロフィール閲覧 / 写真閲覧 ===================== */
 
     @GetMapping("/member/chara")
-    public Object charaProfile(@RequestParam("c") Long charaId, HttpServletRequest request, HttpSession session, Model model) {
+    public Object charaProfile(@RequestParam("c") Long charaId, @RequestParam(name = "back", required = false) String backParam,
+                               HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
         Chara c = site.chara(charaId).orElse(null);
@@ -573,7 +609,8 @@ public class MemberSiteController {
         boolean fp = fp(request);
         if (!preview(session) && site.cost(MemberSiteService.COST_PROFILE, u) <= 0) site.open(u, MemberUnlockService.PROFILE, c.getId());
         boolean open = site.isOpen(u, MemberUnlockService.PROFILE, c.getId());
-        String back = "/member/chara?c=" + c.getId();
+        String from = origin(backParam);
+        String back = "/member/chara?c=" + c.getId() + (from == null ? "" : "&back=" + org.springframework.web.util.UriUtils.encodeQueryParam(from, java.nio.charset.StandardCharsets.UTF_8));
         StringBuilder b = new StringBuilder();
         String note = flash(model);
         b.append(fp ? "" : "<section class=\"box\"><div class=\"boxline\"></div>");
@@ -583,7 +620,7 @@ public class MemberSiteController {
         } else {
             b.append("<div class=\"person\"><div class=\"avatar\">").append(avatar(u, c)).append("</div><div class=\"grow\"><b>").append(e(c.getName()))
                     .append("</b>　<small>").append(ageText(c)).append("</small><div class=\"pbtns\">")
-                    .append(charaButtons(request, u, c, site.isFriend(u, c.getId()), back, true)).append("</div></div></div>");
+                    .append(charaButtons(request, u, c, site.isFriend(u, c.getId()), back, true, true, from)).append("</div></div></div>");
         }
         if (!open) {
             b.append(fp ? "<div class=\"row\">" : "<div class=\"note\">").append("プロフィールを見るには ").append(site.cost(MemberSiteService.COST_PROFILE, u))
@@ -597,22 +634,23 @@ public class MemberSiteController {
                     .append(field(fp, "プロフィール", "<div style=\"white-space:pre-wrap;word-break:break-word\">" + e(nz(c.getProfile(), "—")) + "</div>"));
             if (c.getPhotoUrl() != null) {
                 b.append(field(fp, "写真", site.isOpen(u, MemberUnlockService.PHOTO, c.getId())
-                        ? "<a href=\"/member/photo?c=" + c.getId() + "\">" + (fp ? "写真を見る" : "<img src=\"" + e(c.getPhotoUrl()) + "\" alt=\"\" style=\"max-width:180px;border-radius:8px\">") + "</a>"
+                        ? "<a href=\"/member/photo?c=" + c.getId() + fromParam(from) + "\">" + (fp ? "写真を見る" : "<img src=\"" + e(c.getPhotoUrl()) + "\" alt=\"\" style=\"max-width:180px;border-radius:8px\">") + "</a>"
                         : openForm(request, MemberUnlockService.PHOTO, c.getId(), back, "写真閲覧（" + site.cost(MemberSiteService.COST_PHOTO, u) + "pt）", fp)));
             }
         }
-        b.append(fp ? "<div class=\"row\"><a href=\"/member/reply?c=" + c.getId() + "\">メッセージを送る</a></div>"
-                : "<div class=\"actions\"><a class=\"btn\" style=\"display:inline-block;text-decoration:none\" href=\"/member/reply?c=" + c.getId() + "\">メッセージを送る</a></div><div class=\"boxline\"></div></section>");
+        b.append(sendOrBack(c, from, fp));
         return render("reply", request, u, b.toString(), "プロフィール");
     }
 
     @GetMapping("/member/photo")
-    public Object charaPhoto(@RequestParam("c") Long charaId, HttpServletRequest request, HttpSession session, Model model) {
+    public Object charaPhoto(@RequestParam("c") Long charaId, @RequestParam(name = "back", required = false) String backParam,
+                             HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
         Chara c = site.chara(charaId).orElse(null);
         if (c == null) return "redirect:/member/inbox";
         boolean fp = fp(request);
+        String from = origin(backParam);
         StringBuilder b = new StringBuilder();
         String note = flash(model);
         b.append(fp ? "" : "<section class=\"box\"><div class=\"boxline\"></div>");
@@ -629,12 +667,12 @@ public class MemberSiteController {
             } else {
                 b.append(fp ? "<div class=\"row\">" : "<div class=\"note\">").append("写真を見るには ").append(site.cost(MemberSiteService.COST_PHOTO, u))
                         .append("ポイント使います（所持 ").append(String.format("%,d", site.points(u))).append("ポイント）。一度見た写真は何度でも見られます。</div>")
-                        .append(openForm(request, MemberUnlockService.PHOTO, c.getId(), "/member/photo?c=" + c.getId(),
+                        .append(openForm(request, MemberUnlockService.PHOTO, c.getId(), "/member/photo?c=" + c.getId()
+                                + (from == null ? "" : "&back=" + org.springframework.web.util.UriUtils.encodeQueryParam(from, java.nio.charset.StandardCharsets.UTF_8)),
                                 "写真を見る（" + site.cost(MemberSiteService.COST_PHOTO, u) + "pt）", fp));
             }
         }
-        b.append(fp ? "<div class=\"row\"><a href=\"/member/reply?c=" + c.getId() + "\">メッセージを送る</a></div>"
-                : "<div class=\"actions\"><a class=\"btn\" style=\"display:inline-block;text-decoration:none\" href=\"/member/reply?c=" + c.getId() + "\">メッセージを送る</a></div><div class=\"boxline\"></div></section>");
+        b.append(sendOrBack(c, from, fp));
         return render("reply", request, u, b.toString(), "写真閲覧");
     }
 
@@ -1017,8 +1055,36 @@ public class MemberSiteController {
         values.put("email", nz(u.getEmail(), ""));
         String html = pages.renderMember(code, fp(request) ? "fp" : "sp", values, u.getFolder(), mainHtml, title,
                 site.unreadCount(u), c -> URLS.getOrDefault(c, "/member/menu"));
+        // ガラケー footer「戻る」(every page but MENU)
+        if (fp(request)) html = html.replace("<a href=\"#back\">", "<a href=\"" + e(fpBack(request)) + "\">");
         if (preview(request.getSession(false))) html = previewBanner(html, u);
         return html(html);
+    }
+
+    /**
+     * ガラケー「戻る」: 受信BOX → MENU, 受信一覧 → 受信BOX, 返信 of one mail → that 受信一覧;
+     * 返信 (送信) / プロフィール閲覧 / 写真閲覧 → the member page it was opened from (else 受信BOX);
+     * every other page → MENU.
+     */
+    private static String fpBack(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if ("/member/inbox".equals(path)) return "/member/menu";
+        if ("/member/inbox/list".equals(path)) return "/member/inbox";
+        if ("/member/reply".equals(path) && request.getParameter("m") != null) {
+            String c = request.getParameter("c");
+            return "/member/inbox/list?c=" + (c == null || !c.matches("\\d+") ? "0" : c);
+        }
+        if (("/member/chara".equals(path) || "/member/photo".equals(path)) && origin(request.getParameter("back")) != null) {
+            return origin(request.getParameter("back"));
+        }
+        if ("/member/reply".equals(path) || "/member/chara".equals(path) || "/member/photo".equals(path)) {
+            String ref = request.getHeader("Referer");
+            int at = ref == null ? -1 : ref.indexOf("/member/");
+            String from = at < 0 ? null : ref.substring(at);
+            String self = path + (request.getQueryString() == null ? "" : "?" + request.getQueryString());
+            return from == null || from.equals(self) ? "/member/inbox" : safeBack(from);
+        }
+        return "/member/menu";
     }
 
     private static ResponseEntity<String> html(String body) {
@@ -1060,17 +1126,20 @@ public class MemberSiteController {
                 + (fp ? "<button>" + e(label) + "</button>" : "<button class=\"smallbtn reply\" style=\"cursor:pointer\">" + e(label) + "</button>") + "</form>";
     }
 
-    /** 写真閲覧 / 友達追加 / プロフ閲覧 buttons of a キャラ. */
+    /** 写真閲覧 / 友達追加 / プロフ閲覧 buttons of a キャラ; 写真閲覧 / プロフ閲覧 come back to {@code back} (「…へ戻る」). */
     private String charaButtons(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back, boolean profLabelShort) {
-        return charaButtons(request, u, c, friend, back, profLabelShort, true);
+        return charaButtons(request, u, c, friend, back, profLabelShort, true, back);
     }
 
-    /** The same; {@code showFriendAdded} false = no 友達追加済 (友達追加リスト — every キャラ there is a friend). */
+    /**
+     * The same; {@code showFriendAdded} false = no 友達追加済 (友達追加リスト — every キャラ there is a friend);
+     * {@code from} = the page 写真閲覧 / プロフ閲覧 go back to (null = their「メッセージを送る」).
+     */
     private String charaButtons(HttpServletRequest request, CrmUser u, Chara c, boolean friend, String back, boolean profLabelShort,
-                                boolean showFriendAdded) {
+                                boolean showFriendAdded, String from) {
         StringBuilder b = new StringBuilder();
         b.append(c.getPhotoUrl() == null ? "<span class=\"smallbtn\" style=\"opacity:.4\">写真閲覧</span>"
-                : "<a class=\"smallbtn\" href=\"/member/photo?c=" + c.getId() + "\">写真閲覧</a>");
+                : "<a class=\"smallbtn\" href=\"/member/photo?c=" + c.getId() + fromParam(from) + "\">写真閲覧</a>");
         if (friend) {
             if (showFriendAdded) b.append("<span class=\"smallbtn\" style=\"opacity:.55\">友達追加済</span>");
         } else {
@@ -1078,7 +1147,7 @@ public class MemberSiteController {
                     .append("<input type=\"hidden\" name=\"c\" value=\"").append(c.getId()).append("\"><input type=\"hidden\" name=\"back\" value=\"")
                     .append(e(back)).append("\"><button class=\"smallbtn\" style=\"cursor:pointer\">友達追加</button></form>");
         }
-        b.append("<a class=\"smallbtn\" href=\"/member/chara?c=").append(c.getId()).append("\">").append(profLabelShort ? "プロフ閲覧" : "プロフィール閲覧").append("</a>");
+        b.append("<a class=\"smallbtn\" href=\"/member/chara?c=").append(c.getId()).append(fromParam(from)).append("\">").append(profLabelShort ? "プロフ閲覧" : "プロフィール閲覧").append("</a>");
         return b.toString();
     }
 
@@ -1087,8 +1156,8 @@ public class MemberSiteController {
         String info = showAge ? ageText(c) + (c.getPref() == null ? "" : "　" + e(c.getPref())) : (c.getPref() == null ? "" : e(c.getPref()));
         return "<div class=\"person\"><div class=\"avatar\">" + avatar(u, c) + "</div><div class=\"grow\"><b>" + e(c.getName()) + "</b>　<small>"
                 + info + "</small><div class=\"pbtns\">"
-                + charaButtons(request, u, c, friend, back, true, showFriendAdded)
-                + "<a class=\"smallbtn reply\" href=\"/member/reply?c=" + c.getId() + "\">メッセージ送信</a></div></div></div>";
+                + charaButtons(request, u, c, friend, back, true, showFriendAdded, null)
+                + "<a class=\"smallbtn reply\" href=\"/member/reply?c=" + c.getId() + "&amp;send=1\">メッセージ送信</a></div></div></div>";
     }
 
     /** The キャラ's photo as the avatar once 写真閲覧 is free / used, else the design's 👤. */
@@ -1143,6 +1212,32 @@ public class MemberSiteController {
 
     private static String ageOpt(String value, String label, String current) {
         return "<option value=\"" + value + "\"" + sel(value, current) + ">" + label + "</option>";
+    }
+
+    /** {@code &back=…} of a 写真閲覧 / プロフ閲覧 link (null = none), HTML-escaped for an href. */
+    private static String fromParam(String from) {
+        return from == null ? "" : "&amp;back=" + e(org.springframework.web.util.UriUtils.encodeQueryParam(from, java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** A {@code back} parameter that is a member page (else null). */
+    private static String origin(String back) {
+        return back == null || !back.startsWith("/member/") || back.startsWith("//") || back.contains("\\") ? null : back;
+    }
+
+    /**
+     * 写真閲覧 / プロフィール閲覧's bottom button: opened from 受信BOX / 受信一覧 / 返信 →「受信BOXへ戻る」/
+     * 「受信一覧へ戻る」/「返信へ戻る」 (back to that page); otherwise (友達追加リスト・条件検索 …)
+     * 「メッセージを送る」 → the 送信 page only (ガラケー: the 返信 page).
+     */
+    private static String sendOrBack(Chara c, String from, boolean fp) {
+        String label = from == null ? null
+                : from.startsWith("/member/inbox/list") ? "受信一覧へ戻る"
+                : from.startsWith("/member/inbox") ? "受信BOXへ戻る"
+                : from.startsWith("/member/reply") && !from.contains("send=1") ? "返信へ戻る" : null;
+        String href = label != null ? e(from) : "/member/reply?c=" + c.getId() + (fp ? "" : "&amp;send=1");
+        if (label == null) label = "メッセージを送る";
+        return fp ? "<div class=\"row\"><a href=\"" + href + "\">" + label + "</a></div>"
+                : "<div class=\"actions\"><a class=\"btn\" style=\"display:inline-block;text-decoration:none\" href=\"" + href + "\">" + label + "</a></div><div class=\"boxline\"></div></section>";
     }
 
     /** Only paths on this site (no open redirect). */

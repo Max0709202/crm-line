@@ -209,7 +209,12 @@ public class MessageController {
         if (viewChara != null) {
             java.util.Map<Long, Long> charaOf = charaLinkService.charaIdsOfMessages(thread);
             List<Message> only = new java.util.ArrayList<>();
-            for (Message m : thread) if (viewChara.getId().equals(charaOf.get(m.getId()))) only.add(m);
+            for (Message m : thread) {
+                // サポート窓口 (キャラ指定なしのメール・SMS・一斉送信) stays in every キャラ's やり取り履歴
+                boolean support = Message.DIR_OUT.equals(m.getDirection()) && !Message.CHANNEL_LINE.equals(m.getChannel())
+                        && !charaOf.containsKey(m.getId());
+                if (support || viewChara.getId().equals(charaOf.get(m.getId()))) only.add(m);
+            }
             thread = only;
         }
         // Compute per-user thread stats for pane-tr header
@@ -287,8 +292,9 @@ public class MessageController {
         }
         model.addAttribute("outImagesByMessageId", messageImageService == null
                 ? java.util.Collections.emptyMap() : messageImageService.imageIdsOfMessages(outMsgs));
-        // Left-upper inbox list (all users with any inbound, newest first).
-        List<MessageService.InboxRow> inboxRows = messageService.inboxByUser(false);
+        // Left-upper inbox list: one row per user × キャラ the user wrote to, newest first.
+        List<MessageService.InboxRow> inboxRows = messageService.inboxByUserAndChara(
+                ids -> charaLinkService.charaIdsOf(com.crm.entity.CharaRef.OWNER_MESSAGE, ids));
         model.addAttribute("inboxRows", inboxRows);
         // 受信ボックス table columns (2026-10-03 layout): フォルダ名 / 性別色 / ログイン日 per row, ★.
         java.util.Set<Long> inboxUserIds = new java.util.HashSet<>();
@@ -307,14 +313,12 @@ public class MessageController {
                 charaNameById.put(c.getId(), c.getName());
             }
         }
-        java.util.Map<Long, String> inboxCharaNames = new java.util.HashMap<>();
         for (MessageService.InboxRow r : inboxRows) {
             Long cid = r.getLatestMessageId() == null ? null : charaIdByMsg.get(r.getLatestMessageId());
             String name = cid == null ? null : charaNameById.get(cid);
             if (name == null) name = r.getLatestLineAccountName();
-            if (name != null) inboxCharaNames.put(r.getUserId(), name);
+            r.charaName = name;
         }
-        model.addAttribute("inboxCharaNames", inboxCharaNames);
         model.addAttribute("inboxPoints", userPointService.getAll(inboxUserIds));
         model.addAttribute("starredUserIds", threadPanelService.starredUserIds());
         model.addAttribute("folderColors", folderSettingService.colorMap());
@@ -418,11 +422,21 @@ public class MessageController {
         model.addAttribute("supportOutIds", supportOutIds);
         com.crm.entity.CarrierAddressPool boundPool = bindingService.firstBoundFor(userId).orElse(null);
         model.addAttribute("userHasPool", boundPool != null && !Boolean.FALSE.equals(boundPool.getIsActive()));
-        // キャラ card: the キャラ of ?chara=, else the user's newest 紐づきキャラ (メール); replies from
+        // キャラ card: the キャラ of ?chara=, else the キャラ of the latest inbound, else the newest 紐づきキャラ (メール); replies from
         // this page go out as that キャラ. Without one, the LINE character the user talks to (if any).
         // Its やり取りメモ is still kept under キャラ ID 0.
         List<com.crm.entity.Chara> linkedCharas = charaLinkService.linkedCharas(userId);
-        com.crm.entity.Chara cardChara = viewChara != null ? viewChara : (linkedCharas.isEmpty() ? null : linkedCharas.get(0));
+        com.crm.entity.Chara cardChara = viewChara;
+        if (cardChara == null) {
+            // 受信ボックスの「キャラ」列と同じ: the キャラ the user's latest inbound message was sent to.
+            for (MessageService.InboxRow r : inboxRows) {
+                if (!userId.equals(r.getUserId()) || r.getLatestMessageId() == null) continue;
+                Long cid = charaIdByMsg.get(r.getLatestMessageId());
+                if (cid != null) cardChara = charaRepository.findById(cid).orElse(null);
+                break;
+            }
+        }
+        if (cardChara == null && !linkedCharas.isEmpty()) cardChara = linkedCharas.get(0);
         model.addAttribute("linkedCharas", linkedCharas);
         model.addAttribute("viewChara", viewChara);
         model.addAttribute("cardChara", cardChara);

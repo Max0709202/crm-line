@@ -245,6 +245,102 @@ public class MessageService {
         return out;
     }
 
+    /**
+     * 受信ボックス (thread page): {@link #inboxByUser} split into one row per user × キャラ — a user who
+     * wrote to Emily Carter and to じいさん shows as two rows. A message's キャラ comes from
+     * {@code charaIdsOfMessages} (message ID → キャラ ID); without one, a LINE message counts under its
+     * LINE account, anything else under サポート窓口 (no キャラ). 未返信 = no OUT of that キャラ after its
+     * latest IN.
+     */
+    public List<InboxRow> inboxByUserAndChara(java.util.function.Function<java.util.Collection<Long>, java.util.Map<Long, Long>> charaIdsOfMessages) {
+        List<InboxRow> users = inboxByUser(false);
+        if (users.isEmpty()) return users;
+        java.util.Map<Long, InboxRow> userRow = new java.util.HashMap<>();
+        for (InboxRow r : users) userRow.put(r.userId, r);
+        List<Object[]> msgs = messageRepository.inboxMessagesOfInboxUsers();
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        for (Object[] m : msgs) ids.add(((Number) m[0]).longValue());
+        java.util.Map<Long, Long> charaOf = ids.isEmpty() ? java.util.Collections.<Long, Long>emptyMap() : charaIdsOfMessages.apply(ids);
+
+        // key "userId:c<charaId>" / "userId:l<lineAccountId>" / "userId:-" → the group's messages (IN and OUT)
+        java.util.Map<String, InboxRow> groups = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Long> latestInId = new java.util.HashMap<>();
+        java.util.Map<String, LocalDateTime> latestInAt = new java.util.HashMap<>(), latestOutAt = new java.util.HashMap<>();
+        for (Object[] m : msgs) {
+            Long id = ((Number) m[0]).longValue();
+            Long uid = ((Number) m[1]).longValue();
+            InboxRow base = userRow.get(uid);
+            if (base == null) continue;
+            Long cid = charaOf.get(id);
+            Long lid = m[6] == null ? null : ((Number) m[6]).longValue();
+            String key = uid + ":" + (cid != null ? "c" + cid : lid != null ? "l" + lid : "-");
+            boolean in = Message.DIR_IN.equals(m[2]);
+            LocalDateTime at = toLdt(m[5]);
+            if (!in) {
+                if (Message.DIR_OUT.equals(m[2]) && at != null && (latestOutAt.get(key) == null || at.isAfter(latestOutAt.get(key)))) latestOutAt.put(key, at);
+                continue;
+            }
+            if (m[7] != null) continue; // dismissed IN
+            InboxRow g = groups.get(key);
+            if (g == null) {
+                g = new InboxRow();
+                g.userId = uid;
+                g.displayName = base.displayName;
+                g.email = base.email;
+                g.phoneNumber = base.phoneNumber;
+                g.smsOutCount = base.smsOutCount;
+                g.charaId = cid;
+                g.lineAccountId = cid == null ? lid : null;
+                groups.put(key, g);
+            }
+            if (m[4] == null) g.unreadCount++;
+            if ("WEB_REPLY".equals(m[3])) g.webReplyCount++;
+            else if ("EMAIL".equals(m[3])) g.mailReplyCount++;
+            if (latestInId.get(key) == null || id > latestInId.get(key)) {
+                latestInId.put(key, id);
+                latestInAt.put(key, at);
+            }
+        }
+        // OUT count per group
+        for (Object[] m : msgs) {
+            if (!Message.DIR_OUT.equals(m[2])) continue;
+            Long id = ((Number) m[0]).longValue();
+            Long cid = charaOf.get(id);
+            Long lid = m[6] == null ? null : ((Number) m[6]).longValue();
+            InboxRow g = groups.get(((Number) m[1]).longValue() + ":" + (cid != null ? "c" + cid : lid != null ? "l" + lid : "-"));
+            if (g != null) g.outCount++;
+        }
+
+        java.util.Map<Long, Message> msgById = new java.util.HashMap<>();
+        for (Message m : messageRepository.findAllById(latestInId.values())) msgById.put(m.getId(), m);
+        java.util.Set<Long> lineAccountIds = new java.util.HashSet<>();
+        for (Message m : msgById.values()) if (m.getLineAccountId() != null) lineAccountIds.add(m.getLineAccountId());
+        java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
+        if (!lineAccountIds.isEmpty()) {
+            for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(lineAccountIds)) lineAccountNames.put(a.getId(), a.getName());
+        }
+        List<InboxRow> out = new java.util.ArrayList<>(groups.size());
+        for (java.util.Map.Entry<String, InboxRow> e : groups.entrySet()) {
+            InboxRow r = e.getValue();
+            LocalDateTime in = latestInAt.get(e.getKey()), o = latestOutAt.get(e.getKey());
+            r.unreplied = in != null && (o == null || o.isBefore(in));
+            Message m = msgById.get(latestInId.get(e.getKey()));
+            if (m != null) {
+                r.latestSubject = m.getSubject();
+                r.latestPreview = preview(m.getBodyText(), 80);
+                r.latestBody = m.getBodyText() == null ? "" : m.getBodyText().trim();
+                r.latestChannel = m.getChannel();
+                r.latestLineAccountName = m.getLineAccountId() == null ? null : lineAccountNames.get(m.getLineAccountId());
+                r.latestAt = m.getCreatedAt();
+                r.latestMessageId = m.getId();
+                r.latestRead = m.getReadAt() != null;
+            }
+            out.add(r);
+        }
+        out.sort((a, b) -> Long.compare(b.latestMessageId == null ? 0L : b.latestMessageId, a.latestMessageId == null ? 0L : a.latestMessageId));
+        return out;
+    }
+
     private static String preview(String body, int max) {
         if (body == null) return "";
         String s = body.replaceAll("\\s+", " ").trim();
@@ -293,6 +389,10 @@ public class MessageService {
         public boolean latestRead;
         /** true when the user has at least one IN message and we haven't sent any OUT after it. */
         public boolean unreplied;
+        /** {@link MessageService#inboxByUserAndChara} only: the row's キャラ / LINE account (both null = サポート窓口). */
+        public Long charaId;
+        public Long lineAccountId;
+        public String charaName;
 
         public Long getUserId() { return userId; }
         public String getDisplayName() { return displayName; }
@@ -312,6 +412,9 @@ public class MessageService {
         public LocalDateTime getLatestAt() { return latestAt; }
         public boolean isLatestRead() { return latestRead; }
         public boolean isUnreplied() { return unreplied; }
+        public Long getCharaId() { return charaId; }
+        public Long getLineAccountId() { return lineAccountId; }
+        public String getCharaName() { return charaName; }
     }
 
     /** Mark all inbound messages for this user as read. Called when admin opens the thread. */

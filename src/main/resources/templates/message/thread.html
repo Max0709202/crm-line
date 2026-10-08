@@ -390,6 +390,8 @@
         .wsx .dtl-memo { margin-top:auto; }
         .wsx .dtl-memo-head { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-bottom:3px; }
         .wsx .dtl-memo-head label { font-size:10.5px; font-weight:700; color:#94a3b8; }
+        .wsx .dtl-support-toggle { display:flex; justify-content:flex-end; margin-bottom:3px; }
+        .wsx .dtl-support-toggle label { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#475569; cursor:pointer; }
         .wsx .dtl-memo textarea {
             display:block; width:100%; box-sizing:border-box; height:36px; min-height:30px; padding:4px 8px;
             font:inherit; font-size:12px; line-height:1.5; color:#334155; resize:vertical;
@@ -559,10 +561,12 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="r : ${inboxRows}" th:with="iu=${inboxUsers.get(r.userId)}"
-                    class="inbox-row" th:classappend="${r.userId == user.id} ? 'is-current'"
+                <tr th:each="r : ${inboxRows}" th:with="iu=${inboxUsers.get(r.userId)},
+                                  rowHref=${r.charaId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(chara=${r.charaId})}
+                                     : (${r.lineAccountId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(line=${r.lineAccountId})} : @{'/manager/users/' + ${r.userId} + '/thread'})"
+                    class="inbox-row" th:classappend="${r.userId == user.id and (viewChara == null or viewChara.id == r.charaId)} ? 'is-current'"
                     th:data-id="${r.userId}"
-                    th:data-href="@{'/manager/users/' + ${r.userId} + '/thread'}"
+                    th:data-href="${rowHref}"
                     th:data-gender="${iu != null and iu.gender == 'M'} ? 'male' : (${iu != null and iu.gender == 'F'} ? 'female' : '')"
                     th:data-pending="${r.unreplied} ? '1' : '0'"
                     th:data-starred="${starredUserIds.contains(r.userId)} ? '1' : '0'">
@@ -580,8 +584,8 @@
                         <span th:case="'SMS'" class="inbox-route is-sms">SMS</span>
                         <span th:case="*" class="inbox-route is-direct">直アド</span>
                     </td>
-                    <td class="inbox-member"><a th:href="@{'/manager/users/' + ${r.userId} + '/thread'}" th:text="${r.displayName}">ユーザー</a></td>
-                    <td class="inbox-staff" th:text="${inboxCharaNames.get(r.userId)} ?: '—'">—</td>
+                    <td class="inbox-member"><a th:href="${rowHref}" th:text="${r.displayName}">ユーザー</a></td>
+                    <td class="inbox-staff" th:text="${r.charaName} ?: (${r.charaId == null and r.lineAccountId == null} ? 'サポート窓口' : '—')">—</td>
                     <td class="inbox-point" th:text="${inboxPoints.get(r.userId) != null} ? ${#numbers.formatInteger(inboxPoints.get(r.userId), 1, 'COMMA')} + 'pt' : '0pt'">0pt</td>
                     <td class="inbox-date">
                         <th:block th:if="${r.latestAt != null}"><span class="d" th:text="${#temporals.format(r.latestAt, 'M/d')}"></span><th:block th:text="${#temporals.format(r.latestAt, 'H:mm')}"/></th:block>
@@ -636,11 +640,10 @@
                             <li class="is-folder" th:style="${folderColors.get(user.folder) != null} ? 'background:' + ${folderColors.get(user.folder)}" th:text="${user.folder}">フォルダ</li>
                         </ul>
                         <div class="dtl-links">
-                            <!-- 専用HTML①使用中 (label only, not a link) / 表示画面を確認 = what the user sees now
-                                 (会員ページ or 返信画面, read-only) / 受信ボックス確認 = the same, at the user's 受信BOX with 選択削除 -->
+                            <!-- 専用HTML①使用中 (label only, not a link) / 受信ボックス確認 = what the user sees now
+                                 (会員ページ or 返信画面, read-only), at the user's 受信BOX with 選択削除 -->
                             <span th:if="${activeMemoLabel != null}" th:title="${activeMemoLabel}"><b th:text="'専用HTML' + ${activeMemoCircled} + '使用中'">専用HTML①使用中</b></span>
                             <span th:unless="${activeMemoLabel != null}">専用HTML：未使用</span>
-                            <a th:href="@{'/manager/users/' + ${user.id} + '/user-view'}" target="_blank" rel="noopener">表示画面を確認 ↗</a>
                             <a th:href="@{'/manager/users/' + ${user.id} + '/user-view'(box=true)}" target="_blank" rel="noopener">受信ボックス確認</a>
                             <!-- 紐づきキャラ: クリックでそのキャラとのやり取り（返信画面）を別タブで開く -->
                             <span class="dtl-chars" th:if="${!linkedCharas.isEmpty() or !linkedCharNames.isEmpty()}">紐づきキャラ<th:block th:text="${linkedCharas.size() + linkedCharNames.size()} + '人 '"/><th:block
@@ -711,6 +714,8 @@
                     </dl>
                 </div>
                 <div class="dtl-memo" data-memo-target="staff">
+                    <!-- サポート窓口非表示: hides the サポート窓口 (キャラ指定なし) sends in the やり取り履歴 -->
+                    <div class="dtl-support-toggle"><label><input type="checkbox" id="dtlHideSupport"/> サポート窓口非表示</label></div>
                     <div class="dtl-memo-head"><label for="dtlMemoStaff">やり取りメモ</label><button type="button" class="dtl-btn-save">保存</button></div>
                     <textarea id="dtlMemoStaff" th:maxlength="${memoMax}" th:text="${staffMemo}"></textarea>
                 </div>
@@ -764,6 +769,7 @@
                           at=${m.sentAt != null ? m.sentAt : m.createdAt},
                           who=${m.direction == 'OUT'} ? (${m.channel == 'LINE' and m.lineAccountId != null and !#strings.isEmpty(lineAccountNamesById.get(m.lineAccountId))} ? ${lineAccountNamesById.get(m.lineAccountId)} : '運営') : ${uname}"
                  class="msg" th:classappend="${isOut} ? 'is-out' : 'is-in'"
+                 th:data-support="${isOut and supportOutIds.contains(m.id)} ? '1'"
                  th:data-at="${#temporals.format(at, 'yyyy-MM-dd''T''HH:mm')}">
                 <div th:unless="${isOut}" class="msg-av"
                      th:classappend="${ugender == 'male'} ? 'is-male' : (${ugender == 'female'} ? 'is-female' : '')"
@@ -1270,12 +1276,13 @@ function threadLayoutValues() {
         if (star) {
             var row = star.closest('tr.inbox-row');
             var on = !isStarred(row);
-            row.setAttribute('data-starred', on ? '1' : '0');
-            syncStar(row);
+            // ★ is per user: every キャラ row of the same user follows
+            var same = rowsAll().filter(function (r) { return r.getAttribute('data-id') === row.getAttribute('data-id'); });
+            function setStar(v) { same.forEach(function (r) { r.setAttribute('data-starred', v ? '1' : '0'); syncStar(r); }); }
+            setStar(on);
             render();
             persistStar(row.getAttribute('data-id'), on).catch(function (err) {
-                row.setAttribute('data-starred', on ? '0' : '1');
-                syncStar(row);
+                setStar(!on);
                 render();
                 alert('★の保存に失敗しました (' + err.message + ')');
             });
@@ -1428,7 +1435,17 @@ function threadLayoutValues() {
     var log = $('dtlLog');
     var page = 1;
 
-    function items() { return Array.prototype.slice.call(log.querySelectorAll('.msg')); }
+    var hideSupport = $('dtlHideSupport');
+    try { if (hideSupport) hideSupport.checked = localStorage.getItem('crmHideSupport') === '1'; } catch (e) { /* storage off */ }
+    function items() {
+        var all = Array.prototype.slice.call(log.querySelectorAll('.msg'));
+        if (!hideSupport || !hideSupport.checked) return all;
+        return all.filter(function (m) {
+            if (m.getAttribute('data-support') !== '1') return true;
+            m.hidden = true;
+            return false;
+        });
+    }
     function dayLabel(iso) {
         var p = iso.split('-').map(Number);
         return p[0] + '年' + p[1] + '月' + p[2] + '日（' + WEEK[new Date(p[0], p[1] - 1, p[2]).getDay()] + '）';
@@ -1489,6 +1506,11 @@ function threadLayoutValues() {
         if (!b) return;
         var open = b.closest('.msg').classList.toggle('is-open');
         b.textContent = open ? '折りたたむ' : '全文を表示';
+    });
+    if (hideSupport) hideSupport.addEventListener('change', function () {
+        try { localStorage.setItem('crmHideSupport', hideSupport.checked ? '1' : '0'); } catch (e) { /* storage off */ }
+        page = 1;
+        render();
     });
     $('dtlPages').addEventListener('click', function (e) {
         var pg = e.target.closest('.inbox-page[data-page]');
