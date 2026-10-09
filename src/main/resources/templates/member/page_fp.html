@@ -3,6 +3,9 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <meta http-equiv="Cache-Control" content="no-cache" />
+<!-- 会員ページ (MemberPageService#fpViewport) と同じ: viewport が無いとブラウザが広い既定幅で縮小表示する -->
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>html{-webkit-text-size-adjust:100%;text-size-adjust:100%}body{overflow-wrap:break-word;word-wrap:break-word}</style>
 <title th:text="${pageTitle} + '｜' + ${siteName}">ページ</title>
 </head>
 <!-- ガラケー版の member/page (/page/{code}・登録エラー等): 仮登録 / 本登録完了の ガラケーデザイン (site/*_fp.html) と同じ見た目 -->

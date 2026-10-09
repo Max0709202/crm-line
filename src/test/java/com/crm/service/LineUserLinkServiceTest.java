@@ -23,6 +23,7 @@ class LineUserLinkServiceTest {
     private CrmUserRepository crmUserRepository;
     private DomainSettingService domainSettingService;
     private DiffScheduleService diffScheduleService;
+    private MemberLoginIdService loginIdService;
     private LineUserLinkService svc;
 
     @BeforeEach
@@ -31,7 +32,9 @@ class LineUserLinkServiceTest {
         crmUserRepository = mock(CrmUserRepository.class);
         domainSettingService = mock(DomainSettingService.class);
         diffScheduleService = mock(DiffScheduleService.class);
-        svc = new LineUserLinkService(lineUserRepository, crmUserRepository, domainSettingService, diffScheduleService);
+        loginIdService = mock(MemberLoginIdService.class);
+        when(loginIdService.next()).thenReturn("10014");
+        svc = new LineUserLinkService(lineUserRepository, crmUserRepository, domainSettingService, diffScheduleService, loginIdService);
         when(crmUserRepository.save(any(CrmUser.class))).thenAnswer(inv -> {
             CrmUser u = inv.getArgument(0);
             u.setId(500L);
@@ -52,6 +55,7 @@ class LineUserLinkServiceTest {
         ArgumentCaptor<CrmUser> cap = ArgumentCaptor.forClass(CrmUser.class);
         verify(crmUserRepository).save(cap.capture());
         assertThat(cap.getValue().getDisplayName()).isEqualTo("山田太郎");
+        assertThat(cap.getValue().getLoginId()).isEqualTo("10014");   // same 10000〜 ID as member registration
         assertThat(linked.getCrmUserId()).isEqualTo(500L);
         assertThat(linked.isLinked()).isTrue();
         verify(diffScheduleService).applyRegistrationSteps(cap.getValue(), null);   // 登録後(分後) fires for a new customer

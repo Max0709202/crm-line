@@ -22,14 +22,17 @@ public class LineUserLinkService {
     private final CrmUserRepository crmUserRepository;
     private final DomainSettingService domainSettingService;
     private final DiffScheduleService diffScheduleService;
+    private final MemberLoginIdService loginIdService;
 
     public LineUserLinkService(LineUserRepository lineUserRepository, CrmUserRepository crmUserRepository,
                                 DomainSettingService domainSettingService,
-                                @org.springframework.context.annotation.Lazy DiffScheduleService diffScheduleService) {
+                                @org.springframework.context.annotation.Lazy DiffScheduleService diffScheduleService,
+                                MemberLoginIdService loginIdService) {
         this.lineUserRepository = lineUserRepository;
         this.crmUserRepository = crmUserRepository;
         this.domainSettingService = domainSettingService;
         this.diffScheduleService = diffScheduleService;
+        this.loginIdService = loginIdService;
     }
 
     public List<LineUser> listUnlinked() {
@@ -133,6 +136,8 @@ public class LineUserLinkService {
         String name = lineUser.getLineDisplayName();
         u.setDisplayName((name != null && !name.trim().isEmpty()) ? name : "LINE友だち");
         u.setFolder(domainSettingService.getLineAutoRegisterFolder());
+        // same 10000〜 numbering as member registration / admin 新規登録 / CSV import
+        u.setLoginId(loginIdService.next());
         CrmUser saved = crmUserRepository.save(u);
         lineUser.setCrmUserId(saved.getId());
         LineUser linked = lineUserRepository.save(lineUser);

@@ -277,7 +277,6 @@ public class MemberSiteController {
         String base = "/member/inbox/list?c=" + charaId;
         StringBuilder b = new StringBuilder();
         if (fp) {
-            b.append("<div class=\"m\"><a href=\"/member/inbox\">0. 受信BOXへ戻る</a></div>");
             b.append("<div class=\"row\"><b>").append(e(name(chara))).append("</b> ").append(unreadBadge(unread))
                     .append(unread > 0 ? " <span class=new>NEW</span>" : "");
             if (chara != null) {
@@ -1227,14 +1226,14 @@ public class MemberSiteController {
     /**
      * 写真閲覧 / プロフィール閲覧's bottom button: opened from 受信BOX / 受信一覧 / 返信 →「受信BOXへ戻る」/
      * 「受信一覧へ戻る」/「返信へ戻る」 (back to that page); otherwise (友達追加リスト・条件検索 …)
-     * 「メッセージを送る」 → the 送信 page only (ガラケー: the 返信 page).
+     * 「メッセージを送る」 → the 送信 page only (ガラケー too).
      */
     private static String sendOrBack(Chara c, String from, boolean fp) {
         String label = from == null ? null
                 : from.startsWith("/member/inbox/list") ? "受信一覧へ戻る"
                 : from.startsWith("/member/inbox") ? "受信BOXへ戻る"
                 : from.startsWith("/member/reply") && !from.contains("send=1") ? "返信へ戻る" : null;
-        String href = label != null ? e(from) : "/member/reply?c=" + c.getId() + (fp ? "" : "&amp;send=1");
+        String href = label != null ? e(from) : "/member/reply?c=" + c.getId() + "&amp;send=1";
         if (label == null) label = "メッセージを送る";
         return fp ? "<div class=\"row\"><a href=\"" + href + "\">" + label + "</a></div>"
                 : "<div class=\"actions\"><a class=\"btn\" style=\"display:inline-block;text-decoration:none\" href=\"" + href + "\">" + label + "</a></div><div class=\"boxline\"></div></section>";

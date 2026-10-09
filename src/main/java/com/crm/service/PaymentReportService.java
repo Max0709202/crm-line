@@ -54,6 +54,8 @@ public class PaymentReportService {
     public static final class Row {
         private Long id;
         private Long userId;
+        /** ID column: the member login ID (10000〜), CRM_USER.ID when none was issued. */
+        private String memberNo;
         private String userName;
         private String day;
         private String time;
@@ -76,6 +78,7 @@ public class PaymentReportService {
 
         public Long getId() { return id; }
         public Long getUserId() { return userId; }
+        public String getMemberNo() { return memberNo; }
         public String getUserName() { return userName; }
         public String getDay() { return day; }
         public String getTime() { return time; }
@@ -141,6 +144,8 @@ public class PaymentReportService {
             Row r = new Row();
             r.id = p.getId();
             r.userId = p.getUserId();
+            r.memberNo = u != null && u.getLoginId() != null && !u.getLoginId().isEmpty()
+                    ? u.getLoginId() : String.valueOf(p.getUserId());
             r.userName = u == null ? "" : (u.getDisplayName() != null && !u.getDisplayName().isEmpty()
                     ? u.getDisplayName() : u.getEmail());
             r.day = p.getPaidAt().format(DAY);
