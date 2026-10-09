@@ -71,6 +71,24 @@
         文字数の上限はありませんが、<strong>推奨は 20,000文字まで</strong>です（それを超えるとタブの文字数表示が赤くなります。保存自体は可能です）。
     </p>
 
+    <!-- 専用HTML URL (2026-10-09 client request): the 使用中 slot had no page of its own once the user
+         logs in, so it is shown at one URL for every user — each user sees their own 使用中 slot. -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="text-sm font-semibold text-slate-800">専用HTML URL</span>
+            <input type="text" id="memoPageUrl" class="tw-input font-mono" style="max-width:420px;" readonly th:value="${memoPageUrl}"/>
+            <button type="button" class="inline-flex items-center px-3 py-1.5 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded-md"
+                    onclick="var i=document.getElementById('memoPageUrl');i.select();try{navigator.clipboard.writeText(i.value);}catch(e){document.execCommand('copy');}this.textContent='コピーしました';">コピー</button>
+        </div>
+        <p class="text-xs text-slate-600 leading-relaxed">
+            ①〜⑩のうち、ユーザーごとに「使用中」になっているスロットの専用HTMLを表示するURLです（URLは1つで、表示内容はユーザーごとに変わります。未設定のユーザーは返信画面のデフォルトHTML）。
+            ログインしたユーザーだけが開け、開いたときに最終ログインとアクセスログ（専用HTML閲覧）が記録されるので、ユーザー詳細でログインを確認できます。<br/>
+            ・<strong>ログイン後のHTMLにリンクとして貼る場合</strong>：<code>/member/memo</code> を使ってください。<br/>
+            ・<strong>ユーザーへ直接配信する場合</strong>：本文に置き換えタグ <code>%memo_url%</code> を入れてください。
+            <span th:text="${memoPageUrl}">https://example.jp/member/memo</span> を表示する、ユーザーごとの自動ログインURLに置換されます（ID・パスワードの入力なし）。
+        </p>
+    </div>
+
     <!-- Folder picker + bulk-apply form -->
     <form method="post" th:action="@{/manager/settings/memo-html-bulk}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4">
         <input type="hidden" name="_csrf" th:value="${_csrf}"/>

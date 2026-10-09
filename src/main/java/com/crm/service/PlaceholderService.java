@@ -38,6 +38,27 @@ public class PlaceholderService {
             new BuiltinTag("%datet_jp%", "明日の日付 (例: 2026年4月20日)")
     );
 
+    /**
+     * Per-user auto-login URLs of the 会員ページ (see {@link MemberAutoLoginService#PAGES}): tag → page.
+     * %memo_url% = 専用HTML（お知らせ）, %inbox_url% = 受信BOX, %points_url% = ポイント購入（手続き）.
+     * Each logs the user in (no ID / password — LINE users have none) and opens that page; the
+     * visit counts as the user's ログイン (最終ログイン).
+     */
+    public static final Map<String, String> MEMBER_URL_TAGS;
+    static {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("%memo_url%", "memo");
+        m.put("%inbox_url%", "inbox");
+        m.put("%points_url%", "points");
+        MEMBER_URL_TAGS = java.util.Collections.unmodifiableMap(m);
+    }
+
+    /** Optional so hand-built instances (tests) work without it — the URL tags are then blank. */
+    private MemberAutoLoginService autoLoginService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setAutoLoginService(MemberAutoLoginService autoLoginService) { this.autoLoginService = autoLoginService; }
+
     private static final DateTimeFormatter JP_DATE =
             DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.JAPAN);
 
@@ -67,6 +88,12 @@ public class PlaceholderService {
         String out = template;
         for (Map.Entry<String, String> e : bindings.entrySet()) {
             out = out.replace(e.getKey(), e.getValue());
+        }
+        // 会員ページ URL tags: only built when used (the first use creates the user's login token)
+        for (Map.Entry<String, String> e : MEMBER_URL_TAGS.entrySet()) {
+            if (!out.contains(e.getKey())) continue;
+            boolean canLink = autoLoginService != null && user != null && user.getId() != null;
+            out = out.replace(e.getKey(), canLink ? autoLoginService.urlFor(user, e.getValue()) : "");
         }
         out = UNRESOLVED_TAG.matcher(out).replaceAll("");
         return out;

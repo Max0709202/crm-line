@@ -75,6 +75,23 @@ public class SiteDesignService {
         MEMBER_PAGES = Collections.unmodifiableMap(m);
     }
 
+    /**
+     * LINE用（スマホ限定）pages — members in the LINE folders ({@link #getLineFolders}) see these
+     * instead of the normal post-login design. Each is a whole page of HTML (blank = the bundled
+     * default), edited at the bottom of 番組デザイン設定: page code → title.
+     */
+    public static final Map<String, String> LINE_PAGES;
+    static {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("inbox",  "受信BOX");
+        m.put("reply",  "返信ページ");
+        m.put("memo",   "専用HTML（お知らせ）");
+        m.put("points", "ポイント購入（手続き）");
+        LINE_PAGES = Collections.unmodifiableMap(m);
+    }
+    private static final String KEY_LINE_HTML_PREFIX = "site.line.html.";
+    private static final String KEY_LINE_FOLDERS = "site.line.folders";
+
     /** Length limits of the post-login HTML areas (characters, line breaks count as one). */
     public static final int MAX_SLOT_HTML_CHARS = 8000;
     public static final int MAX_SLOT_CSS_CHARS = 8000;
@@ -255,6 +272,38 @@ public class SiteDesignService {
             return top ? slot.getTopHtml() : slot.getBottomHtml();
         }
         return "";
+    }
+
+    /** Operator-edited LINE用 page HTML ({@code page} in {@link #LINE_PAGES}), or null when the bundled default is in use. */
+    public String getLineHtml(String page) {
+        if (!LINE_PAGES.containsKey(page)) return null;
+        String v = getLongText(KEY_LINE_HTML_PREFIX + page);
+        return (v == null || v.trim().isEmpty()) ? null : v;
+    }
+
+    /** Saves a LINE用 page's HTML; null/blank goes back to the bundled default. */
+    @Transactional
+    public void saveLineHtml(String page, String html) {
+        if (!LINE_PAGES.containsKey(page)) return;
+        if (html != null && html.length() > MAX_TOP_HTML_CHARS) {
+            throw new IllegalArgumentException("HTMLが長すぎます（" + MAX_TOP_HTML_CHARS + "文字まで）");
+        }
+        saveLongText(KEY_LINE_HTML_PREFIX + page, html == null ? "" : normalizeNewlines(html));
+    }
+
+    /** Folders whose members see the LINE用 pages (スマホ); empty = none. */
+    public java.util.List<String> getLineFolders() {
+        return getFolders(KEY_LINE_FOLDERS);
+    }
+
+    @Transactional
+    public void saveLineFolders(java.util.List<String> folders) {
+        save(KEY_LINE_FOLDERS, joinFolders(folders == null ? java.util.Collections.<String>emptyList() : folders));
+    }
+
+    /** A member in {@code folder} gets the LINE用 pages (no folder = never). */
+    public boolean isLineFolder(String folder) {
+        return folder != null && !folder.trim().isEmpty() && getLineFolders().contains(folder.trim());
     }
 
     /** Folder names are free text (may contain commas), so one per line. */

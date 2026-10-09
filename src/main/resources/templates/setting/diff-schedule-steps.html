@@ -195,6 +195,10 @@
                                         <span class="tag-desc">返信URL（送信時に自動生成）</span>
                                     </div>
                                     <div class="tag-row">
+                                        <code class="tag-name" th:attr="onclick=|insertTag(${s.id}, '%memo_url%')|">%memo_url%</code>
+                                        <span class="tag-desc" th:text="'専用HTML（' + ${@domainSettingService.getReplyBaseUrl()} + '/member/memo を表示するURLで置換されます・ユーザーごとに自動ログイン）'">専用HTML</span>
+                                    </div>
+                                    <div class="tag-row">
                                         <code class="tag-name" th:attr="onclick=|insertTag(${s.id}, '%external_url%')|">%external_url%</code>
                                         <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
                                     </div>
@@ -313,6 +317,10 @@
                         <div class="tag-row">
                             <code class="tag-name" onclick="insertTag('new', '%reply_url%')">%reply_url%</code>
                             <span class="tag-desc">返信URL（送信時に自動生成）</span>
+                        </div>
+                        <div class="tag-row">
+                            <code class="tag-name" onclick="insertTag('new', '%memo_url%')">%memo_url%</code>
+                            <span class="tag-desc" th:text="'専用HTML（' + ${@domainSettingService.getReplyBaseUrl()} + '/member/memo を表示するURLで置換されます・ユーザーごとに自動ログイン）'">専用HTML</span>
                         </div>
                         <div class="tag-row">
                             <code class="tag-name" onclick="insertTag('new', '%external_url%')">%external_url%</code>

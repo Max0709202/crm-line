@@ -312,6 +312,100 @@
             </div>
         </div>
 
+        <!-- ===== LINE用（スマホ限定）— 2026-10-09 client request: LINE users have no 会員ページ of their own, so
+             the folders checked here get these pages after login (受信BOX・返信・お知らせ・手続き). ===== -->
+        <div id="line" class="mt-6 mb-6 scroll-mt-4">
+            <div class="flex flex-wrap items-center gap-2 mb-3 px-4 py-3 rounded-lg text-white" style="background:#06c755;">
+                <h2 class="text-lg font-semibold flex-1">LINE用（スマホ限定）</h2>
+                <span class="text-xs opacity-90">確認：</span>
+                <a th:each="lp : ${linePages}"
+                   th:href="@{/manager/settings/site-design/line-preview-frame(page=${lp.key})}" target="_blank"
+                   class="px-3 py-1 text-sm rounded-md bg-white font-medium hover:bg-green-50" style="color:#05a548;"
+                   th:text="${lp.value}">受信BOX</a>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-4">
+                <p class="text-xs text-slate-600 mb-2">
+                    LINEから登録したユーザーには会員ページがないため、下でチェックしたフォルダのユーザーは、ログイン後に
+                    <strong>LINE用の画面（受信BOX・返信ページ・お知らせ・ポイント購入）</strong>で表示されます（スマホ・PCのブラウザ。ガラケーは通常の画面）。
+                    MENU・友達追加リスト・条件検索などは表示せず、ページ下のメニューは <strong>受信BOX／送信済／お知らせ／手続き</strong> です
+                    （お知らせ＝専用HTML、手続き＝ポイント購入）。お知らせは、未読の専用HTMLがあるとき受信BOXと同じように「NEW」が付き、閲覧すると消えます。
+                </p>
+                <p class="text-xs text-slate-600 mb-3">
+                    各画面のポイント（返信の送信など）は <a class="text-blue-600 hover:underline" th:href="@{/manager/settings/points}">ポイント設定</a> のフォルダ指定で設定してください（例：0ポイント）。
+                </p>
+                <div class="text-sm font-medium text-slate-700 mb-1">LINE用の画面を使うフォルダ</div>
+                <input type="hidden" name="lineFoldersSent" value="1"/>
+                <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm mb-1">
+                    <label th:each="f : ${folders}" class="inline-flex items-center gap-1">
+                        <input type="checkbox" name="lineFolders" th:value="${f}" th:checked="${#lists.contains(lineFolders, f)}"/>
+                        <span th:text="${f}">フォルダ</span>
+                    </label>
+                    <!-- Saved folder that no longer exists in フォルダ設定 — kept visible so saving doesn't silently drop it. -->
+                    <label th:each="f : ${lineFolders}" th:unless="${#lists.contains(folders, f)}" class="inline-flex items-center gap-1 text-amber-700">
+                        <input type="checkbox" name="lineFolders" th:value="${f}" checked/>
+                        <span th:text="${f} + '（旧名）'">旧フォルダ</span>
+                    </label>
+                    <span th:if="${folders.empty and lineFolders.empty}" class="text-slate-400 text-xs">フォルダ未設定</span>
+                </div>
+                <p class="text-xs text-slate-500">チェックしたフォルダのユーザーは、%reply_url%（返信URL）を開くと自動でログインし、LINE用の返信ページが表示されます。</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-4">
+                <h3 class="text-base font-semibold text-slate-800 mb-2">置き換えタグ（メッセージ本文に入れると、各画面へのURLになります）</h3>
+                <table class="w-full text-xs mb-3">
+                    <thead class="bg-slate-50 text-slate-500">
+                    <tr><th class="px-2 py-1.5 text-left">画面</th><th class="px-2 py-1.5 text-left">置き換えタグ</th><th class="px-2 py-1.5 text-left">置換されるURL</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                    <tr><td class="px-2 py-1.5">受信BOX</td><td class="px-2 py-1.5"><code>%inbox_url%</code></td>
+                        <td class="px-2 py-1.5"><code th:text="${siteBaseUrl} + '/member/auto-login?t=…&amp;p=inbox'"></code></td></tr>
+                    <tr><td class="px-2 py-1.5">返信ページ</td><td class="px-2 py-1.5"><code>%reply_url%</code></td>
+                        <td class="px-2 py-1.5"><code th:text="${siteBaseUrl} + '/reply/…'"></code>（そのメッセージの返信ページ）</td></tr>
+                    <tr><td class="px-2 py-1.5">専用HTML（お知らせ）</td><td class="px-2 py-1.5"><code>%memo_url%</code></td>
+                        <td class="px-2 py-1.5"><code th:text="${siteBaseUrl} + '/member/auto-login?t=…&amp;p=memo'"></code></td></tr>
+                    <tr><td class="px-2 py-1.5">ポイント購入（手続き）</td><td class="px-2 py-1.5"><code>%points_url%</code></td>
+                        <td class="px-2 py-1.5"><code th:text="${siteBaseUrl} + '/member/auto-login?t=…&amp;p=points'"></code></td></tr>
+                    </tbody>
+                </table>
+                <p class="text-xs text-slate-500 mb-3">
+                    「t=…」はユーザーごとに自動で作られ、ID・パスワードなしでそのユーザーとしてログインします（開くと最終ログインが更新されます）。
+                    ログイン後の画面のHTMLの中にリンクを貼る場合は、
+                    <code>/member/inbox</code>（受信BOX）、<code>/member/inbox?tab=sent</code>（送信済）、<code>/member/memo</code>（お知らせ・専用HTML）、
+                    <code>/member/points</code>（ポイント購入）、<code>/member/point-table</code>（ポイント表）を使ってください。
+                </p>
+                <h3 class="text-base font-semibold text-slate-800 mb-1">各画面のHTMLで使えるタグ</h3>
+                <p class="text-xs text-slate-500">
+                    <code>%main%</code> 画面の中身（受信BOXの一覧・返信の送受信と入力欄・専用HTML・購入プラン。必ず入れてください）、
+                    <code>%title%</code> 画面名、<code>%sitename%</code> サイト名、<code>%sitelogo%</code> サイトロゴ、
+                    <code>%id%</code> ユーザーID、<code>%name%</code> ニックネーム、<code>%point%</code> 所持ポイント、<code>%email%</code> メールアドレス、
+                    <code>%unread_badge%</code> 受信BOXの未読数（未読なしは空欄）、<code>%news_new%</code> お知らせの「NEW」（閲覧済みは空欄）
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-5" th:each="lp : ${linePages}">
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 class="text-base font-semibold text-slate-800 flex-1" th:text="'LINE用 ' + ${lp.value} + '（HTML）'">LINE用 受信BOX（HTML）</h3>
+                        <span th:if="${lineCustomized.get(lp.key)}" class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">編集済み</span>
+                        <span th:unless="${lineCustomized.get(lp.key)}" class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">初期デザイン</span>
+                        <a th:href="@{/manager/settings/site-design/line-preview-frame(page=${lp.key})}" target="_blank"
+                           class="text-xs text-blue-600 hover:underline">この画面を確認</a>
+                    </div>
+                    <textarea class="tw-input font-mono" th:name="'lineHtml_' + ${lp.key}" rows="14" spellcheck="false"
+                              style="white-space:pre; font-size:.75rem; line-height:1.4;"
+                              th:text="${lineHtml.get(lp.key)}"></textarea>
+                    <div class="mt-2 flex items-center gap-3 flex-wrap">
+                        <label th:if="${lineCustomized.get(lp.key)}" class="inline-flex items-center text-sm text-slate-700">
+                            <input type="checkbox" th:name="'lineReset_' + ${lp.key}" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/>
+                            初期デザインに戻す（編集した内容は消えます）
+                        </label>
+                        <button type="submit" name="jump" value="line"
+                                class="ml-auto inline-flex items-center px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="sticky bottom-0 py-3 bg-slate-50 border-t border-slate-200 mt-2">
             <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm">保存する</button>
         </div>

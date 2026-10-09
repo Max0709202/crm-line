@@ -905,6 +905,9 @@ public class SettingController {
         }
         model.addAttribute("htmls", htmls);
         model.addAttribute("activeSlot", activeSlot);
+        // 専用HTML URL: one URL for every user — each sees their own 使用中 slot (/member/memo)
+        String base = domainSettingService.getReplyBaseUrl();
+        model.addAttribute("memoPageUrl", (base == null ? "" : base.trim().replaceAll("/+$", "")) + "/member/memo");
         return "setting/memo-html-bulk";
     }
 

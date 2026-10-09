@@ -52,17 +52,20 @@ public class SiteDesignController {
     private final AuditLogService auditLog;
     private final com.crm.service.FolderSettingService folderSettingService;
     private final com.crm.service.MemberPageService memberPageService;
+    private final DomainSettingService domainSettingService;
 
     public SiteDesignController(SiteDesignService siteDesignService, PublicSiteService publicSiteService,
                                 HtmlImageService htmlImageService, AuditLogService auditLog,
                                 com.crm.service.FolderSettingService folderSettingService,
-                                com.crm.service.MemberPageService memberPageService) {
+                                com.crm.service.MemberPageService memberPageService,
+                                DomainSettingService domainSettingService) {
         this.siteDesignService = siteDesignService;
         this.publicSiteService = publicSiteService;
         this.htmlImageService = htmlImageService;
         this.auditLog = auditLog;
         this.folderSettingService = folderSettingService;
         this.memberPageService = memberPageService;
+        this.domainSettingService = domainSettingService;
     }
 
     @GetMapping
@@ -93,6 +96,19 @@ public class SiteDesignController {
         model.addAttribute("maxSlotHtml", SiteDesignService.MAX_SLOT_HTML_CHARS);
         model.addAttribute("maxSlotCss", SiteDesignService.MAX_SLOT_CSS_CHARS);
         model.addAttribute("folders", folderSettingService.listFolders());
+        // LINE用（スマホ限定）: each page's HTML (saved or the bundled default) and the folders using them
+        Map<String, String> lineHtml = new java.util.LinkedHashMap<>();
+        Map<String, Boolean> lineCustomized = new java.util.LinkedHashMap<>();
+        for (String page : SiteDesignService.LINE_PAGES.keySet()) {
+            String h = siteDesignService.getLineHtml(page);
+            lineHtml.put(page, h != null ? h : memberPageService.getDefaultLineTemplate());
+            lineCustomized.put(page, h != null);
+        }
+        model.addAttribute("linePages", SiteDesignService.LINE_PAGES);
+        model.addAttribute("lineHtml", lineHtml);
+        model.addAttribute("lineCustomized", lineCustomized);
+        model.addAttribute("lineFolders", siteDesignService.getLineFolders());
+        model.addAttribute("siteBaseUrl", siteBaseUrl());
         return "setting/site-design";
     }
 
@@ -158,6 +174,27 @@ public class SiteDesignController {
                     folderScope(request, "slotbottom", code, p.getValue() + " 下部HTML", errors));
         }
 
+        // LINE用（スマホ限定）: the folders using them, and each page's HTML (untouched default = nothing saved)
+        if (params.containsKey("lineFoldersSent")) {
+            String[] lf = request.getParameterValues("lineFolders");
+            siteDesignService.saveLineFolders(lf == null ? java.util.Collections.<String>emptyList() : java.util.Arrays.asList(lf));
+        }
+        String lineDefault = memberPageService.getDefaultLineTemplate().replace("\r\n", "\n").trim();
+        for (Map.Entry<String, String> lp : SiteDesignService.LINE_PAGES.entrySet()) {
+            String page = lp.getKey();
+            String html = params.get("lineHtml_" + page);
+            if ("true".equals(params.get("lineReset_" + page))) {
+                siteDesignService.saveLineHtml(page, null);
+            } else if (html != null) {
+                String normalized = html.replace("\r\n", "\n");
+                try {
+                    siteDesignService.saveLineHtml(page, normalized.trim().equals(lineDefault) ? null : normalized);
+                } catch (IllegalArgumentException e) {
+                    errors.add("LINE用 " + lp.getValue() + ": " + e.getMessage());
+                }
+            }
+        }
+
         String contact = params.get("contactEmail");
         if (contact != null) {
             String c = contact.trim();
@@ -188,6 +225,7 @@ public class SiteDesignController {
         if (jump != null && SiteDesignService.MEMBER_PAGES.containsKey(jump)) {
             return "redirect:/manager/settings/site-design#slot-" + jump;
         }
+        if ("line".equals(jump)) return "redirect:/manager/settings/site-design#line";
         return "redirect:/manager/settings/site-design";
     }
 
@@ -258,6 +296,30 @@ public class SiteDesignController {
         return ResponseEntity.ok()
                 .header("Content-Type", "text/html; charset=UTF-8")
                 .body(html);
+    }
+
+    /** LINE用 check: one LINE用 page in a スマホ-width frame, with page tabs. */
+    @GetMapping("/line-preview-frame")
+    public String linePreviewFrame(@RequestParam(value = "page", defaultValue = "inbox") String page, Model model) {
+        if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
+        model.addAttribute("page", page);
+        model.addAttribute("linePages", SiteDesignService.LINE_PAGES);
+        model.addAttribute("width", DEVICE_WIDTHS.get("sp"));
+        return "setting/site-design-line-preview";
+    }
+
+    /** One LINE用 page with the saved HTML and sample content / member values. */
+    @GetMapping("/line-preview")
+    public ResponseEntity<String> linePreview(@RequestParam(value = "page", defaultValue = "inbox") String page) {
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/html; charset=UTF-8")
+                .body(memberPageService.renderLinePreview(page));
+    }
+
+    /** The 本ドメイン (e.g. https://avu74g.jp) without a trailing slash; "" when not configured. */
+    private String siteBaseUrl() {
+        String b = domainSettingService.getReplyBaseUrl();
+        return b == null ? "" : b.trim().replaceAll("/+$", "");
     }
 
     /** One HTML area's submitted folder scope: empty list = 全表示, else the checked folders;

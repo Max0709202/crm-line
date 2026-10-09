@@ -73,6 +73,12 @@ public class MemberPageService {
     private static final Pattern LINK = Pattern.compile("href=\"(?:\\.\\./)?([a-z-]+)\\.html\"");
     private static final Pattern TAG = Pattern.compile("%(sitename|sitelogo|id|name|point|toname|email)%");
 
+    /** お知らせ — the member's 専用HTML (/member/memo). */
+    public static final String MEMO = "memo";
+
+    /** LINE用 page template tags (besides the member tags above). */
+    private static final String LINE_MAIN = "%main%";
+
     private static final String MENU_FREE_AREA = "<div class=\"htmlslot\">%HTML%</div>";
     /** Class on every HTML area's wrapper; the operator's CSS only applies inside it. */
     private static final String SCOPE_CLASS = "member-free";
@@ -124,6 +130,44 @@ public class MemberPageService {
                 mainHtml, title, Math.max(0, unread)));
     }
 
+    /**
+     * One LINE用 page (スマホ限定, members of the LINE folders): the page HTML saved on 番組デザイン設定
+     * (blank = the bundled default) with its tags filled — %sitename% %sitelogo% %id% %name% %point%
+     * %email%, %title% (page name), %unread_badge% (受信BOX's unread count, none = empty),
+     * %news_new% (お知らせ's NEW while the 専用HTML is unread, else empty) and %main% (the page's
+     * content, put in last so a member's own text is never read as a tag).
+     *
+     * @param page {@link SiteDesignService#LINE_PAGES} code; unknown → 受信BOX
+     */
+    public String renderLine(String page, Map<String, String> memberValues, String mainHtml, String title,
+                             int unread, boolean newsNew) {
+        if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
+        String html = siteDesignService.getLineHtml(page);
+        if (html == null) html = getDefaultLineTemplate();
+        // %main% → a marker first, so a member's own value (e.g. a nickname "%main%") is never read as it
+        html = html.replace(LINE_MAIN, MAIN_MARK)
+                .replace("%title%", esc(title == null ? SiteDesignService.LINE_PAGES.get(page) : title))
+                .replace("%unread_badge%", unread > 0 ? "<i class=\"fb\">" + unread + "</i>" : "")
+                .replace("%news_new%", newsNew ? "<i class=\"fb\">NEW</i>" : "");
+        html = fillTags(html, memberValues).replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
+        return com.crm.util.NoZoom.apply(html);
+    }
+
+    /** 番組デザイン設定 › LINE用 check: one LINE用 page with the saved HTML and sample content. */
+    public String renderLinePreview(String page) {
+        if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
+        String main = "points".equals(page)
+                ? load("points.html").replace("%plans%", pointPlans())
+                : load("line/sample-" + page + ".html");
+        String title = "inbox".equals(page) ? "受信BOX" : "reply".equals(page) ? "返信" : "memo".equals(page) ? "お知らせ" : "ポイント購入";
+        return renderLine(page, null, fillTags(main, null), title, 17, true);
+    }
+
+    /** The bundled LINE用 page (the same frame for every LINE用 page). */
+    public String getDefaultLineTemplate() {
+        return load("line/layout.html");
+    }
+
     /** Member pages can't be zoomed ({@link com.crm.util.NoZoom}); the ガラケー design gets {@link #fpViewport} instead. */
     private static String noZoom(String device, String html) {
         return "fp".equals(device) ? fpViewport(html) : com.crm.util.NoZoom.apply(html);
@@ -156,6 +200,10 @@ public class MemberPageService {
     private String render(String code, String device, boolean markAreas, Function<String, String> linkForCode,
                           Map<String, String> memberValues, String memberFolder,
                           String mainHtml, String title, int unread) {
+        // お知らせ (専用HTML): its content is the member's 専用HTML — shown in the サポート窓口 page's
+        // frame, without that page's 上部 / 下部HTML
+        boolean areas = !MEMO.equals(code);
+        if (MEMO.equals(code)) code = "support";
         if (!BAR_TITLES.containsKey(code)) code = "menu";
         boolean fp = "fp".equals(device) && FP_PAGES.contains(code);
         SiteDesignService.Slot slot = slotFor(code);
@@ -187,8 +235,8 @@ public class MemberPageService {
         if (mainHtml != null) html = html.replace(MAIN_MARK, mainHtml);
         if (unread >= 0) html = memberChrome(html, unread);
 
-        String topHtml = slot.getTopHtml(), bottomHtml = slot.getBottomHtml();
-        if (memberFolder != null) {
+        String topHtml = areas ? slot.getTopHtml() : "", bottomHtml = areas ? slot.getBottomHtml() : "";
+        if (memberFolder != null && areas) {
             String folder = memberFolder.isEmpty() ? null : memberFolder;
             topHtml = siteDesignService.slotHtmlFor(code, SiteDesignService.POSITION_TOP, folder);
             bottomHtml = siteDesignService.slotHtmlFor(code, SiteDesignService.POSITION_BOTTOM, folder);
@@ -214,7 +262,7 @@ public class MemberPageService {
             }
         }
 
-        String css = slot.getCss();
+        String css = areas ? slot.getCss() : null;
         if (css != null && !css.trim().isEmpty()) {
             html = insertBefore(html, "</head>", "<style>\n" + scopeCss(css) + "\n</style>");
         }

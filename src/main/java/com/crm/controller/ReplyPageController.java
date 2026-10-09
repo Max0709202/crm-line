@@ -69,6 +69,21 @@ public class ReplyPageController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(com.crm.service.CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
+    /** 番組デザイン設定's LINE用 folders — optional so hand-built instances (tests) work without it. */
+    private com.crm.service.SiteDesignService siteDesignService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setSiteDesignService(com.crm.service.SiteDesignService siteDesignService) { this.siteDesignService = siteDesignService; }
+
+    /**
+     * The user gets the 会員ページ: a member with a login (ID / password issued), or a user in a LINE用
+     * folder (LINE users have no login — their %reply_url% leads to the LINE用 pages instead).
+     */
+    private boolean memberPages(CrmUser u) {
+        return u.getLoginPassword() != null
+                || (siteDesignService != null && siteDesignService.isLineFolder(u.getFolder()));
+    }
+
     /** 画像添付 on the 返信画面 (📎, behind ポイント設定's 写真閲覧) — optional so hand-built instances (tests) work. */
     private com.crm.service.MessageImageService messageImageService;
     private com.crm.service.MemberUnlockService memberUnlockService;
@@ -192,8 +207,8 @@ public class ReplyPageController {
 
         // 会員サイト: a member with a login (ID / password issued, ACTIVE) is logged in and taken to the
         // 会員ページ's 返信 screen with this message's キャラ, like the 自動ログインURL. Users without a
-        // login keep the reply page below.
-        if (user.isPresent() && user.get().getLoginPassword() != null) {
+        // login keep the reply page below. LINE用 folders' users go the same way, to the LINE用 pages.
+        if (user.isPresent() && memberPages(user.get())) {
             model.addAttribute("next", memberHandoff(request, user.get(), rp.getMessageId()));
             return "member/handoff";
         }
@@ -270,7 +285,7 @@ public class ReplyPageController {
         Optional<CrmUser> user = userRepository.findById(id);
         if (!user.isPresent()) return "redirect:/manager/users";
         CrmUser u = user.get();
-        if (u.getLoginPassword() != null && CrmUser.STATUS_ACTIVE.equals(u.getStatus())) {
+        if (memberPages(u) && CrmUser.STATUS_ACTIVE.equals(u.getStatus())) {
             request.getSession(true).setAttribute(MemberSiteController.SESSION_PREVIEW_ID, u.getId());
             return box ? "redirect:/member/inbox" : "redirect:/member/menu";
         }

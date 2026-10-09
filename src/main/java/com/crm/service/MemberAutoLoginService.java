@@ -20,6 +20,19 @@ public class MemberAutoLoginService {
 
     public static final String PATH = "/member/auto-login";
 
+    /**
+     * Pages the auto-login can open instead of the MENU ({@code &p=…}): the 置き換えタグ
+     * %memo_url% (専用HTML・お知らせ), %inbox_url% (受信BOX) and %points_url% (ポイント購入・手続き).
+     */
+    public static final java.util.Map<String, String> PAGES;
+    static {
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        m.put("memo", "/member/memo");
+        m.put("inbox", "/member/inbox");
+        m.put("points", "/member/points");
+        PAGES = java.util.Collections.unmodifiableMap(m);
+    }
+
     private final MemberAutoLoginRepository repository;
     private final CrmUserRepository userRepository;
     private final DomainSettingService domainSettingService;
@@ -35,6 +48,12 @@ public class MemberAutoLoginService {
     @Transactional
     public String urlFor(CrmUser user) {
         return baseUrl() + PATH + "?t=" + tokenFor(user.getId());
+    }
+
+    /** The member's 自動ログインURL that opens {@code page} (a key of {@link #PAGES}) after logging in. */
+    @Transactional
+    public String urlFor(CrmUser user, String page) {
+        return urlFor(user) + (PAGES.containsKey(page) ? "&p=" + page : "");
     }
 
     /** Sample shown on メールテンプレート設定. */

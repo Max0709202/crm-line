@@ -963,6 +963,10 @@
                     <span class="tag-desc">返信URL（常にCRM本体の返信画面／メッセージボックスへ、送信時に自動生成）</span>
                 </div>
                 <div class="tag-row">
+                    <code class="tag-name" data-token="%memo_url%">%memo_url%</code>
+                    <span class="tag-desc" th:text="'専用HTML（' + ${@domainSettingService.getReplyBaseUrl()} + '/member/memo を表示するURLで置換されます・ユーザーごとに自動ログイン）'">専用HTML</span>
+                </div>
+                <div class="tag-row">
                     <code class="tag-name" data-token="%external_url%">%external_url%</code>
                     <span class="tag-desc">外部リンクドメインURL（使用中のドメイン経由、無ければ空欄）</span>
                 </div>

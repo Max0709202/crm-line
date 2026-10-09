@@ -829,3 +829,11 @@ CREATE TABLE IF NOT EXISTS MEMBER_UNLOCK (
   CREATED_AT DATETIME    NOT NULL,
   UNIQUE KEY UK_MEMBER_UNLOCK (USER_ID, KIND, REF_ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- お知らせ (専用HTML, LINE用 footer): which 専用HTML the member last viewed — the footer's NEW mark
+-- shows while the member's current 専用HTML differs from it.
+CREATE TABLE IF NOT EXISTS MEMBER_MEMO_SEEN (
+  USER_ID   BIGINT      NOT NULL PRIMARY KEY,
+  SEEN_HASH VARCHAR(64) NOT NULL,
+  SEEN_AT   DATETIME    NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -71,4 +71,6 @@ public class UserAccessLog {
     public static final String SOURCE_REPLY_VIEW = "REPLY_VIEW";
     public static final String SOURCE_REPLY_SUBMIT = "REPLY_SUBMIT";
     public static final String SOURCE_INBOUND_MAIL = "INBOUND_MAIL";
+    /** お知らせ (専用HTML, /member/memo or %memo_url%) viewed. */
+    public static final String SOURCE_MEMO_VIEW = "MEMO_VIEW";
 }

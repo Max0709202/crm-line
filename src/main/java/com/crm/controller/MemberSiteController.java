@@ -73,6 +73,7 @@ public class MemberSiteController {
         URLS.put("profile", PublicSiteService.PROFILE_URL);
         URLS.put("points", "/member/points");
         URLS.put("point_table", "/member/point-table");
+        URLS.put(MemberPageService.MEMO, "/member/memo");
     }
 
     private final MemberSiteService site;
@@ -103,6 +104,16 @@ public class MemberSiteController {
         this.messageImageService = messageImageService;
         this.htmlImageService = htmlImageService;
         this.throttle = throttle;
+    }
+
+    /** お知らせ (専用HTML) and its access log — optional so hand-built instances (tests) work without them. */
+    private com.crm.service.MemberNoticeService notice;
+    private com.crm.service.UserActivityService userActivityService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setNotice(com.crm.service.MemberNoticeService notice, com.crm.service.UserActivityService userActivityService) {
+        this.notice = notice;
+        this.userActivityService = userActivityService;
     }
 
     /* ===================== ログイン / ログアウト ===================== */
@@ -150,6 +161,8 @@ public class MemberSiteController {
     public Object menu(HttpServletRequest request, HttpSession session) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
+        // LINE用 (スマホ): no MENU — 受信BOX is its first page
+        if (line(request, u)) return "redirect:/member/inbox";
         touch(session, u);
         return render("menu", request, u, null, null);
     }
@@ -209,12 +222,16 @@ public class MemberSiteController {
             }
             if (sentTab) b.append(pager(pageBase, p, pages, true));
         } else {
-            b.append("<div class=\"tabs\">");
-            for (String[] x : tabs) {
-                b.append("<a class=\"tab").append(x[0].equals(t) ? " active" : "").append("\" style=\"display:block;text-decoration:none;color:inherit\" href=\"/member/inbox?tab=")
-                        .append(x[0]).append("\">").append(x[1]).append("</a>");
+            // LINE用: no すべて／未読／お気に入り／送信済み tabs — 送信済 is in the footer menu
+            if (!line(request, u)) {
+                b.append("<div class=\"tabs\">");
+                for (String[] x : tabs) {
+                    b.append("<a class=\"tab").append(x[0].equals(t) ? " active" : "").append("\" style=\"display:block;text-decoration:none;color:inherit\" href=\"/member/inbox?tab=")
+                            .append(x[0]).append("\">").append(x[1]).append("</a>");
+                }
+                b.append("</div>");
             }
-            b.append("</div><div class=\"tools\"><select onchange=\"location.href='/member/inbox?tab=").append(t)
+            b.append("<div class=\"tools\"><select onchange=\"location.href='/member/inbox?tab=").append(t)
                     .append("'+(this.value?'&amp;c='+this.value:'')\"><option value=\"\">過去の受信者から選択</option>");
             for (Map.Entry<Long, String> s : senders.entrySet()) {
                 b.append("<option value=\"").append(s.getKey()).append("\"").append(s.getKey().equals(charaFilter) ? " selected" : "")
@@ -248,7 +265,7 @@ public class MemberSiteController {
             b.append("<div class=\"boxline\"></div></section>");
             if (sentTab) b.append(pager(pageBase, p, pages, false));
         }
-        return render("inbox", request, u, b.toString(), null);
+        return render("inbox", request, u, b.toString(), sentTab && line(request, u) ? "送信済" : null);
     }
 
     /* ===================== 受信一覧 (one キャラ's mails) ===================== */
@@ -392,9 +409,14 @@ public class MemberSiteController {
         return e(body);
     }
 
+    /** 受信一覧 → 返信 of one mail: opens at the top (キャラ, then that received mail). With "#m…" the
+     *  browser scrolled the mail under the fixed header, so the page showed the 入力欄 first. */
     private static String replyHref(long charaId, Message m) {
-        return "/member/reply?c=" + charaId + "&amp;m=" + m.getId() + "#m" + m.getId();
+        return "/member/reply?c=" + charaId + "&amp;m=" + m.getId();
     }
+
+    /** A message row's anchor target (#m…) clears the fixed header (ID・PT and the page-name bar). */
+    private static final String ROW_SCROLL = " style=\"scroll-margin-top:calc(var(--hh, 0px) + 44px)\"";
 
     /* ===================== 返信 (やり取り・送信) ===================== */
 
@@ -494,7 +516,7 @@ public class MemberSiteController {
             if (fp) {
                 b.append("<div class=\"row\" id=\"m").append(m.getId()).append("\"><small>").append(head).append("</small><br>").append(body).append("</div>");
             } else {
-                b.append("<div class=\"row\" id=\"m").append(m.getId()).append("\"><div class=\"key\">").append(head)
+                b.append("<div class=\"row\" id=\"m").append(m.getId()).append("\"").append(ROW_SCROLL).append("><div class=\"key\">").append(head)
                         .append("</div><div class=\"field\">").append(body).append("</div></div>");
             }
         }
@@ -519,15 +541,20 @@ public class MemberSiteController {
                 .append(sendOnly ? "<input type=\"hidden\" name=\"send\" value=\"true\">" : "")
                 .append(field(fp, "タイトル", "<input type=\"text\" name=\"subject\" maxlength=\"" + MemberSiteService.SUBJECT_MAX + "\"" + sameSize + ">"))
                 .append(field(fp, "本文", "<textarea name=\"body\" maxlength=\"" + MemberSiteService.BODY_MAX + "\" required" + sameSize + "></textarea>"));
+        // LINE用: no 写真添付 / アドレス添付
+        boolean line = line(request, u);
+        if (line) address = false;
         StringBuilder attach = new StringBuilder();
-        attach.append("<div><label style=\"display:inline;font-weight:800\">写真添付</label> <input type=\"file\" name=\"photo\" accept=\"image/*\"></div>");
+        if (!line) attach.append("<div><label style=\"display:inline;font-weight:800\">写真添付</label> <input type=\"file\" name=\"photo\" accept=\"image/*\"></div>");
         if (address || tel) {
-            attach.append("<div style=\"margin-top:10px;display:flex;flex-wrap:wrap;gap:8px 28px\">");
+            attach.append("<div style=\"").append(line ? "" : "margin-top:10px;").append("display:flex;flex-wrap:wrap;gap:8px 28px\">");
             if (address) attach.append("<label style=\"display:inline;font-weight:800\"><input type=\"checkbox\" name=\"address\" value=\"true\"> アドレス添付</label>");
             if (tel) attach.append("<label style=\"display:inline;font-weight:800\"><input type=\"checkbox\" name=\"tel\" value=\"true\"> 電話番号添付</label>");
             attach.append("</div>");
         }
-        b.append(fp ? "<div class=\"row\">" + attach + "</div>" : "<div class=\"row\" style=\"display:block;padding:12px 15px\">" + attach + "</div>");
+        if (attach.length() > 0) {
+            b.append(fp ? "<div class=\"row\">" + attach + "</div>" : "<div class=\"row\" style=\"display:block;padding:12px 15px\">" + attach + "</div>");
+        }
         b.append(fp ? "<div class=\"row\"><button class=\"btn\">送信</button>（" + mailCost + "ポイント）</div>"
                 : "<div class=\"actions\"><button class=\"btn\">送信</button><div class=\"note\" style=\"padding:6px 0 0\">メール送信 " + mailCost + "ポイント</div></div>");
         b.append("</form>");
@@ -551,9 +578,11 @@ public class MemberSiteController {
         MemberSiteService.SendInput in = new MemberSiteService.SendInput();
         in.subject = subject;
         in.body = body;
-        in.address = address;
+        // LINE用: no 写真添付 / アドレス添付 (not on its form — a crafted POST can't add them either)
+        boolean line = line(request, u);
+        in.address = address && !line;
         in.tel = tel;
-        in.photo = photo;
+        in.photo = line ? null : photo;
         try {
             site.send(u, charaId, in, ClientIpResolver.resolve(request), request.getHeader("User-Agent"));
             // 送信後: 「メッセージを送信しました」で 送信済み へ
@@ -673,6 +702,42 @@ public class MemberSiteController {
         }
         b.append(sendOrBack(c, from, fp));
         return render("reply", request, u, b.toString(), "写真閲覧");
+    }
+
+    /* ===================== お知らせ (専用HTML) ===================== */
+
+    /**
+     * お知らせ — the member's 専用HTML (使用中 slot; none = the 返信画面設定's default HTML) at one URL for
+     * every member: each sees their own. Reached from the LINE用 footer, a link in the HTML areas, or
+     * %memo_url% (自動ログイン). Viewing it clears the footer's NEW and is logged as an access
+     * (専用HTML閲覧) with the member's 最終ログイン, so the operator can see the member logged in.
+     */
+    @GetMapping("/member/memo")
+    public Object memo(HttpServletRequest request, HttpSession session) {
+        CrmUser u = member(session);
+        if (u == null) return toLogin();
+        boolean fp = fp(request);
+        String html = notice == null ? null : notice.html(u);
+        if (!preview(session)) {
+            try {
+                if (notice != null) notice.markSeen(u);
+            } catch (RuntimeException e) {
+                // two opens at once (double tap): the other request saved it — the page still shows
+                org.slf4j.LoggerFactory.getLogger(MemberSiteController.class).debug("memo seen not saved: {}", e.toString());
+            }
+            if (userActivityService != null) {
+                userActivityService.touchLastLogin(u, com.crm.entity.UserAccessLog.SOURCE_MEMO_VIEW,
+                        ClientIpResolver.resolve(request), request.getHeader("User-Agent"));
+            } else {
+                site.touch(u);
+            }
+        }
+        StringBuilder b = new StringBuilder(fp ? "" : "<section class=\"box\" style=\"overflow:visible\">");
+        if (html == null) b.append(fp ? "<div class=\"row\">お知らせはありません</div>" : "<div class=\"note\">お知らせはありません</div>");
+        else b.append("<div class=\"member-memo\" style=\"padding:").append(fp ? "8px" : "12px").append(";word-break:break-word\">")
+                .append(UserController.repairHtml(html)).append("</div>");
+        if (!fp) b.append("</section>");
+        return render(MemberPageService.MEMO, request, u, b.toString(), "お知らせ");
     }
 
     /* ===================== 友達追加リスト ===================== */
@@ -1052,12 +1117,34 @@ public class MemberSiteController {
         values.put("name", nz(u.getDisplayName(), ""));
         values.put("point", String.format("%,d", site.points(u)));
         values.put("email", nz(u.getEmail(), ""));
+        if (line(request, u)) {
+            String page = LINE_PAGE.getOrDefault(code, "inbox");
+            String html = pages.renderLine(page, values, mainHtml, title != null ? title : MemberPageService.BAR_TITLES.get(code),
+                    site.unreadCount(u), notice != null && notice.isNew(u));
+            if (preview(request.getSession(false))) html = previewBanner(html, u);
+            return html(html);
+        }
         String html = pages.renderMember(code, fp(request) ? "fp" : "sp", values, u.getFolder(), mainHtml, title,
                 site.unreadCount(u), c -> URLS.getOrDefault(c, "/member/menu"));
         // ガラケー footer「戻る」(every page but MENU)
         if (fp(request)) html = html.replace("<a href=\"#back\">", "<a href=\"" + e(fpBack(request)) + "\">");
         if (preview(request.getSession(false))) html = previewBanner(html, u);
         return html(html);
+    }
+
+    /** Member page code → the LINE用 page whose HTML frames it (others: 受信BOX's). */
+    private static final Map<String, String> LINE_PAGE = new HashMap<>();
+    static {
+        LINE_PAGE.put("inbox", "inbox");
+        LINE_PAGE.put("reply", "reply");
+        LINE_PAGE.put(MemberPageService.MEMO, "memo");
+        LINE_PAGE.put("points", "points");
+        LINE_PAGE.put("point_table", "points");
+    }
+
+    /** LINE用 pages: a スマホ / PC browser (not ガラケー) of a member in a 番組デザイン設定 LINE用 folder. */
+    private boolean line(HttpServletRequest request, CrmUser u) {
+        return !fp(request) && siteDesignService.isLineFolder(u.getFolder());
     }
 
     /**

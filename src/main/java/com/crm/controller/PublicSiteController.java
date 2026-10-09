@@ -72,10 +72,13 @@ public class PublicSiteController {
      * The session cookie is SameSite=Strict, and a redirect straight from a mail link would still
      * count as cross-site, so the browser would not send the new cookie on it. This page therefore
      * moves on to the member page itself (same-site), where the session is seen: the member TOP
-     * (MENU). Unknown token or a member that isn't 本登録済み → the top page's ログイン.
+     * (MENU), or with {@code p} the page of %memo_url% / %inbox_url% / %points_url%
+     * ({@link com.crm.service.MemberAutoLoginService#PAGES}). Unknown token or a member that isn't
+     * 本登録済み → the top page's ログイン.
      */
     @GetMapping(com.crm.service.MemberAutoLoginService.PATH)
     public ResponseEntity<String> autoLogin(@RequestParam(name = "t", required = false) String token,
+                                            @RequestParam(name = "p", required = false) String page,
                                             HttpServletRequest request) {
         Optional<CrmUser> user = autoLoginService.resolve(token);
         String next = "/#login";
@@ -85,7 +88,8 @@ public class PublicSiteController {
             HttpSession session = request.getSession(true);
             if (!session.isNew()) request.changeSessionId();
             session.setAttribute(SESSION_MEMBER_ID, user.get().getId());
-            next = "/member/menu";
+            String target = page == null ? null : com.crm.service.MemberAutoLoginService.PAGES.get(page);
+            next = target == null ? "/member/menu" : target;
         }
         String html = "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"robots\" content=\"noindex\">"
