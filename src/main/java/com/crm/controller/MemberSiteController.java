@@ -249,7 +249,7 @@ public class MemberSiteController {
                         .append(e(name(g.chara))).append("</b>　").append(unreadBadge(g.unread)).append(g.unread > 0 ? " <span class=\"new\">NEW</span>" : "")
                         .append("<div class=\"preview\">").append(titleAndBody(g.latest, "<br>")).append("</div></div><div class=\"date\">")
                         .append(when(g.latest)).append("</div><div class=\"msgactions\">");
-                if (g.chara != null) b.append(charaButtons(request, u, g.chara, friendIds.contains(g.chara.getId()), pageBase, false));
+                if (g.chara != null && !MemberSiteService.isLineSender(g.chara)) b.append(charaButtons(request, u, g.chara, friendIds.contains(g.chara.getId()), pageBase, false));
                 b.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a></div></div>");
             }
             // 送信済み: as before (no age), 受信一覧 instead of やり取りを見る
@@ -259,7 +259,7 @@ public class MemberSiteController {
                 b.append("<div class=\"avatar\">").append(avatar(u, it.chara)).append("</div><div><b>To: ").append(e(name(it.chara)))
                         .append("</b><div class=\"preview\">").append(e(preview(u, it)))
                         .append("</div></div><div class=\"date\">").append(when(it.message)).append("</div><div class=\"msgactions\">");
-                if (it.chara != null) b.append(charaButtons(request, u, it.chara, friendIds.contains(it.chara.getId()), pageBase + "&page=" + p, false));
+                if (it.chara != null && !MemberSiteService.isLineSender(it.chara)) b.append(charaButtons(request, u, it.chara, friendIds.contains(it.chara.getId()), pageBase + "&page=" + p, false));
                 b.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a></div></div>");
             }
             b.append("<div class=\"boxline\"></div></section>");
@@ -278,10 +278,12 @@ public class MemberSiteController {
         if (u == null) return toLogin();
         touch(session, u);
         Chara chara = null;
-        if (charaId > 0) {
-            chara = site.chara(charaId).orElse(null);
+        if (charaId != 0) {
+            // < 0: a LINE送信 without a キャラ, shown as from its LINE account
+            chara = (charaId > 0 ? site.chara(charaId) : site.lineSender(charaId)).orElse(null);
             if (chara == null) return "redirect:/member/inbox";
         }
+        boolean realChara = charaId > 0;
         boolean fp = fp(request);
         // received only, newest first, 10 per page
         List<MemberSiteService.InboxItem> all = site.charaInbox(u, charaId);
@@ -296,7 +298,7 @@ public class MemberSiteController {
         if (fp) {
             b.append("<div class=\"row\"><b>").append(e(name(chara))).append("</b> ").append(unreadBadge(unread))
                     .append(unread > 0 ? " <span class=new>NEW</span>" : "");
-            if (chara != null) {
+            if (realChara) {
                 b.append("<br><a href=\"/member/photo?c=").append(chara.getId()).append(fromParam(base + "&page=" + p)).append("\">写真閲覧</a>／<a href=\"/member/chara?c=")
                         .append(chara.getId()).append(fromParam(base + "&page=" + p)).append("\">プロフ閲覧</a>");
             }
@@ -311,7 +313,7 @@ public class MemberSiteController {
             b.append("<section class=\"box\"><div class=\"boxline\"></div><div class=\"person\"><div class=\"avatar\">").append(avatar(u, chara))
                     .append("</div><div class=\"grow\"><b>").append(e(name(chara))).append("</b>　").append(unreadBadge(unread))
                     .append(unread > 0 ? " <span class=\"new\">NEW</span>" : "");
-            if (chara != null) {
+            if (realChara) {
                 b.append("<div class=\"pbtns\">").append(charaButtons(request, u, chara, site.isFriend(u, chara.getId()), base + "&page=" + p, true)).append("</div>");
             }
             b.append("</div></div>");
@@ -430,10 +432,12 @@ public class MemberSiteController {
         if (u == null) return toLogin();
         touch(session, u);
         Chara chara = null;
-        if (charaId > 0) {
-            chara = site.chara(charaId).orElse(null);
+        if (charaId != 0) {
+            // < 0: a LINE送信 without a キャラ, shown as from its LINE account
+            chara = (charaId > 0 ? site.chara(charaId) : site.lineSender(charaId)).orElse(null);
             if (chara == null) return "redirect:/member/inbox";
         }
+        boolean realChara = charaId > 0;
         boolean fp = fp(request);
         boolean support = charaId == 0;
         // 送信 (友達追加リスト・条件検索 → メッセージを送る): only the 送信画面, without the やり取り
@@ -447,12 +451,12 @@ public class MemberSiteController {
         }
         // 1通ずつ既読: only the mail clicked in 受信一覧 becomes 既読 (サポート窓口: no 閲覧pt)
         if (!preview(session)) {
-            if (support) site.openSupportMails(u, conv, openedId);
+            if (support || !realChara) site.openSupportMails(u, conv, openedId);
             else site.markReadIfFree(u, conv, openedId);
         }
         Set<Long> allImages = new LinkedHashSet<>();
         for (MemberSiteService.ConvItem it : conv) allImages.addAll(it.images);
-        Set<Long> openImgs = support ? allImages : site.openImages(u, allImages);
+        Set<Long> openImgs = support || !realChara ? allImages : site.openImages(u, allImages);
         int bodyCost = site.cost(MemberSiteService.COST_BODY, u);
         int photoCost = site.cost(MemberSiteService.COST_PHOTO, u);
         String back = "/member/reply?c=" + charaId + (openedId == null ? "" : "&m=" + openedId) + (sendOnly ? "&send=1" : "");
@@ -461,7 +465,7 @@ public class MemberSiteController {
         if (fp) {
             b.append(note == null ? "" : "<div class=\"row\">" + e(note) + "</div>");
             b.append("<div class=\"row\"><b>").append(e(name(chara))).append("</b>").append(age(chara));
-            if (chara != null) {
+            if (realChara) {
                 b.append("<br><a href=\"/member/photo?c=").append(chara.getId()).append(fromParam(back)).append("\">写真閲覧</a>／<a href=\"/member/chara?c=")
                         .append(chara.getId()).append(fromParam(back)).append("\">プロフ閲覧</a>");
             }
@@ -470,7 +474,7 @@ public class MemberSiteController {
             b.append("<section class=\"box\"><div class=\"boxline\"></div>").append(note == null ? "" : "<div class=\"note\">" + e(note) + "</div>")
                     .append("<div class=\"person\"><div class=\"avatar\">").append(avatar(u, chara)).append("</div><div class=\"grow\"><b>")
                     .append(e(name(chara))).append("</b>　<small>").append(ageText(chara)).append("</small>");
-            if (chara != null) {
+            if (realChara) {
                 b.append("<div class=\"pbtns\">").append(charaButtons(request, u, chara, site.isFriend(u, chara.getId()), back, true, true,
                         sendOnly ? null : back)).append("</div>");
             }
@@ -526,6 +530,12 @@ public class MemberSiteController {
         if (support) {
             // サポート窓口: 本文の下に サポート窓口 の送信画面 (送信後はこの画面に戻る)
             b.append(supportForm(request, u, fp, back));
+            if (!fp) b.append("<div class=\"boxline\"></div></section>");
+            return render("reply", request, u, b.toString(), null);
+        }
+        if (!realChara) {
+            // LINE送信 (LINE account): read here, replied to in LINE — no 送信フォーム
+            b.append(fp ? "<div class=\"row\">返信はLINEから送信してください</div>" : "<div class=\"note\">返信はLINEから送信してください</div>");
             if (!fp) b.append("<div class=\"boxline\"></div></section>");
             return render("reply", request, u, b.toString(), null);
         }

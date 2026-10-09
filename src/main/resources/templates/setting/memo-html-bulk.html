@@ -81,7 +81,7 @@
                     onclick="var i=document.getElementById('memoPageUrl');i.select();try{navigator.clipboard.writeText(i.value);}catch(e){document.execCommand('copy');}this.textContent='コピーしました';">コピー</button>
         </div>
         <p class="text-xs text-slate-600 leading-relaxed">
-            ①〜⑩のうち、ユーザーごとに「使用中」になっているスロットの専用HTMLを表示するURLです（URLは1つで、表示内容はユーザーごとに変わります。未設定のユーザーは返信画面のデフォルトHTML）。
+            ①〜⑩のうち、ユーザーごとに「使用中」になっているスロットの専用HTMLを表示するURLです（URLは1つで、表示内容はユーザーごとに変わります）。
             ログインしたユーザーだけが開け、開いたときに最終ログインとアクセスログ（専用HTML閲覧）が記録されるので、ユーザー詳細でログインを確認できます。<br/>
             ・<strong>ログイン後のHTMLにリンクとして貼る場合</strong>：<code>/member/memo</code> を使ってください。<br/>
             ・<strong>ユーザーへ直接配信する場合</strong>：本文に置き換えタグ <code>%memo_url%</code> を入れてください。
@@ -147,11 +147,7 @@
             </button>
         </div>
         <div class="flex items-center gap-2 pt-3 flex-wrap">
-            <span class="text-xs text-slate-500">プレビュー →</span>
-            <a class="inline-flex items-center px-2 py-1.5 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded-md"
-               th:href="@{/manager/settings/memo-html-bulk/preview(siteDefault=true)}" target="_blank">使用中 (site default)</a>
-            <span class="text-xs text-slate-700">← 返信画面HTMLが未設定の場合デフォルト表示します</span>
-            <span class="text-xs text-slate-700 ml-2">※ 個別で設定する場合はユーザー詳細ページから設定してください</span>
+            <span class="text-xs text-slate-700">※ 個別で設定する場合はユーザー詳細ページから設定してください</span>
         </div>
         <div class="flex items-center gap-2 pt-2 flex-wrap">
             <span class="text-xs text-slate-500">各スロット表示プレビュー（下書き保存した内容）→</span>

@@ -7,6 +7,12 @@
 <!--/* 返信URL → 会員ページ: like the 自動ログインURL page, move on from here (same-site) so the browser
        sends the session cookie that was just set on the link's cross-site request. */-->
 <meta http-equiv="refresh" th:attr="content='0;url=' + ${next}">
+<th:block th:if="${ogpEnabled}">
+    <meta property="og:type" content="website"/>
+    <meta th:if="${ogpTitle != null and !ogpTitle.isEmpty()}" property="og:title" th:content="${ogpTitle}"/>
+    <meta th:if="${ogpDescription != null and !ogpDescription.isEmpty()}" property="og:description" th:content="${ogpDescription}"/>
+    <meta th:if="${ogpImageUrl != null and !ogpImageUrl.isEmpty()}" property="og:image" th:content="${ogpImageUrl}"/>
+</th:block>
 <title>ログイン</title>
 </head>
 <body>

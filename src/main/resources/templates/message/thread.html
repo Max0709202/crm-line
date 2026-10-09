@@ -21,6 +21,10 @@
         @keyframes flashToastOut { to { opacity: 0; visibility: hidden; } }
 
         .wsx { position:relative; height:100vh; box-sizing:border-box; background:#f1f5f9; color:#334155; }
+        /* 更新時のちらつき防止: 4画面の配置・受信ボックスの表示（未対応など）をスクリプトで整えてから表示する
+           （画面が一瞬右にずれる／全受信履歴が出てから未対応に戻る）。スクリプトが止まっても1秒後には表示 */
+        .wsx:not(.is-ready) { visibility:hidden; animation:wsxReveal 0s 1s forwards; }
+        @keyframes wsxReveal { to { visibility:visible; } }
         .wsx .pane { position:absolute; box-sizing:border-box; background:#fff; overflow:hidden; display:flex; flex-direction:column; min-width:0; min-height:0;
                      border:1px solid #e2e8f0; border-radius:6px; }
         .wsx .pane > .body { flex:1; overflow-y:auto; overflow-x:hidden; padding:6px 10px; min-height:0; }
@@ -1835,6 +1839,10 @@ function deleteDiffReservation(btn) {
         }
     });
 })();
+</script>
+<script>
+// 4画面の配置と受信ボックスの表示が済んだので表示する（上の .wsx:not(.is-ready)）
+(function () { var w = document.querySelector('.wsx'); if (w) w.classList.add('is-ready'); })();
 </script>
 </section>
 </body>

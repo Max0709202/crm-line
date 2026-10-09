@@ -148,6 +148,12 @@ public class MemberSiteService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setDomainSettingService(DomainSettingService domainSettingService) { this.domainSettingService = domainSettingService; }
 
+    /** LINE送信 without a キャラ: shown as from the LINE account (its 名前). Optional (tests). */
+    private com.crm.repository.LineAccountRepository lineAccountRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setLineAccountRepository(com.crm.repository.LineAccountRepository lineAccountRepository) { this.lineAccountRepository = lineAccountRepository; }
+
     /** 表示文字数: the 本文 shown in the 受信BOX / 受信一覧 — as much as the mail itself showed. */
     public int previewLength() {
         return domainSettingService == null ? 30 : domainSettingService.getEmailReplyUrlClipLength();
@@ -222,6 +228,7 @@ public class MemberSiteService {
         List<Message> msgs = sentTab ? messageRepository.findMemberSent(u.getId(), PageRequest.of(0, INBOX_MAX)) : inboxMessages(u);
         Map<Long, Long> charaByMsg = charaLinkService.charaIdsOfMessages(msgs);
         Map<Long, Chara> charas = charasById(new HashSet<>(charaByMsg.values()));
+        Map<Long, Chara> lineSenders = lineSenders(msgs, charaByMsg);
         List<Long> ids = new ArrayList<>();
         for (Message m : msgs) ids.add(m.getId());
         Set<Long> read = sentTab ? Collections.<Long>emptySet() : unlockService.unlocked(u.getId(), MemberUnlockService.BODY, ids);
@@ -230,7 +237,7 @@ public class MemberSiteService {
         List<InboxItem> out = new ArrayList<>();
         for (Message m : msgs) {
             Long cid = charaByMsg.get(m.getId());
-            Chara c = cid == null ? null : charas.get(cid);
+            Chara c = cid == null ? lineSenders.get(m.getLineAccountId()) : charas.get(cid);
             if (charaId != null && !charaId.equals(c == null ? 0L : c.getId())) continue;
             boolean unread = !sentTab && !read.contains(m.getId());
             if ("unread".equals(tab) && !unread) continue;
@@ -276,10 +283,11 @@ public class MemberSiteService {
         List<Message> msgs = inboxMessages(u);
         Map<Long, Long> charaByMsg = charaLinkService.charaIdsOfMessages(msgs);
         Map<Long, Chara> charas = charasById(new HashSet<>(charaByMsg.values()));
+        Map<Long, Chara> lineSenders = lineSenders(msgs, charaByMsg);
         Map<Long, String> out = new LinkedHashMap<>();
         for (Message m : msgs) {
             Long cid = charaByMsg.get(m.getId());
-            Chara c = cid == null ? null : charas.get(cid);
+            Chara c = cid == null ? lineSenders.get(m.getLineAccountId()) : charas.get(cid);
             if (c == null) out.putIfAbsent(0L, SUPPORT_NAME);
             else out.putIfAbsent(c.getId(), c.getName());
         }
@@ -293,29 +301,71 @@ public class MemberSiteService {
     }
 
     /**
+     * A LINE送信 sent without a キャラ is shown in the 受信BOX as from its LINE account: a display-only
+     * (never saved) キャラ with the account's 名前 and the key −(LINE account ID), so 受信一覧 / 返信
+     * ({@code c=}) reach it. Its mails are read without 本文閲覧 points (the text already came in LINE).
+     */
+    public Optional<Chara> lineSender(long key) {
+        if (key >= 0 || lineAccountRepository == null) return Optional.empty();
+        return lineAccountRepository.findById(-key).map(a -> lineSenderOf(a.getId(), a.getName()));
+    }
+
+    /** Is {@code c} a LINE account shown as the sender ({@link #lineSender}), not a real キャラ? */
+    public static boolean isLineSender(Chara c) {
+        return c != null && c.getId() != null && c.getId() < 0;
+    }
+
+    private static Chara lineSenderOf(Long accountId, String name) {
+        Chara c = new Chara();
+        c.setId(-accountId);
+        c.setName(name == null || name.trim().isEmpty() ? "LINE" : name);
+        return c;
+    }
+
+    /** LINE account ID → its {@link #lineSender} for the LINE messages of {@code msgs} that have no キャラ. */
+    private Map<Long, Chara> lineSenders(List<Message> msgs, Map<Long, Long> charaByMsg) {
+        Map<Long, Chara> out = new HashMap<>();
+        if (lineAccountRepository == null) return out;
+        Set<Long> accountIds = new HashSet<>();
+        for (Message m : msgs) {
+            if (Message.CHANNEL_LINE.equals(m.getChannel()) && m.getLineAccountId() != null && !charaByMsg.containsKey(m.getId())) {
+                accountIds.add(m.getLineAccountId());
+            }
+        }
+        if (accountIds.isEmpty()) return out;
+        for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(accountIds)) out.put(a.getId(), lineSenderOf(a.getId(), a.getName()));
+        return out;
+    }
+
+    /**
      * The member's messages with one キャラ (0 = サポート窓口 / no キャラ), oldest first: the キャラ's mails / SMS
-     * and the member's own (Web返信 / mail replies). LINE stays in the LINE app.
+     * and the member's own (Web返信 / mail replies). LINE: only what was sent to the member (as in the
+     * 受信BOX); a LINE送信 without a キャラ belongs to its LINE account (charaId −account ID, {@link #lineSender}).
      */
     public List<ConvItem> conversation(CrmUser u, long charaId) {
         List<Message> all = new ArrayList<>();
         for (Message m : messageRepository.findByUserIdOrderByCreatedAtAsc(u.getId())) {
-            if (Message.CHANNEL_LINE.equals(m.getChannel())) continue;
+            if (Message.CHANNEL_LINE.equals(m.getChannel()) && !Message.DIR_OUT.equals(m.getDirection())) continue;
             if (Message.DIR_OUT.equals(m.getDirection())) {
                 if (!Message.STATUS_SENT.equals(m.getStatus()) || m.getBoxDismissedAt() != null) continue;
             }
             all.add(m);
         }
         Map<Long, Long> charaByMsg = charaLinkService.charaIdsOfMessages(all);
+        // the same キャラ as the 受信BOX (a LINE account that no longer exists = サポート窓口)
+        Map<Long, Chara> lineSenders = lineSenders(all, charaByMsg);
         List<Message> mine = new ArrayList<>();
         for (Message m : all) {
             Long cid = charaByMsg.get(m.getId());
-            if (charaId == (cid == null ? 0L : cid)) mine.add(m);
+            Chara line = cid == null ? lineSenders.get(m.getLineAccountId()) : null;
+            long key = cid != null ? cid : line != null ? line.getId() : 0L;
+            if (charaId == key) mine.add(m);
         }
         List<Long> outIds = new ArrayList<>();
         for (Message m : mine) if (Message.DIR_OUT.equals(m.getDirection())) outIds.add(m.getId());
         Set<Long> read = unlockService.unlocked(u.getId(), MemberUnlockService.BODY, outIds);
-        // サポート窓口 is not a キャラ: its mails are read without 本文閲覧 points
-        boolean free = charaId == 0 || cost(COST_BODY, u) <= 0;
+        // サポート窓口 / a LINE account are not キャラ: their mails are read without 本文閲覧 points
+        boolean free = charaId <= 0 || cost(COST_BODY, u) <= 0;
         Map<Long, List<Long>> images = messageImageService.imageIdsOfMessages(mine);
         List<ConvItem> out = new ArrayList<>();
         for (Message m : mine) {
@@ -419,6 +469,7 @@ public class MemberSiteService {
      */
     @Transactional
     public Message send(CrmUser u, long charaId, SendInput in, String ip, String ua) {
+        if (charaId < 0) throw new MemberException("LINEのメッセージにはLINEからご返信ください");
         Chara chara = null;
         if (charaId > 0) chara = chara(charaId).orElseThrow(() -> new MemberException("お相手が見つかりません"));
         String subject = in.subject == null ? "" : in.subject.trim();

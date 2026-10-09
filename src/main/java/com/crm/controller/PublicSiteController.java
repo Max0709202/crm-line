@@ -80,7 +80,19 @@ public class PublicSiteController {
     public ResponseEntity<String> autoLogin(@RequestParam(name = "t", required = false) String token,
                                             @RequestParam(name = "p", required = false) String page,
                                             HttpServletRequest request) {
-        Optional<CrmUser> user = autoLoginService.resolve(token);
+        return autoLogin(autoLoginService.resolve(token), page, request);
+    }
+
+    /** 短縮URL of the 自動ログインURL (LINE設定 短縮URL): {@code /m/{token}} → MENU, {@code /m/{token}/{page}} → that page. */
+    @GetMapping({com.crm.service.MemberAutoLoginService.SHORT_PATH + "/{token}",
+            com.crm.service.MemberAutoLoginService.SHORT_PATH + "/{token}/{page}"})
+    public ResponseEntity<String> shortAutoLogin(@PathVariable String token,
+                                                 @PathVariable(name = "page", required = false) String page,
+                                                 HttpServletRequest request) {
+        return autoLogin(autoLoginService.resolveShort(token), page, request);
+    }
+
+    private ResponseEntity<String> autoLogin(Optional<CrmUser> user, String page, HttpServletRequest request) {
         String next = "/#login";
         if (user.isPresent()) {
             // New session ID (no session fixation) but the same session: the admin screens share this

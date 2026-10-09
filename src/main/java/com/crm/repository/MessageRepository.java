@@ -338,11 +338,11 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
     Page<Message> findMessageBoxPage(@org.springframework.data.repository.query.Param("userId") Long userId,
                                       Pageable pageable);
 
-    /** 会員ページ › 受信BOX: キャラ mails / SMS sent to the member (LINE is its own app), newest first. */
+    /** 会員ページ › 受信BOX: キャラ mails / SMS / LINE sent to the member, newest first. */
     @org.springframework.data.jpa.repository.Query(
             "SELECT m FROM Message m WHERE m.userId = :userId " +
             "AND m.direction = 'OUT' AND m.status = 'SENT' " +
-            "AND m.channel IN ('EMAIL','SMS','BROADCAST') " +
+            "AND m.channel IN ('EMAIL','SMS','BROADCAST','LINE') " +
             "AND m.boxDismissedAt IS NULL " +
             "ORDER BY m.sentAt DESC, m.id DESC")
     List<Message> findMemberInbox(@org.springframework.data.repository.query.Param("userId") Long userId, Pageable pageable);

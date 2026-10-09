@@ -210,6 +210,8 @@ public class ReplyPageController {
         // login keep the reply page below. LINE用 folders' users go the same way, to the LINE用 pages.
         if (user.isPresent() && memberPages(user.get())) {
             model.addAttribute("next", memberHandoff(request, user.get(), rp.getMessageId()));
+            // LINE fetches this URL for its link card: the hand-off page carries the OGP too
+            addOgpAttributes(model);
             return "member/handoff";
         }
 
@@ -318,6 +320,11 @@ public class ReplyPageController {
         if (msg.isPresent() && charaLinkService != null) {
             Long cid = charaLinkService.charaIdsOfMessages(java.util.Collections.singletonList(msg.get())).get(messageId);
             if (cid != null) charaId = cid;
+        }
+        // a LINE送信 without a キャラ is shown as from its LINE account (MemberSiteService#lineSender)
+        if (charaId == 0L && msg.isPresent() && Message.CHANNEL_LINE.equals(msg.get().getChannel())
+                && msg.get().getLineAccountId() != null) {
+            charaId = -msg.get().getLineAccountId();
         }
         return "/member/reply?c=" + charaId + (msg.isPresent() ? "#m" + messageId : "");
     }

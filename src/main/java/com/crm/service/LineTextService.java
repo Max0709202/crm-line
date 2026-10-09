@@ -48,6 +48,12 @@ public class LineTextService {
         this.placeholderService = placeholderService;
     }
 
+    /** 短縮URL of the 会員ページ URL tags — optional so hand-built instances (tests) work without it. */
+    private MemberAutoLoginService autoLoginService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setAutoLoginService(MemberAutoLoginService autoLoginService) { this.autoLoginService = autoLoginService; }
+
     /* ===================== 固定テンプレート設定 ===================== */
 
     public boolean isTemplateEnabled() { return "true".equals(get(KEY_TEMPLATE_ENABLED)); }
@@ -78,6 +84,12 @@ public class LineTextService {
     public void apply(Message msg, CrmUser user, String renderedBody) {
         String body = renderedBody == null ? "" : renderedBody;
         String template = isTemplateEnabled() ? placeholderService.substitute(getTemplate(), user) : "";
+        // 短縮URL: %memo_url% / %inbox_url% / %points_url% (already replaced) become /m/… as %reply_url% does
+        boolean shortUrl = isShortUrl();
+        if (shortUrl && autoLoginService != null) {
+            body = autoLoginService.shorten(body, user);
+            template = autoLoginService.shorten(template, user);
+        }
         boolean hasTemplate = !template.trim().isEmpty();
         int max = domainSettingService.getLineMaxBodyLength();
         boolean clip = visibleLength(body) > max;
@@ -91,7 +103,7 @@ public class LineTextService {
 
         String replyUrl = null, externalUrl = null;
         if (needPage) {
-            replyUrl = isShortUrl() ? replyPageService.createShortReplyPageFor(msg) : replyPageService.createReplyPageFor(msg);
+            replyUrl = shortUrl ? replyPageService.createShortReplyPageFor(msg) : replyPageService.createReplyPageFor(msg);
             externalUrl = domainSettingService.buildExternalUrl(msg.getReplyPageToken());
             msg.setExcludedFromBox(domainSettingService.isActiveLinkDomainExternalLanding());
         }
@@ -118,13 +130,17 @@ public class LineTextService {
         msg.setSentBodyText(s.equals(fullBody) ? null : s);
     }
 
-    /** Characters a reader sees (tags not counted; a surrogate pair counts once). */
+    /** A URL already in the text (e.g. %memo_url% / %inbox_url% replaced): never cut, not counted.
+     *  URL characters only — text typed right after it (「…をご覧ください」) is still counted. */
+    private static final java.util.regex.Pattern URL = java.util.regex.Pattern.compile("https?://[A-Za-z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%]+");
+
+    /** Characters a reader sees (tags and URLs not counted; a surrogate pair counts once). */
     static int visibleLength(String body) {
-        String t = body.replace(REPLY, "").replace(EXTERNAL, "");
+        String t = URL.matcher(body.replace(REPLY, "").replace(EXTERNAL, "")).replaceAll("");
         return t.codePointCount(0, t.length());
     }
 
-    /** The first {@code max} visible characters; tags met on the way are kept (as their URLs). */
+    /** The first {@code max} visible characters; tags and URLs met on the way are kept whole. */
     static String clipVisible(String body, int max, String replyUrl, String externalUrl, boolean[] replyIncluded) {
         StringBuilder out = new StringBuilder();
         int count = 0, i = 0;
@@ -138,6 +154,12 @@ public class LineTextService {
             if (body.startsWith(EXTERNAL, i)) {
                 out.append(externalUrl == null ? "" : externalUrl);
                 i += EXTERNAL.length();
+                continue;
+            }
+            java.util.regex.Matcher url = URL.matcher(body).region(i, body.length());
+            if (url.lookingAt()) {
+                out.append(url.group());
+                i = url.end();
                 continue;
             }
             int cp = body.codePointAt(i);

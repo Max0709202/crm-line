@@ -369,7 +369,7 @@
             <div class="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
                 <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md">保存</button>
                 <a class="inline-flex items-center px-3 py-2 text-sm border border-sky-500 text-sky-700 hover:bg-sky-50 rounded-md"
-                   th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank">返信画面HTMLプレビュー (現在設定中)</a>
+                   th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank">専用HTMLプレビュー (現在設定中)</a>
                 <a th:each="i : ${#numbers.sequence(1, 10)}"
                    class="inline-flex items-center px-2 py-2 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded-md"
                    th:classappend="${form.activeMemoSlot == i} ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-bold'"

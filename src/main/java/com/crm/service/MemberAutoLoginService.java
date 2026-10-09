@@ -33,6 +33,9 @@ public class MemberAutoLoginService {
         PAGES = java.util.Collections.unmodifiableMap(m);
     }
 
+    /** 短縮URL: {@code /m/{token}} (MENU) or {@code /m/{token}/{page}}. */
+    public static final String SHORT_PATH = "/m";
+
     private final MemberAutoLoginRepository repository;
     private final CrmUserRepository userRepository;
     private final DomainSettingService domainSettingService;
@@ -54,6 +57,47 @@ public class MemberAutoLoginService {
     @Transactional
     public String urlFor(CrmUser user, String page) {
         return urlFor(user) + (PAGES.containsKey(page) ? "&p=" + page : "");
+    }
+
+    /** Optional so hand-built instances (tests) work without it — there is then no 短縮URL. */
+    private com.crm.repository.MemberShortLoginRepository shortRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setShortRepository(com.crm.repository.MemberShortLoginRepository shortRepository) { this.shortRepository = shortRepository; }
+
+    /**
+     * LINE設定 短縮URL: the member's 自動ログインURLs in {@code text} (as {@link #urlFor} wrote them, with or
+     * without a page) become the short {@code /m/{token}/{page}} — the long one is cut off by LINE's
+     * 本文の最大文字数 and too long to read. Text without them is returned as it is.
+     */
+    @Transactional
+    public String shorten(String text, CrmUser user) {
+        if (text == null || shortRepository == null || user == null || user.getId() == null) return text;
+        Optional<MemberAutoLogin> a = repository.findById(user.getId());
+        if (!a.isPresent()) return text;
+        String longUrl = baseUrl() + PATH + "?t=" + a.get().getToken();
+        if (!text.contains(longUrl)) return text;
+        String shortUrl = baseUrl() + SHORT_PATH + "/" + shortTokenFor(user.getId());
+        String out = text;
+        for (String page : PAGES.keySet()) out = out.replace(longUrl + "&p=" + page, shortUrl + "/" + page);
+        return out.replace(longUrl, shortUrl);
+    }
+
+    /** The ACTIVE member a 短縮URL token belongs to (as {@link #resolve}). */
+    public Optional<CrmUser> resolveShort(String token) {
+        if (shortRepository == null || token == null || token.length() != TokenGenerator.DEFAULT_SHORT_LENGTH) return Optional.empty();
+        return shortRepository.findByToken(token)
+                .flatMap(a -> userRepository.findById(a.getUserId()))
+                .filter(u -> CrmUser.STATUS_ACTIVE.equals(u.getStatus()));
+    }
+
+    private String shortTokenFor(Long userId) {
+        Optional<com.crm.entity.MemberShortLogin> existing = shortRepository.findById(userId);
+        if (existing.isPresent()) return existing.get().getToken();
+        com.crm.entity.MemberShortLogin a = new com.crm.entity.MemberShortLogin();
+        a.setUserId(userId);
+        a.setToken(TokenGenerator.generateShortReplyToken());
+        return shortRepository.save(a).getToken();
     }
 
     /** Sample shown on メールテンプレート設定. */

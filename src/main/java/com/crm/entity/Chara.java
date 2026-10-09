@@ -70,6 +70,8 @@ public class Chara {
     }
 
     public Long getId() { return id; }
+    /** Only for a display-only (never saved) sender — see MemberSiteService#lineSender. */
+    public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getGender() { return gender; }

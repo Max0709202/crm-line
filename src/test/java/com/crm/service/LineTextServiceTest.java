@@ -101,4 +101,20 @@ class LineTextServiceTest {
     void emojiCountsAsOneCharacter() {
         assertThat(LineTextService.visibleLength("😀😀%reply_url%")).isEqualTo(2);
     }
+
+    @Test
+    void urlInTheBody_isNeverCut() {
+        // %memo_url% is replaced before the clip — the long 自動ログインURL must stay whole (it 404ed when cut)
+        String memo = "https://example.jp/member/auto-login?t=0123456789abcdef0123456789abcdef&p=memo";
+        Message m = apply(memo);
+        assertThat(m.getSentBodyText()).isNull();
+        assertThat(m.getBodyText()).isEqualTo(memo);
+        Message longer = apply("お知らせはこちら " + memo + " 12345678901234567890");
+        assertThat(longer.getSentBodyText()).startsWith("お知らせはこちら " + memo + " ");
+    }
+
+    @Test
+    void textRightAfterAUrl_isStillCounted() {
+        assertThat(LineTextService.visibleLength("https://example.jp/m/abc/memoをご覧ください")).isEqualTo(7);
+    }
 }
