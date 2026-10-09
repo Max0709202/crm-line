@@ -357,6 +357,8 @@ public class ScheduledTaskService {
         int flipped = 0;
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         for (com.crm.entity.Broadcast b : stuck) {
+            // 予約時刻に条件抽出 — no MESSAGE rows until resolveDueReservedBroadcasts() runs.
+            if (b.isResolveAtSend()) continue;
             long remaining = messageRepository.countByBroadcastIdAndStatus(b.getId(), Message.STATUS_QUEUED);
             if (remaining > 0) continue; // still actively sending or scheduled
             // Idempotent flip — same predicate as markCompletedIfDone but doesn't require
@@ -366,6 +368,34 @@ public class ScheduledTaskService {
         }
         if (flipped > 0) {
             log.info("Sweeper: flipped {} stuck broadcast(s) to COMPLETED", flipped);
+        }
+    }
+
+    /** 予約送信 of 対象件数一斉送信 — resolves the targets when the reserved time comes. */
+    private BroadcastService broadcastService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setBroadcastService(BroadcastService broadcastService) { this.broadcastService = broadcastService; }
+
+    /**
+     * Every 30 seconds — for reserved filter-based broadcasts whose SCHEDULED_AT has come,
+     * evaluate the 絞り込み条件 now (client request 2026-10-10: ログイン期間 / 返信期間 etc. must be
+     * judged at the reserved time, not when the reservation was made) and queue the result;
+     * dispatchQueued() then sends it like any other broadcast.
+     */
+    @Scheduled(fixedRateString = "${app.scheduler.reserved-broadcast-poll-ms:30000}",
+               initialDelayString = "${app.scheduler.reserved-broadcast-poll-init-ms:20000}")
+    public void resolveDueReservedBroadcasts() {
+        if (broadcastService == null || !acquireOrRefreshLock()) return;
+        java.util.List<com.crm.entity.Broadcast> due = broadcastRepo.findByStatusAndScheduledAtLessThanEqual(
+                com.crm.entity.Broadcast.STATUS_SCHEDULED, LocalDateTime.now());
+        for (com.crm.entity.Broadcast b : due) {
+            if (!b.isResolveAtSend()) continue;
+            try {
+                broadcastService.resolveTargetsAtSend(b.getId());
+            } catch (Exception e) {
+                log.error("Reserved broadcast {}: resolving targets failed, will retry next tick", b.getId(), e);
+            }
         }
     }
 

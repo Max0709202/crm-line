@@ -61,7 +61,7 @@
                                            : (${b.status == 'CANCELLED'} ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 text-slate-600')))"
                           th:text="${b.status}"></span>
                 </td>
-                <td class="px-3 py-2 text-right text-slate-700" th:text="${b.totalCount}"></td>
+                <td class="px-3 py-2 text-right text-slate-700" th:text="${b.resolveAtSend} ? '予約時刻に確定' : ${b.totalCount}"></td>
                 <td class="px-3 py-2 text-right text-emerald-600 font-medium" th:text="${b.sentCount}"></td>
                 <td class="px-3 py-2 text-right text-red-600 font-medium" th:text="${b.failedCount}"></td>
                 <td class="px-3 py-2 text-xs text-slate-500">

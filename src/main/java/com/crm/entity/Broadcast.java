@@ -103,6 +103,15 @@ public class Broadcast {
         updatedAt = LocalDateTime.now();
     }
 
+    /** Marker written into TARGET_FILTER by BroadcastService#createResolvedAtSend. */
+    public static final String RESOLVE_AT_SEND_MARKER = "\"resolveAtSend\":true";
+
+    /** True for a 予約 broadcast whose 絞り込み条件 are evaluated at SCHEDULED_AT (client request
+     *  2026-10-10) — no MESSAGE rows exist yet; TARGET_FILTER holds the search conditions. */
+    public boolean isResolveAtSend() {
+        return targetFilter != null && targetFilter.contains(RESOLVE_AT_SEND_MARKER);
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getAdminUserId() { return adminUserId; }

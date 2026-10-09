@@ -306,7 +306,11 @@
                         <span th:if="${form.channel == 'LINE'}" style="color:#046c3a;">(LINE配信)</span>
                     </div>
                     <input type="hidden" th:each="u : ${selectedUsers}" name="targetUserIds" th:value="${u.id}"/>
+                    <div th:if="${!#strings.isEmpty(form.targetSearchQuery)}" style="margin-top:4px;color:#92400e;">
+                        ※ 予約送信の場合、対象ユーザーは予約時刻の絞り込み条件（ログイン期間・返信期間など）で抽出し直します。上記の人数は現在の該当数です。
+                    </div>
                 </div>
+                <input type="hidden" th:field="*{targetSearchQuery}"/>
 
                 <div th:if="${form.channel != 'SMS' and form.channel != 'LINE'}">
                     <label>件名</label>

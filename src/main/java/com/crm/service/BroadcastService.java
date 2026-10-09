@@ -154,11 +154,16 @@ public class BroadcastService {
      */
     @Transactional(noRollbackFor = NoTargetsException.class)
     public Broadcast createAndQueue(BroadcastForm form, Long adminUserId) {
+        return createAndQueue(form, adminUserId, null);
+    }
+
+    /** {@code reuse}: an existing (予約・送信時抽出) Broadcast row to fill instead of a new one. */
+    private Broadcast createAndQueue(BroadcastForm form, Long adminUserId, Broadcast reuse) {
         if ("SMS".equals(form.getChannel())) {
-            return createAndQueueSms(form, adminUserId);
+            return createAndQueueSms(form, adminUserId, reuse);
         }
         if ("LINE".equals(form.getChannel())) {
-            return createAndQueueLine(form, adminUserId);
+            return createAndQueueLine(form, adminUserId, reuse);
         }
         List<Long> imageIds = validImages(form, false);
         List<CrmUser> targets = findTargetUsers(form);
@@ -219,7 +224,7 @@ public class BroadcastService {
                   + "件、フォールバックFROM未設定: " + (fallbackFrom == null || fallbackFrom.isEmpty() ? "はい" : "いいえ") + ")");
         }
 
-        Broadcast b = new Broadcast();
+        Broadcast b = reuse != null ? reuse : new Broadcast();
         b.setAdminUserId(adminUserId);
         String t = form.getTitle();
         b.setTitle((t == null || t.trim().isEmpty()) ? form.getSubject().trim() : t.trim());
@@ -319,6 +324,10 @@ public class BroadcastService {
      */
     @Transactional(noRollbackFor = NoTargetsException.class)
     public Broadcast createAndQueueSms(BroadcastForm form, Long adminUserId) {
+        return createAndQueueSms(form, adminUserId, null);
+    }
+
+    private Broadcast createAndQueueSms(BroadcastForm form, Long adminUserId, Broadcast reuse) {
         List<Long> imageIds = validImages(form, false);
         List<CrmUser> targets = findTargetUsers(form);
 
@@ -340,7 +349,7 @@ public class BroadcastService {
                   + "件、うち電話番号未登録: " + unsendableIds.size() + "件)");
         }
 
-        Broadcast b = new Broadcast();
+        Broadcast b = reuse != null ? reuse : new Broadcast();
         b.setAdminUserId(adminUserId);
         String t = form.getTitle();
         String label = (t == null || t.trim().isEmpty()) ? "SMS配信" : t.trim();
@@ -418,6 +427,10 @@ public class BroadcastService {
      */
     @Transactional(noRollbackFor = NoTargetsException.class)
     public Broadcast createAndQueueLine(BroadcastForm form, Long adminUserId) {
+        return createAndQueueLine(form, adminUserId, null);
+    }
+
+    private Broadcast createAndQueueLine(BroadcastForm form, Long adminUserId, Broadcast reuse) {
         Long lineAccountId = form.getLineAccountId();
         if (lineAccountId == null) {
             throw new NoTargetsException("送信元のLINEアカウントを選択してください");
@@ -449,7 +462,7 @@ public class BroadcastService {
                   + "件、うち未連携: " + unsendableIds.size() + "件)");
         }
 
-        Broadcast b = new Broadcast();
+        Broadcast b = reuse != null ? reuse : new Broadcast();
         b.setAdminUserId(adminUserId);
         String t = form.getTitle();
         String label = (t == null || t.trim().isEmpty()) ? "LINE配信" : t.trim();
@@ -528,6 +541,11 @@ public class BroadcastService {
      */
     @Transactional(noRollbackFor = NoTargetsException.class)
     public List<Broadcast> createAndQueueLineDynamic(BroadcastForm form, Long adminUserId) {
+        return createAndQueueLineDynamic(form, adminUserId, null);
+    }
+
+    /** {@code reuse} is filled by the first resolved account; the others get new rows. */
+    private List<Broadcast> createAndQueueLineDynamic(BroadcastForm form, Long adminUserId, Broadcast reuse) {
         List<CrmUser> targets = findTargetUsers(form);
         List<Long> targetIds = new ArrayList<>();
         for (CrmUser u : targets) targetIds.add(u.getId());
@@ -556,9 +574,229 @@ public class BroadcastService {
             sub.setRatePerMinute(form.getRatePerMinute());
             sub.setScheduledAt(form.getScheduledAt());
             sub.setImageIds(form.getImageIds());
-            created.add(createAndQueueLine(sub, adminUserId));
+            created.add(createAndQueueLine(sub, adminUserId, created.isEmpty() ? reuse : null));
         }
         return created;
+    }
+
+    // ---- 予約送信: 絞り込み条件は予約時刻の状態で判定 (client request 2026-10-10) ----
+    // A 「対象件数一斉送信」 reserved for later used to freeze the matching users when the
+    // reservation was made, so e.g. a ログイン期間 / 返信期間 filter ignored every login or reply
+    // between then and the send. Such a broadcast is now saved without MESSAGE rows, the
+    // conditions are kept in TARGET_FILTER, and resolveTargetsAtSend() re-runs the same search
+    // at SCHEDULED_AT and queues the result into the same Broadcast row.
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /** Spring Boot's default MVC conversion service (no custom formatters are registered). */
+    private static final org.springframework.core.convert.ConversionService MVC_CONVERSIONS =
+            new org.springframework.boot.autoconfigure.web.format.WebConversionService(
+                    new org.springframework.boot.autoconfigure.web.format.DateTimeFormatters());
+
+    /** TARGET_FILTER content of a broadcast whose targets are resolved at SCHEDULED_AT. The
+     *  first field must stay {@code resolveAtSend} — see {@link Broadcast#RESOLVE_AT_SEND_MARKER}. */
+    public static class ResolveAtSendTarget {
+        public boolean resolveAtSend = true;
+        public String searchQuery;
+        public String channel;
+        public Long lineAccountId;
+        public Long charaId;
+        public List<Long> imageIds;
+        /** Users matching when the reservation was made — reference only. */
+        public int matchedAtReserve;
+    }
+
+    /** A filter-based (対象件数一斉送信) broadcast reserved for a future time. */
+    public boolean shouldResolveAtSend(BroadcastForm form) {
+        return hasText(form.getTargetSearchQuery())
+                && form.getScheduledAt() != null && form.getScheduledAt().isAfter(LocalDateTime.now());
+    }
+
+    /** Saves the reservation only — targets are resolved by {@link #resolveTargetsAtSend}. */
+    @Transactional(noRollbackFor = NoTargetsException.class)
+    public Broadcast createResolvedAtSend(BroadcastForm form, Long adminUserId) {
+        String channel = ("SMS".equals(form.getChannel()) || "LINE".equals(form.getChannel())) ? form.getChannel() : "EMAIL";
+        validImages(form, "LINE".equals(channel));   // a bad image choice fails now, not at send time
+        ResolveAtSendTarget target = new ResolveAtSendTarget();
+        target.searchQuery = form.getTargetSearchQuery();
+        target.channel = channel;
+        target.lineAccountId = form.getLineAccountId();
+        target.charaId = form.getCharaId();
+        target.imageIds = form.getImageIds();
+        target.matchedAtReserve = form.getTargetUserIds() == null ? 0 : form.getTargetUserIds().size();
+
+        Broadcast b = new Broadcast();
+        b.setAdminUserId(adminUserId);
+        String t = form.getTitle() == null ? "" : form.getTitle().trim();
+        if ("EMAIL".equals(channel)) {
+            b.setTitle(t.isEmpty() ? form.getSubject().trim() : t);
+            b.setSubject(form.getSubject());
+        } else {
+            String label = t.isEmpty() ? ("SMS".equals(channel) ? "SMS配信" : "LINE配信") : t;
+            b.setTitle(label);
+            b.setSubject(label);
+        }
+        b.setBodyText(form.getBody());
+        b.setChannel(channel);
+        b.setRatePerMinute(form.getRatePerMinute() == null || form.getRatePerMinute() < 1
+                ? 60 : form.getRatePerMinute());
+        try {
+            b.setTargetFilter(JSON.writeValueAsString(target));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+        b.setScheduledAt(form.getScheduledAt());
+        b.setStatus(Broadcast.STATUS_SCHEDULED);
+        Broadcast saved = broadcastRepository.save(b);
+        log.info("Broadcast {} reserved for {}: targets resolved at send time (currently matching {})",
+                saved.getId(), saved.getScheduledAt(), target.matchedAtReserve);
+        return saved;
+    }
+
+    /**
+     * Run by the scheduler once SCHEDULED_AT has come: evaluate the stored 絞り込み条件 now and
+     * queue the matching users into the same Broadcast row, through the normal create path.
+     * The row lock makes a concurrent cancel() wait until the messages are committed.
+     */
+    @Transactional(noRollbackFor = NoTargetsException.class)
+    public void resolveTargetsAtSend(Long broadcastId) {
+        Broadcast b = broadcastRepository.findByIdForUpdate(broadcastId).orElse(null);
+        if (b == null || !Broadcast.STATUS_SCHEDULED.equals(b.getStatus()) || !b.isResolveAtSend()) return;
+        ResolveAtSendTarget target;
+        try {
+            target = JSON.readValue(b.getTargetFilter(), ResolveAtSendTarget.class);
+        } catch (java.io.IOException e) {
+            finishWithoutTargets(b, "保存された絞り込み条件を読み込めませんでした");
+            return;
+        }
+        List<Long> ids = resolveSearchQuery(target.searchQuery);
+        // Must stop here: an empty targetUserIds would make findTargetUsers() fall back to
+        // "every ACTIVE user".
+        if (ids.isEmpty()) {
+            finishWithoutTargets(b, "予約時刻に絞り込み条件に合致するユーザーがいませんでした");
+            return;
+        }
+        BroadcastForm form = new BroadcastForm();
+        form.setTitle(b.getTitle());
+        form.setSubject(b.getSubject());
+        form.setBody(b.getBodyText());
+        form.setChannel(target.channel);
+        form.setLineAccountId(target.lineAccountId);
+        form.setCharaId(target.charaId);
+        form.setImageIds(target.imageIds);
+        form.setRatePerMinute(b.getRatePerMinute());
+        form.setScheduledAt(b.getScheduledAt());   // already due → starts now, keeps the 予約日時 shown
+        form.setTargetUserIds(ids);
+        try {
+            if ("LINE".equals(target.channel)
+                    && com.crm.entity.DiffStep.LINE_ACCOUNT_LINKED_DYNAMIC.equals(target.lineAccountId)) {
+                createAndQueueLineDynamic(form, b.getAdminUserId(), b);
+            } else {
+                createAndQueue(form, b.getAdminUserId(), b);
+            }
+        } catch (NoTargetsException e) {
+            finishWithoutTargets(b, e.getMessage());
+            return;
+        }
+        log.info("Broadcast {}: targets resolved at send time — {} matched (at reservation {})",
+                b.getId(), ids.size(), target.matchedAtReserve);
+    }
+
+    private void finishWithoutTargets(Broadcast b, String reason) {
+        java.util.Map<String, Object> note = new java.util.LinkedHashMap<>();
+        note.put("matched_users", 0);
+        note.put("note", reason);
+        try {
+            b.setTargetFilter(JSON.writeValueAsString(note));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            b.setTargetFilter(null);
+        }
+        b.setTotalCount(0);
+        b.setStatus(Broadcast.STATUS_COMPLETED);
+        broadcastRepository.save(b);
+        log.warn("Broadcast {}: nothing sent at reserved time — {}", b.getId(), reason);
+    }
+
+    /** User-list search, for 対象件数一斉送信 — optional (tests). */
+    private CrmUserService crmUserService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setCrmUserService(CrmUserService crmUserService) { this.crmUserService = crmUserService; }
+
+    /** The 対象件数一斉送信 request parameters (the user-list 絞り込み条件) as a query string. */
+    public static String buildSearchQuery(java.util.Map<String, String[]> params) {
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<String, String[]> e : params.entrySet()) {
+            if ("_csrf".equals(e.getKey()) || "channel".equals(e.getKey())) continue;
+            for (String v : e.getValue()) {
+                if (sb.length() > 0) sb.append('&');
+                sb.append(urlEncode(e.getKey())).append('=').append(urlEncode(v == null ? "" : v));
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Resolves a {@link #buildSearchQuery} string to user ids — binds it into a UserSearchForm
+     * the same way as the {@code @ModelAttribute} of /new-from-folder, so the reservation-time
+     * preview and the send-time resolution apply exactly the same conditions.
+     */
+    public List<Long> resolveSearchQuery(String query) {
+        if (crmUserService == null) return new ArrayList<>();
+        java.util.Map<String, List<String>> params = new java.util.LinkedHashMap<>();
+        if (query != null) {
+            for (String pair : query.split("&")) {
+                if (pair.isEmpty()) continue;
+                int eq = pair.indexOf('=');
+                String k = urlDecode(eq < 0 ? pair : pair.substring(0, eq));
+                String v = eq < 0 ? "" : urlDecode(pair.substring(eq + 1));
+                params.computeIfAbsent(k, x -> new ArrayList<>()).add(v);
+            }
+        }
+        com.crm.dto.UserSearchForm form = new com.crm.dto.UserSearchForm();
+        org.springframework.beans.MutablePropertyValues pvs = new org.springframework.beans.MutablePropertyValues();
+        for (java.util.Map.Entry<String, List<String>> e : params.entrySet()) {
+            List<String> v = e.getValue();
+            pvs.add(e.getKey(), v.size() == 1 ? v.get(0) : v.toArray(new String[0]));
+        }
+        org.springframework.web.bind.WebDataBinder binder = new org.springframework.web.bind.WebDataBinder(form);
+        // Same conversions as Spring MVC's binding (e.g. "A,B" → [A, B] for a List field).
+        binder.setConversionService(MVC_CONVERSIONS);
+        binder.bind(pvs);
+        // Legacy alias path: the URL filter set (folders=A&folders=B) binds to form.folders
+        // above, so this is only a fallback for callers that post sourceFolder(s) only.
+        List<String> sourceFolders = params.get("sourceFolders");
+        if ((form.getFolders() == null || form.getFolders().isEmpty())
+                && sourceFolders != null && !sourceFolders.isEmpty()) {
+            List<String> norm = new ArrayList<>();
+            for (String s : sourceFolders) {
+                if (s == null) continue;
+                String t = s.trim();
+                if (!t.isEmpty()) norm.add(t);
+            }
+            if (!norm.isEmpty()) form.setFolders(norm);
+        }
+        String sourceFolder = params.containsKey("sourceFolder") ? params.get("sourceFolder").get(0) : null;
+        if ((form.getFolders() == null || form.getFolders().isEmpty())
+                && sourceFolder != null && !sourceFolder.isEmpty()) {
+            form.setFolder(sourceFolder);
+        }
+        Integer scopeLimit = null;
+        if (params.containsKey("scopeLimit")) {
+            try { scopeLimit = Integer.valueOf(params.get("scopeLimit").get(0).trim()); }
+            catch (NumberFormatException ignored) { /* no limit */ }
+        }
+        return crmUserService.findIdsBySearch(form, scopeLimit);
+    }
+
+    private static String urlEncode(String s) {
+        try { return java.net.URLEncoder.encode(s, "UTF-8"); }
+        catch (java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); }
+    }
+
+    private static String urlDecode(String s) {
+        try { return java.net.URLDecoder.decode(s, "UTF-8"); }
+        catch (java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); }
     }
 
     /**

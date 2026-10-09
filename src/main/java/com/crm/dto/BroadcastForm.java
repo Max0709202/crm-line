@@ -49,6 +49,16 @@ public class BroadcastForm {
      */
     private java.util.List<Long> targetUserIds;
 
+    /**
+     * The user-list 絞り込み条件 (query string) behind targetUserIds, when the broadcast came
+     * from 「対象件数一斉送信」. With a future scheduledAt the conditions are re-evaluated at the
+     * reserved time instead of using targetUserIds (client request 2026-10-10).
+     */
+    private String targetSearchQuery;
+
+    public String getTargetSearchQuery() { return targetSearchQuery; }
+    public void setTargetSearchQuery(String targetSearchQuery) { this.targetSearchQuery = targetSearchQuery; }
+
     /** "EMAIL" (default), "SMS", or "LINE" — set by the corresponding 選択一斉送信 button
      *  on the user list. */
     private String channel = "EMAIL";

@@ -9,6 +9,13 @@ public interface BroadcastRepository extends JpaRepository<Broadcast, Long> {
     Page<Broadcast> findAllByOrderByCreatedAtDesc(Pageable pageable);
     java.util.List<Broadcast> findByStatusInOrderByCreatedAtDesc(java.util.Collection<String> statuses);
 
+    java.util.List<Broadcast> findByStatusAndScheduledAtLessThanEqual(String status, java.time.LocalDateTime at);
+
+    /** Row-locked read — serialises 予約時刻の条件抽出 against a concurrent cancel(). */
+    @org.springframework.data.jpa.repository.Lock(javax.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT b FROM Broadcast b WHERE b.id = :id")
+    java.util.Optional<Broadcast> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") Long id);
+
     /** Atomic increment of counters — avoids read-modify-write races when multiple senders finalise concurrently.
      *  Self-transactional: callers in the scheduler worker pool are not in a Spring tx,
      *  and a missing tx wrapper here surfaced 2026-05-28 as TransactionRequiredException

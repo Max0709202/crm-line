@@ -197,11 +197,8 @@ public class BroadcastController {
      * continues to work.
      */
     @PostMapping("/new-from-folder")
-    public String selectFolderForBroadcast(@ModelAttribute com.crm.dto.UserSearchForm form,
-                                            @RequestParam(name = "scopeLimit", required = false) Integer scopeLimit,
-                                            @RequestParam(name = "sourceFolder", required = false) String sourceFolder,
-                                            @RequestParam(name = "sourceFolders", required = false) java.util.List<String> sourceFolders,
-                                            @RequestParam(name = "channel", required = false) String channel,
+    public String selectFolderForBroadcast(@RequestParam(name = "channel", required = false) String channel,
+                                            javax.servlet.http.HttpServletRequest request,
                                             HttpSession session,
                                             RedirectAttributes ra) {
         // Condition/filter-based SMS broadcast (2026-08-08 — previously only row-selection
@@ -212,30 +209,20 @@ public class BroadcastController {
         } else {
             session.removeAttribute("broadcastSelectedChannel");
         }
-        // Legacy alias path: the URL filter set (folders=A&folders=B) auto-binds to
-        // form.folders via @ModelAttribute, so this is only a fallback for callers that
-        // post sourceFolder(s) only.
-        if ((form.getFolders() == null || form.getFolders().isEmpty())
-                && sourceFolders != null && !sourceFolders.isEmpty()) {
-            java.util.List<String> norm = new java.util.ArrayList<>();
-            for (String s : sourceFolders) {
-                if (s == null) continue;
-                String t = s.trim();
-                if (!t.isEmpty()) norm.add(t);
-            }
-            if (!norm.isEmpty()) form.setFolders(norm);
-        }
-        if ((form.getFolders() == null || form.getFolders().isEmpty())
-                && sourceFolder != null && !sourceFolder.isEmpty()) {
-            form.setFolder(sourceFolder);
-        }
-        java.util.List<Long> userIds = userService.findIdsBySearch(form, scopeLimit);
+        // The 絞り込み条件 are kept as a query string (not only the ids matching right now) so
+        // a 予約送信 can re-evaluate them at the reserved time — client request 2026-10-10.
+        // Bound into UserSearchForm by BroadcastService.resolveSearchQuery, which also handles
+        // the sourceFolder(s) / scopeLimit aliases.
+        String searchQuery = BroadcastService.buildSearchQuery(request.getParameterMap());
+        java.util.List<Long> userIds = broadcastService.resolveSearchQuery(searchQuery);
         if (userIds == null || userIds.isEmpty()) {
             session.removeAttribute("broadcastSelectedUserIds");
+            session.removeAttribute("broadcastTargetSearchQuery");
             ra.addFlashAttribute("flashError", "条件に合致するユーザーがいません");
             return "redirect:/manager/users";
         }
         session.setAttribute("broadcastSelectedUserIds", new java.util.ArrayList<>(userIds));
+        session.setAttribute("broadcastTargetSearchQuery", searchQuery);
         return "redirect:/manager/messages/broadcast/new";
     }
 
@@ -254,6 +241,8 @@ public class BroadcastController {
         } else {
             session.removeAttribute("broadcastSelectedUserIds");
         }
+        // Checkbox selection = exactly these users, also for a 予約送信.
+        session.removeAttribute("broadcastTargetSearchQuery");
         if ("SMS".equals(channel) || "LINE".equals(channel)) {
             session.setAttribute("broadcastSelectedChannel", channel);
         } else {
@@ -269,16 +258,19 @@ public class BroadcastController {
                               Model model) {
         // Fall back to session if the GET has no userIds query string — this is the
         // path taken after the POST-then-redirect bulk-broadcast flow above.
+        String targetSearchQuery = null;
         if (userIds == null || userIds.isEmpty()) {
             @SuppressWarnings("unchecked")
             List<Long> fromSession = (List<Long>) session.getAttribute("broadcastSelectedUserIds");
             if (fromSession != null && !fromSession.isEmpty()) {
                 userIds = fromSession;
+                targetSearchQuery = (String) session.getAttribute("broadcastTargetSearchQuery");
                 // One-shot — clear so a later visit to /broadcast/new without going through
                 // 選択一斉送信 doesn't reuse stale IDs.
                 session.removeAttribute("broadcastSelectedUserIds");
             }
         }
+        session.removeAttribute("broadcastTargetSearchQuery");
         String channel = (String) session.getAttribute("broadcastSelectedChannel");
         session.removeAttribute("broadcastSelectedChannel");
         // No preselected-users session (e.g. direct "LINE一斉送信を作成" link from the
@@ -289,6 +281,7 @@ public class BroadcastController {
         if (!model.containsAttribute("form")) {
             BroadcastForm f = new BroadcastForm();
             if (userIds != null && !userIds.isEmpty()) f.setTargetUserIds(userIds);
+            f.setTargetSearchQuery(targetSearchQuery);
             if ("SMS".equals(channel) || "LINE".equals(channel)) f.setChannel(channel);
             // Rate-per-minute is configured globally on the settings page; the broadcast form
             // no longer exposes it (operator request) but the field is still wired through.
@@ -305,6 +298,11 @@ public class BroadcastController {
                 f.setRatePerMinute(settingService.getBroadcastRatePerMinute());
             }
             model.addAttribute("form", f);
+        } else if (userIds == null || userIds.isEmpty()) {
+            // Redirected back with the flashed form (e.g. NoTargetsException) — keep its
+            // targets; without the targetUserIds hidden inputs a resubmit would send to
+            // every ACTIVE user.
+            userIds = ((BroadcastForm) model.asMap().get("form")).getTargetUserIds();
         }
         // Pre-resolve selected users for the UI badge
         if (userIds != null && !userIds.isEmpty()) {
@@ -370,6 +368,10 @@ public class BroadcastController {
             br.rejectValue("lineAccountId", "required", "送信元のLINEアカウントを選択してください");
         }
         if (br.hasErrors()) {
+            // Re-render keeps the targets (see createForm) — else a resubmit widens to all users.
+            if (form.getTargetUserIds() != null && !form.getTargetUserIds().isEmpty()) {
+                model.addAttribute("selectedUsers", userService.findAllByIds(form.getTargetUserIds()));
+            }
             model.addAttribute("templates", templateService.listAll());
         model.addAttribute("templatePageTitles", templateService.listPageTitles());
         model.addAttribute("templateActivePages", templateService.listActivePageNumbers());
@@ -379,6 +381,26 @@ public class BroadcastController {
             return "message/broadcast-form";
         }
         Long adminId = (Long) session.getAttribute(AuthInterceptor.SESSION_ADMIN_ID);
+        // 対象件数一斉送信 + 予約送信: the 絞り込み条件 are judged at the reserved time, not now
+        // (client request 2026-10-10). Covers every channel incl. 紐づきアカ.
+        if (broadcastService.shouldResolveAtSend(form)) {
+            try {
+                Broadcast b = broadcastService.createResolvedAtSend(form, adminId);
+                int matchedNow = form.getTargetUserIds() == null ? 0 : form.getTargetUserIds().size();
+                auditLog.record(com.crm.service.AuditLogService.ACTION_BROADCAST_CREATE,
+                        "Broadcast", b.getId(),
+                        "subject=" + (b.getSubject() == null ? "" : b.getSubject())
+                        + " 予約時刻に条件抽出 (現在の該当=" + matchedNow + ")");
+                ra.addFlashAttribute("flashSuccess",
+                        "一斉送信を予約登録しました。対象ユーザーは予約時刻の絞り込み条件で抽出します (現在の該当: "
+                        + matchedNow + "件)");
+                return "redirect:/manager/messages/broadcast/" + b.getId();
+            } catch (BroadcastService.NoTargetsException e) {
+                ra.addFlashAttribute("flashError", e.getMessage());
+                ra.addFlashAttribute("form", form);
+                return "redirect:/manager/messages/broadcast/new";
+            }
+        }
         // 紐づきアカ — the target list may span several different LINE accounts once resolved,
         // so this one submit can produce more than one Broadcast record (client request
         // 2026-09-27). Handled separately from the normal single-account path below.

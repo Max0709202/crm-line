@@ -37,7 +37,7 @@
         </div>
 
         <div class="grid grid-cols-5 gap-3 text-center mt-4">
-            <div><div class="text-xs text-slate-500">対象</div><div class="text-2xl font-bold" th:text="${broadcast.totalCount}"></div></div>
+            <div><div class="text-xs text-slate-500">対象</div><div class="text-2xl font-bold" th:text="${broadcast.resolveAtSend} ? '予約時刻に確定' : ${broadcast.totalCount}" th:classappend="${broadcast.resolveAtSend} ? 'text-base'"></div></div>
             <div><div class="text-xs text-slate-500">送信済み</div><div class="text-2xl font-bold text-emerald-600" th:text="${broadcast.sentCount}"></div></div>
             <div><div class="text-xs text-slate-500">失敗</div><div class="text-2xl font-bold text-red-600" th:text="${broadcast.failedCount}"></div></div>
             <div>
@@ -141,7 +141,7 @@
                 </tr>
                 <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50" style="width: 180px;">件名</th><td class="px-4 py-2" th:text="${broadcast.subject}"></td></tr>
                 <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50">本文</th><td class="px-4 py-2" style="white-space: pre-wrap;" th:text="${broadcast.bodyText}"></td></tr>
-                <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50">対象フィルタ</th><td class="px-4 py-2 text-xs text-slate-500" th:text="${broadcast.targetFilter}"></td></tr>
+                <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50">対象フィルタ</th><td class="px-4 py-2 text-xs text-slate-500" th:text="${broadcast.resolveAtSend} ? '予約時刻の絞り込み条件で対象ユーザーを抽出します' : ${broadcast.targetFilter}"></td></tr>
                 <tr><th class="px-4 py-2 text-left text-slate-600 bg-slate-50">レート</th><td class="px-4 py-2"><span th:text="${broadcast.ratePerMinute}"></span> 件/分</td></tr>
                 <tr th:if="${broadcast.scheduledAt != null}">
                     <th class="px-4 py-2 text-left text-slate-600 bg-slate-50">予約日時</th><td class="px-4 py-2" th:text="${#temporals.format(broadcast.scheduledAt, 'yyyy-MM-dd HH:mm')}"></td>
