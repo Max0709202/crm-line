@@ -783,7 +783,7 @@ public class MemberSiteController {
                     b.append("<a href=\"/member/chara?c=").append(c.getId()).append("\">").append(e(c.getName())).append(" / ")
                             .append(e(nz(c.getPref(), "—"))).append(" / ").append(ageText(c).isEmpty() ? "—" : ageText(c)).append("</a>");
                 } else {
-                    b.append(person(request, u, c, friendIds.contains(c.getId()), "/member/search", true, true));
+                    b.append(person(request, u, c, friendIds.contains(c.getId()), "/member/search", true, false));
                 }
             }
             if (result.isEmpty()) b.append(fp ? "<a href=\"/member/search\">条件に合うお相手はいませんでした</a>" : "<div class=\"note\">条件に合うお相手はいませんでした</div>");
