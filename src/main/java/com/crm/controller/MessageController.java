@@ -216,6 +216,17 @@ public class MessageController {
                 if (support || viewChara.getId().equals(charaOf.get(m.getId()))) only.add(m);
             }
             thread = only;
+        } else if (lineParam != null) {
+            // LINE の紐づきキャラ をクリック → ?line=ID: only that LINE account's exchange (each
+            // character is a separate conversation), plus サポート窓口 as in the ?chara= view.
+            java.util.Map<Long, Long> charaOf = charaLinkService.charaIdsOfMessages(thread);
+            List<Message> only = new java.util.ArrayList<>();
+            for (Message m : thread) {
+                boolean support = Message.DIR_OUT.equals(m.getDirection()) && !Message.CHANNEL_LINE.equals(m.getChannel())
+                        && !charaOf.containsKey(m.getId());
+                if (support || (Message.CHANNEL_LINE.equals(m.getChannel()) && lineParam.equals(m.getLineAccountId()))) only.add(m);
+            }
+            thread = only;
         }
         // Compute per-user thread stats for pane-tr header
         long threadWebReply = 0, threadMailReply = 0, threadOut = 0;
@@ -247,6 +258,14 @@ public class MessageController {
         // separately from normal 予約送信 (2026-09-09 operator request).
         List<com.crm.entity.DiffScheduleStep> diffReservations =
                 diffScheduleService.listPendingMessageStepsForUser(userId);
+        if (viewChara == null && lineParam != null) {
+            // ?line=ID: another LINE キャラ's pending sends belong to that キャラ's exchange
+            List<com.crm.entity.DiffScheduleStep> only = new java.util.ArrayList<>();
+            for (com.crm.entity.DiffScheduleStep s : diffReservations) {
+                if (!Message.CHANNEL_LINE.equals(s.getChannel()) || lineParam.equals(s.getLineAccountId())) only.add(s);
+            }
+            diffReservations = only;
+        }
         java.util.Map<Long, com.crm.entity.DiffSchedule> diffSchedulesById = new java.util.HashMap<>();
         for (com.crm.entity.DiffScheduleStep s : diffReservations) {
             diffSchedulesById.computeIfAbsent(s.getDiffScheduleId(),

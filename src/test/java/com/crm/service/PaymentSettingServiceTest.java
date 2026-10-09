@@ -126,6 +126,25 @@ class PaymentSettingServiceTest {
     }
 
     @Test
+    void colorIsSavedKeptAndCleared() {
+        Map<String, PaymentSettingService.MethodInput> in = new HashMap<>();
+        in.put("credit", new PaymentSettingService.MethodInput(true, null, " #DBEAFE ", new ArrayList<>()));
+        in.put("bank", new PaymentSettingService.MethodInput(true, null, "red", new ArrayList<>()));   // not #rrggbb → none
+        svc.saveCommon(in);
+        assertThat(svc.getMethods(null).get(0).getColor()).isEqualTo("#dbeafe");
+        assertThat(svc.getMethods(null).get(1).getColor()).isNull();
+
+        // no color field keeps it; a blank one clears it
+        in.clear();
+        in.put("credit", new PaymentSettingService.MethodInput(true, new ArrayList<>()));
+        svc.saveCommon(in);
+        assertThat(svc.getMethods(null).get(0).getColor()).isEqualTo("#dbeafe");
+        in.put("credit", new PaymentSettingService.MethodInput(true, null, "", new ArrayList<>()));
+        svc.saveCommon(in);
+        assertThat(svc.getMethods(null).get(0).getColor()).isNull();
+    }
+
+    @Test
     void overlongFolderNameIsRejected() {
         StringBuilder name = new StringBuilder();
         for (int i = 0; i <= PaymentSettingService.MAX_FOLDER_NAME; i++) name.append('x');

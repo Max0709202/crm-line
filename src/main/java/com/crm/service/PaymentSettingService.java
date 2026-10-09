@@ -22,9 +22,10 @@ import java.util.Map;
  * Stored in CRM_SETTING as one JSON row: {@code payment.config} for 共通, and
  * {@code payment.folder.<folder name>} for a folder with its own settings (a folder without that
  * row, or with it blank, uses 共通). Shape:
- * <pre>{"order":["credit",...],"methods":{"credit":{"shown":true,"label":"カード決済","plans":[{"shown":true,"amount":1000,"points":1000}, ...]}}}</pre>
+ * <pre>{"order":["credit",...],"methods":{"credit":{"shown":true,"label":"カード決済","color":"#dbeafe","plans":[{"shown":true,"amount":1000,"points":1000}, ...]}}}</pre>
  * {@code order} is the display order (missing → {@link #METHODS} order); {@code label} is the
- * operator's name for the method (missing → the {@link #METHODS} name).
+ * operator's name for the method (missing → the {@link #METHODS} name); {@code color} (#rrggbb,
+ * missing = none) tints the method's 支払い方法 cell on 入金レポート.
  * Each method has {@link #PLAN_ROWS} plan rows; an empty row (no amount and no points) is unused.
  * Defaults are the plans on the client's ガラケー ポイント購入 design (2026-09-29).
  */
@@ -82,12 +83,18 @@ public class PaymentSettingService {
         private final String code;
         private final String label;
         private final boolean shown;
+        private final String color;
         private final List<Plan> plans;
 
         Method(String code, String label, boolean shown, List<Plan> plans) {
+            this(code, label, shown, null, plans);
+        }
+
+        Method(String code, String label, boolean shown, String color, List<Plan> plans) {
             this.code = code;
             this.label = label;
             this.shown = shown;
+            this.color = color;
             this.plans = Collections.unmodifiableList(plans);
         }
 
@@ -95,6 +102,8 @@ public class PaymentSettingService {
         public String getLabel() { return label; }
         public String getDefaultLabel() { return METHODS.get(code); }
         public boolean isShown() { return shown; }
+        /** 入金レポート の色 (#rrggbb), null = none. */
+        public String getColor() { return color; }
         public List<Plan> getPlans() { return plans; }
 
         /** Plans members can buy with this method (none when the method is hidden). */
@@ -124,6 +133,8 @@ public class PaymentSettingService {
         final boolean shown;
         /** Display name; null keeps the current one, blank goes back to the default. */
         final String label;
+        /** 入金レポート の色 (#rrggbb); null keeps the current one, blank clears it. */
+        final String color;
         final List<PlanInput> plans;
 
         public MethodInput(boolean shown, List<PlanInput> plans) {
@@ -131,8 +142,13 @@ public class PaymentSettingService {
         }
 
         public MethodInput(boolean shown, String label, List<PlanInput> plans) {
+            this(shown, label, null, plans);
+        }
+
+        public MethodInput(boolean shown, String label, String color, List<PlanInput> plans) {
             this.shown = shown;
             this.label = label;
+            this.color = color;
             this.plans = plans;
         }
     }
@@ -212,6 +228,7 @@ public class PaymentSettingService {
                 rejected.add(current.getLabel() + " 表示名（" + MAX_LABEL + "文字まで）");
                 label = current.getLabel();
             }
+            String color = (in == null || in.color == null) ? current.getColor() : normalizeColor(in.color);
             List<Map<String, Object>> plansOut = new ArrayList<>();
             for (int i = 0; i < PLAN_ROWS; i++) {
                 Plan cur = current.getPlans().get(i);
@@ -238,6 +255,7 @@ public class PaymentSettingService {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("shown", shown);
             if (!label.isEmpty() && !label.equals(METHODS.get(current.getCode()))) m.put("label", label);
+            if (color != null) m.put("color", color);
             m.put("plans", plansOut);
             methodsOut.put(current.getCode(), m);
         }
@@ -285,7 +303,7 @@ public class PaymentSettingService {
             String defaultLabel = METHODS.get(code);
             JsonNode m = methods == null ? null : methods.get(code);
             if (m == null) {
-                out.add(new Method(code, defaultLabel, true, defaultPlans()));
+                out.add(new Method(code, defaultLabel, true, null, defaultPlans()));
                 continue;
             }
             String label = m.hasNonNull("label") ? m.get("label").asText().trim() : "";
@@ -304,9 +322,17 @@ public class PaymentSettingService {
                 plans.add(new Plan(!p.has("shown") || p.get("shown").asBoolean(true), amount, points));
             }
             boolean shown = !m.has("shown") || m.get("shown").asBoolean(true);
-            out.add(new Method(code, label, shown, plans));
+            String color = m.hasNonNull("color") ? normalizeColor(m.get("color").asText()) : null;
+            out.add(new Method(code, label, shown, color, plans));
         }
         return out;
+    }
+
+    /** "#rrggbb" in lower case, or null when blank / not a colour. */
+    private static String normalizeColor(String raw) {
+        if (raw == null) return null;
+        String t = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        return t.matches("#[0-9a-f]{6}") ? t : null;
     }
 
     private static List<Plan> defaultPlans() {

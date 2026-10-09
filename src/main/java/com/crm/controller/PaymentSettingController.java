@@ -22,7 +22,7 @@ import java.util.Map;
  * (see {@link PaymentSettingService}).
  *
  * Form fields: {@code order} (method codes, comma-separated, in display order),
- * {@code m_<method>_shown}, {@code m_<method>_label}, and per plan row i (0-based)
+ * {@code m_<method>_shown}, {@code m_<method>_label}, {@code m_<method>_color}, and per plan row i (0-based)
  * {@code p_<method>_<i>_shown}, {@code p_<method>_<i>_amount}, {@code p_<method>_<i>_points}.
  */
 @Controller
@@ -116,7 +116,7 @@ public class PaymentSettingController {
                         params.get(prefix + "amount"), params.get(prefix + "points")));
             }
             input.put(code, new PaymentSettingService.MethodInput("true".equals(params.get("m_" + code + "_shown")),
-                    params.get("m_" + code + "_label"), plans));
+                    params.get("m_" + code + "_label"), params.get("m_" + code + "_color"), plans));
         }
         String orderParam = params.get("order");
         List<String> order = orderParam == null ? null : java.util.Arrays.asList(orderParam.split(","));

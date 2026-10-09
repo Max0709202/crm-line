@@ -126,10 +126,6 @@
   .sdw .inq-meta b { font-weight: 600; color: #334155; }
   .sdw .inq-meta a { color: #2563eb; text-decoration: none; }
   .sdw .inq-meta a:hover { text-decoration: underline; }
-  .sdw .inq-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 8px 0 0; overflow: hidden; background: #ede9fe; border: 1px solid #ede9fe; border-radius: 6px; }
-  .sdw .inq-form > div { padding: 4px 9px; background: #faf9ff; }
-  .sdw .inq-form dt { font-size: 10.5px; color: #8b7fc4; }
-  .sdw .inq-form dd { margin: 0; font-size: 12.5px; font-weight: 600; color: #334155; }
   .sdw .inq-thread { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; background: #fbfcfd; }
   .sdw .msg { margin-bottom: 10px; padding: 9px 12px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
   .sdw .msg.is-reply { margin-left: 28px; background: #f5f9ff; border-color: #dbeafe; box-shadow: inset 3px 0 0 #93c5fd; }
@@ -616,19 +612,16 @@
         if (single) {
             var x = byId[state.current];
             var ch = CH[x.channel] || CH.mail;
-            var member = x.memberId ? '<a href="/manager/users/' + esc(x.memberId) + '" target="_blank" rel="noopener">ユーザーID ' + esc(x.memberId) + '</a>' : '<span>非会員</span>';
+            var member = x.memberId ? '<a href="/manager/users/' + esc(x.memberId) + '" target="_blank" rel="noopener">ユーザーID ' + esc(x.memberNo || x.memberId) + '</a>' : '<span>非会員</span>';
             var meta = x.channel === 'mail'
                 ? '<span>差出人 <b>' + esc(x.name) + '</b> &lt;' + esc(x.email) + '&gt;</span><span>宛先 <b>' + esc(x.to || SUPPORT_ADDRESS || '') + '</b></span><span>受信 <b>' + full(x.receivedAt) + '</b></span>' + member
                 : '<span>差出人 <b>' + esc(x.name) + '</b>（' + esc(x.email) + '）</span><span>受信 <b>' + full(x.receivedAt) + '</b></span>' + member;
-            var form = x.channel === 'web'
-                ? '<dl class="inq-form"><div><dt>お問い合わせ種別</dt><dd>' + esc(x.formType || '—') + '</dd></div><div><dt>注文番号</dt><dd>' + esc(x.orderNo || '—') + '</dd></div><div><dt>送信元</dt><dd>' + esc(x.formPage || '—') + '</dd></div></dl>'
-                : '';
             var statusBtn = x.status === 'open'
                 ? '<span class="st st-open">未対応</span><button type="button" class="btn btn-outline btn-sm" data-act="done">対応済にする</button>'
                 : '<span class="st st-done">対応済</span><button type="button" class="btn btn-outline btn-sm" data-act="reopen">未対応に戻す</button>';
             $('inqHead').innerHTML =
                 '<div class="inq-title"><span class="ch ' + ch.cls + '">' + ch.label + '</span><h2 title="' + esc(x.subject) + '">' + esc(x.subject) + '</h2>' + statusBtn + '</div>' +
-                '<div class="inq-meta">' + meta + '</div>' + form;
+                '<div class="inq-meta">' + meta + '</div>';
             $('inqThread').innerHTML =
                 '<article class="msg"><div class="msg-meta"><b>' + esc(x.name) + '</b>' + (x.memberId ? 'ユーザー' : '非会員') + '<time>' + full(x.receivedAt) + ' 受信</time></div>' +
                 '<div class="msg-subj">' + esc(x.subject) + '</div><div class="msg-body">' + esc(x.body) + '</div></article>' +

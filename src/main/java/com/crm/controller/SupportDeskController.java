@@ -1,9 +1,11 @@
 package com.crm.controller;
 
+import com.crm.entity.CrmUser;
 import com.crm.entity.SupportInquiry;
 import com.crm.entity.SupportReply;
 import com.crm.entity.SupportTemplate;
 import com.crm.interceptor.AuthInterceptor;
+import com.crm.repository.CrmUserRepository;
 import com.crm.service.AdminAuthService;
 import com.crm.service.SupportDeskService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,9 +25,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** サポート窓口 (client request 2026-10-02). */
 @Controller
@@ -37,11 +41,14 @@ public class SupportDeskController {
     private final SupportDeskService service;
     private final AdminAuthService adminAuthService;
     private final ObjectMapper objectMapper;
+    private final CrmUserRepository userRepository;
 
-    public SupportDeskController(SupportDeskService service, AdminAuthService adminAuthService, ObjectMapper objectMapper) {
+    public SupportDeskController(SupportDeskService service, AdminAuthService adminAuthService, ObjectMapper objectMapper,
+                                 CrmUserRepository userRepository) {
         this.service = service;
         this.adminAuthService = adminAuthService;
         this.objectMapper = objectMapper;
+        this.userRepository = userRepository;
     }
 
     @GetMapping
@@ -50,6 +57,13 @@ public class SupportDeskController {
         List<Long> ids = new ArrayList<>();
         for (SupportInquiry q : inquiries) ids.add(q.getId());
         Map<Long, List<SupportReply>> replies = service.repliesByInquiry(ids);
+        // ユーザーID shown = the one on ユーザー詳細 (ログインID, else the internal ID)
+        Set<Long> memberIds = new HashSet<>();
+        for (SupportInquiry q : inquiries) if (q.getMemberId() != null) memberIds.add(q.getMemberId());
+        Map<Long, String> memberNo = new HashMap<>();
+        for (CrmUser u : userRepository.findAllById(memberIds)) {
+            memberNo.put(u.getId(), u.getLoginId() != null && !u.getLoginId().isEmpty() ? u.getLoginId() : String.valueOf(u.getId()));
+        }
 
         List<Map<String, Object>> rows = new ArrayList<>();
         Map<String, Map<String, String>> tagVals = new LinkedHashMap<>();
@@ -64,6 +78,7 @@ public class SupportDeskController {
             m.put("receivedAt", q.getReceivedAt().format(ISO_MIN));
             m.put("status", q.getStatus());
             m.put("memberId", q.getMemberId() == null ? null : String.valueOf(q.getMemberId()));
+            m.put("memberNo", q.getMemberId() == null ? null : memberNo.getOrDefault(q.getMemberId(), String.valueOf(q.getMemberId())));
             m.put("to", nz(q.getToAddress()));
             m.put("formType", nz(q.getFormType()));
             m.put("orderNo", nz(q.getOrderNo()));

@@ -486,6 +486,9 @@
         .wsx .msg-flag.is-ng   { color:#991b1b; background:#fecaca; }
         .wsx .msg-flag.is-diff { color:#6d28d9; background:#ddd6fe; }
         .wsx .msg-flag.is-mute { color:#64748b; background:#e2e8f0; }
+        /* 取消した予約: 「取消 送信 M/d H:mm」に赤い横線 */
+        .wsx .msg-meta.is-cancelled .msg-flag.is-mute,
+        .wsx .msg-meta.is-cancelled .msg-time { text-decoration:line-through; text-decoration-color:#dc2626; text-decoration-thickness:2px; }
         .wsx .msg-err { margin-top:2px; font-size:11px; color:#dc2626; overflow-wrap:anywhere; }
         .wsx .msg-title { margin:4px 0 2px; font-size:13px; font-weight:700; color:#1e293b; overflow-wrap:anywhere; }
         .wsx .msg-body {
@@ -782,7 +785,7 @@
                         <span class="msg-time"><b>受信</b> <th:block th:text="${#temporals.format(at, 'M/d H:mm')}"/></span>
                         <span class="msg-flag" th:if="${latestOutAt == null or m.createdAt.isAfter(latestOutAt)}">未対応</span>
                     </div>
-                    <div class="msg-meta" th:if="${isOut}">
+                    <div class="msg-meta" th:if="${isOut}" th:classappend="${m.status == 'CANCELLED'} ? 'is-cancelled'">
                         <span class="msg-flag is-ng" th:if="${m.status == 'FAILED'}">NG</span>
                         <span class="msg-flag is-mute" th:if="${m.status == 'CANCELLED'}">取消</span>
                         <span class="msg-flag" th:if="${m.status == 'QUEUED' and m.scheduledAt != null}" th:text="'予約 ' + ${#temporals.format(m.scheduledAt, 'M/d H:mm')}"></span>

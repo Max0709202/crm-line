@@ -56,6 +56,14 @@
                             <input type="text" class="tw-input font-semibold" style="max-width:16rem;"
                                    th:id="'m_' + ${m.code} + '_label'" th:name="'m_' + ${m.code} + '_label'"
                                    th:value="${m.label}" th:placeholder="${m.defaultLabel}" th:maxlength="${maxLabel}"/>
+                            <!-- 色: 入金レポートの支払い方法の枠を この色で塗る (「なし」= 色分けしない) -->
+                            <span class="js-color inline-flex items-center gap-1.5 shrink-0" th:classappend="${m.color == null} ? 'is-unset'">
+                                <span class="text-sm text-slate-500">色</span>
+                                <input type="hidden" class="js-color-val" th:name="'m_' + ${m.code} + '_color'" th:value="${m.color} ?: ''"/>
+                                <input type="color" class="js-color-pick h-8 w-10 p-0.5 border border-slate-300 rounded cursor-pointer"
+                                       th:value="${m.color} ?: '#ffffff'" title="入金レポートでの色"/>
+                                <button type="button" class="js-color-clear text-xs text-slate-500 underline hover:text-red-600">なし</button>
+                            </span>
                         </div>
                         <label class="inline-flex items-center text-sm text-slate-700">
                             <input type="checkbox" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"
@@ -205,7 +213,29 @@
         </div>
         </div>
     </div>
+    <style>
+        .js-color.is-unset .js-color-pick { opacity: .35; }
+    </style>
     <script>
+    // 色: the picker writes the hidden m_<code>_color field; 「なし」 clears it (no colour on 入金レポート).
+    (function () {
+        var cards = document.getElementById('methodCards');
+        cards.addEventListener('input', function (e) {
+            if (!e.target.classList.contains('js-color-pick')) return;
+            var wrap = e.target.closest('.js-color');
+            wrap.querySelector('.js-color-val').value = e.target.value;
+            wrap.classList.remove('is-unset');
+        });
+        cards.addEventListener('click', function (e) {
+            var btn = e.target.closest('.js-color-clear');
+            if (!btn) return;
+            var wrap = btn.closest('.js-color');
+            if (wrap.querySelector('.js-color-val').disabled) return;
+            wrap.querySelector('.js-color-val').value = '';
+            wrap.querySelector('.js-color-pick').value = '#ffffff';
+            wrap.classList.add('is-unset');
+        });
+    })();
     // ▲ / ▼: move a method card; the hidden "order" field carries the new order on save.
     (function () {
         var cards = document.getElementById('methodCards');

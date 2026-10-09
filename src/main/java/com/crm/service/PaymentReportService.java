@@ -69,6 +69,8 @@ public class PaymentReportService {
         private BigDecimal amount;
         private Integer points;
         private String method;
+        /** 決済関連設定 color (#rrggbb) of {@link #method}, null when none is set. */
+        private String methodColor;
         private boolean canceled;
         private String memo;
 
@@ -86,6 +88,7 @@ public class PaymentReportService {
         public BigDecimal getAmount() { return amount; }
         public Integer getPoints() { return points; }
         public String getMethod() { return method; }
+        public String getMethodColor() { return methodColor; }
         public boolean isCanceled() { return canceled; }
         public String getMemo() { return memo; }
     }
@@ -157,6 +160,7 @@ public class PaymentReportService {
             r.points = enteredPoints.containsKey(p.getId()) ? enteredPoints.get(p.getId()) : pointsFor(methods, code, r.amount);
             r.method = p.getPaymentMethod() == null ? "—"
                     : METHOD_LABEL.getOrDefault(p.getPaymentMethod(), settingLabel(methods, p.getPaymentMethod()));
+            r.methodColor = settingColor(methods, code);
             r.canceled = !Payment.STATUS_PAID.equals(p.getStatus());
             r.memo = p.getMemo() == null ? "" : p.getMemo().trim();
             rows.add(r);
@@ -185,6 +189,12 @@ public class PaymentReportService {
         if (text.length() > MEMO_MAX) throw new IllegalArgumentException("備考は" + MEMO_MAX + "文字までです");
         p.setMemo(text.isEmpty() ? null : text);
         paymentRepository.save(p);
+    }
+
+    /** 入金レポート color of a 決済関連設定 method code (as set for the folder), null when none. */
+    private static String settingColor(List<PaymentSettingService.Method> methods, String code) {
+        for (PaymentSettingService.Method m : methods) if (m.getCode().equals(code)) return m.getColor();
+        return null;
     }
 
     /** Label of a 決済関連設定 method code (as customised for the folder), else the value itself. */
