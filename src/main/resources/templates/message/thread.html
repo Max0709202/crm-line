@@ -566,8 +566,8 @@
                 </thead>
                 <tbody>
                 <tr th:each="r : ${inboxRows}" th:with="iu=${inboxUsers.get(r.userId)},
-                                  rowHref=${r.charaId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(chara=${r.charaId})}
-                                     : (${r.lineAccountId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(line=${r.lineAccountId})} : @{'/manager/users/' + ${r.userId} + '/thread'})"
+                                  rowHref=${r.charaId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(chara=${r.charaId},from='inbox')}
+                                     : (${r.lineAccountId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(line=${r.lineAccountId},from='inbox')} : @{'/manager/users/' + ${r.userId} + '/thread'})"
                     class="inbox-row" th:classappend="${r == currentInboxRow} ? 'is-current'"
                     th:data-id="${r.userId}"
                     th:data-href="${rowHref}"
@@ -861,6 +861,7 @@
                 <input type="hidden" th:field="*{replyToMessageId}"/>
                 <input type="hidden" name="charaId" th:if="${cardChara != null}" th:value="${cardChara.id}"/>
                 <input type="hidden" name="charaView" value="1" th:if="${viewChara != null}"/>
+                <input type="hidden" name="lineView" value="1" th:if="${lineView}"/>
 
                 <div>
                     <input type="text" id="subject" th:field="*{subject}" placeholder="件名"/>

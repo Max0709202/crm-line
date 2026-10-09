@@ -194,6 +194,7 @@ public class MessageController {
                          @RequestParam(name = "replyTo", required = false) Long replyTo,
                          @RequestParam(name = "chara", required = false) Long charaParam,
                          @RequestParam(name = "line", required = false) Long lineParam,
+                         @RequestParam(name = "from", required = false) String from,
                          Model model, RedirectAttributes ra, HttpSession session) {
         Optional<CrmUser> user = userService.findById(userId);
         if (!user.isPresent()) {
@@ -203,9 +204,13 @@ public class MessageController {
         // Mark inbound as read when admin opens the thread (drives dashboard unread-count)
         messageService.markThreadAsRead(userId);
         List<Message> thread = messageService.threadFor(userId);
+        // 受信ボックスの行をクリック → ?chara= / ?line= with from=inbox: the whole やり取り履歴 as received
+        // (no キャラ filter); the row's キャラ only picks the highlighted row and who replies (2026-10-09 client request).
+        boolean inboxView = "inbox".equals(from);
+        com.crm.entity.Chara rowChara = charaParam == null ? null : charaRepository.findById(charaParam).orElse(null);
         // 紐づきキャラ をクリック → ?chara=ID: this user × キャラ only (messages sent as / to it),
         // and replies go out as that キャラ.
-        com.crm.entity.Chara viewChara = charaParam == null ? null : charaRepository.findById(charaParam).orElse(null);
+        com.crm.entity.Chara viewChara = inboxView ? null : rowChara;
         if (viewChara != null) {
             java.util.Map<Long, Long> charaOf = charaLinkService.charaIdsOfMessages(thread);
             List<Message> only = new java.util.ArrayList<>();
@@ -216,7 +221,7 @@ public class MessageController {
                 if (support || viewChara.getId().equals(charaOf.get(m.getId()))) only.add(m);
             }
             thread = only;
-        } else if (lineParam != null) {
+        } else if (lineParam != null && !inboxView) {
             // LINE の紐づきキャラ をクリック → ?line=ID: only that LINE account's exchange (each
             // character is a separate conversation), plus サポート窓口 as in the ?chara= view.
             java.util.Map<Long, Long> charaOf = charaLinkService.charaIdsOfMessages(thread);
@@ -258,7 +263,7 @@ public class MessageController {
         // separately from normal 予約送信 (2026-09-09 operator request).
         List<com.crm.entity.DiffScheduleStep> diffReservations =
                 diffScheduleService.listPendingMessageStepsForUser(userId);
-        if (viewChara == null && lineParam != null) {
+        if (viewChara == null && lineParam != null && !inboxView) {
             // ?line=ID: another LINE キャラ's pending sends belong to that キャラ's exchange
             List<com.crm.entity.DiffScheduleStep> only = new java.util.ArrayList<>();
             for (com.crm.entity.DiffScheduleStep s : diffReservations) {
@@ -457,7 +462,7 @@ public class MessageController {
         // this page go out as that キャラ. Without one, the LINE character the user talks to (if any).
         // Its やり取りメモ is still kept under キャラ ID 0.
         List<com.crm.entity.Chara> linkedCharas = charaLinkService.linkedCharas(userId);
-        com.crm.entity.Chara cardChara = viewChara;
+        com.crm.entity.Chara cardChara = rowChara;
         if (cardChara == null) {
             // 受信ボックスの「キャラ」列と同じ: the キャラ the user's latest inbound message was sent to.
             for (MessageService.InboxRow r : inboxRows) {
@@ -470,6 +475,8 @@ public class MessageController {
         if (cardChara == null && !linkedCharas.isEmpty()) cardChara = linkedCharas.get(0);
         model.addAttribute("linkedCharas", linkedCharas);
         model.addAttribute("viewChara", viewChara);
+        // ?line= without from=inbox (LINE の紐づきキャラ): a LINE返信 comes back to that filtered view
+        model.addAttribute("lineView", viewChara == null && lineParam != null && !inboxView);
         model.addAttribute("cardChara", cardChara);
         model.addAttribute("cardCharaFolder", cardChara == null || cardChara.getFolderId() == null ? null
                 : charaFolderRepository.findById(cardChara.getFolderId()).map(com.crm.entity.CharaFolder::getName).orElse(null));
@@ -596,6 +603,7 @@ public class MessageController {
                            @RequestParam(name = "returnTo", required = false) String returnTo,
                            @RequestParam(name = "charaId", required = false) Long charaId,
                            @RequestParam(name = "charaView", required = false) String charaView,
+                           @RequestParam(name = "lineView", required = false) String lineView,
                            @Valid @ModelAttribute("lineForm") com.crm.dto.LineComposeForm form,
                            BindingResult br,
                            @RequestParam(name = "lineImageIds", required = false) java.util.List<Long> lineImageIds,
@@ -604,7 +612,7 @@ public class MessageController {
                            Model model) {
         if (br.hasErrors()) {
             ra.addFlashAttribute("flashError", "本文を入力してください");
-            return "redirect:/manager/users/" + userId + lineRedirectSuffix(returnTo, charaView, charaId, form.getLineAccountId());
+            return "redirect:/manager/users/" + userId + lineRedirectSuffix(returnTo, charaView, charaId, form.getLineAccountId(), lineView);
         }
         // LINE画像挿入 (the compose form's 画像添付 chips are for メール / SMS)
         form.setImageIds(lineImageIds);
@@ -618,14 +626,17 @@ public class MessageController {
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }
-        return "redirect:/manager/users/" + userId + lineRedirectSuffix(returnTo, charaView, charaId, form.getLineAccountId());
+        return "redirect:/manager/users/" + userId + lineRedirectSuffix(returnTo, charaView, charaId, form.getLineAccountId(), lineView);
     }
 
     /** LINE返信: back on the same LINE キャラ (?line=) the reply was sent as — without it the thread
-     *  reopens on the user's first LINE キャラ, which looks like jumping back a page. */
-    private static String lineRedirectSuffix(String returnTo, String charaView, Long charaId, Long lineAccountId) {
-        String suffix = redirectSuffixFor(returnTo, charaView, charaId);
-        return "/thread".equals(suffix) && lineAccountId != null ? suffix + "?line=" + lineAccountId : suffix;
+     *  reopens on the user's first LINE キャラ, which looks like jumping back a page. Only the
+     *  LINE の紐づきキャラ view (lineView) is filtered; otherwise its 受信ボックス row (from=inbox). */
+    private static String lineRedirectSuffix(String returnTo, String charaView, Long charaId, Long lineAccountId, String lineView) {
+        String suffix = redirectSuffixFor(returnTo);
+        if (!"/thread".equals(suffix)) return suffix;
+        if ("1".equals(charaView) && charaId != null) return suffix + "?chara=" + charaId;
+        return lineAccountId != null ? suffix + "?line=" + lineAccountId + ("1".equals(lineView) ? "" : "&from=inbox") : suffix;
     }
 
     /** メッセージボックス per-item reply forms post with returnTo=message-box so the admin
@@ -634,10 +645,12 @@ public class MessageController {
         return "message-box".equals(returnTo) ? "/message-box" : "/thread";
     }
 
-    /** Same, but back on the user × キャラ page (?chara=) when the reply was sent from one. */
+    /** Same, but back on the user × キャラ page (?chara=) when the reply was sent from one; otherwise
+     *  on the 受信ボックス row of the キャラ that replied (whole やり取り履歴, from=inbox). */
     private static String redirectSuffixFor(String returnTo, String charaView, Long charaId) {
         String suffix = redirectSuffixFor(returnTo);
-        return "/thread".equals(suffix) && "1".equals(charaView) && charaId != null ? suffix + "?chara=" + charaId : suffix;
+        if (!"/thread".equals(suffix) || charaId == null) return suffix;
+        return suffix + "?chara=" + charaId + ("1".equals(charaView) ? "" : "&from=inbox");
     }
 
     /**
