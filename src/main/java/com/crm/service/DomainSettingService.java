@@ -48,6 +48,23 @@ public class DomainSettingService {
     public static final String KEY_REPLY_OGP_DESCRIPTION     = "reply.ogp_description";
     public static final String KEY_REPLY_OGP_IMAGE_URL       = "reply.ogp_image_url";
 
+    /**
+     * The same OGP card for each 自動ログインURL (LINE設定): key ("menu" = %auto_login_url%, else a
+     * {@link MemberAutoLoginService#PAGES} key) → its name on LINE設定. Without it LINE shows that
+     * page's own title / text (ログイン / ログインしています…). Saved as {@code member.ogp_<key>_<field>}.
+     */
+    public static final java.util.Map<String, String> MEMBER_OGP_PAGES;
+    static {
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        m.put("inbox", "受信BOX（%inbox_url%）");
+        m.put("memo", "専用HTML（%memo_url%）");
+        m.put("points", "ポイント購入（%points_url%）");
+        m.put("menu", "自動ログインURL（%auto_login_url%）");
+        MEMBER_OGP_PAGES = java.util.Collections.unmodifiableMap(m);
+    }
+
+    public static String memberOgpKey(String page, String field) { return "member.ogp_" + page + "_" + field; }
+
     /** Auto-expire policy for CARRIER_USER_BINDING (deletes rows older than N days). */
     public static final String KEY_BINDING_EXPIRE_ENABLED    = "binding.auto_expire_enabled";
     public static final String KEY_BINDING_EXPIRE_DAYS       = "binding.auto_expire_days";
@@ -158,6 +175,10 @@ public class DomainSettingService {
     public String getReplyOgpTitle()       { return get(KEY_REPLY_OGP_TITLE); }
     public String getReplyOgpDescription() { return get(KEY_REPLY_OGP_DESCRIPTION); }
     public String getReplyOgpImageUrl()    { return get(KEY_REPLY_OGP_IMAGE_URL); }
+
+    /** {@link #MEMBER_OGP_PAGES}: is that 自動ログインURL's OGP card on, and its title / description / image_url. */
+    public boolean isMemberOgpEnabled(String page)      { return getBool(memberOgpKey(page, "enabled"), false); }
+    public String getMemberOgp(String page, String field) { return get(memberOgpKey(page, field)); }
 
     public String getSiteName()    { return get(KEY_SITE_NAME); }
     public String getSiteLogoUrl() { return get(KEY_SITE_LOGO_URL); }

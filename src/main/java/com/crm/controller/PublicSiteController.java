@@ -92,6 +92,32 @@ public class PublicSiteController {
         return autoLogin(autoLoginService.resolveShort(token), page, request);
     }
 
+    /** LINE設定 › 各URLのリンクプレビュー (OGP) of the 自動ログインURL (optional: none without it). */
+    private com.crm.service.DomainSettingService domainSettingService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setDomainSettingService(com.crm.service.DomainSettingService domainSettingService) { this.domainSettingService = domainSettingService; }
+
+    /**
+     * The OGP card LINE shows for this 自動ログインURL (LINE fetches the link itself): the one set on
+     * LINE設定 for its page — %auto_login_url% = "menu" — else none (LINE then shows ログイン).
+     */
+    private String autoLoginOgp(String page) {
+        if (domainSettingService == null) return "";
+        String key = page != null && com.crm.service.MemberAutoLoginService.PAGES.containsKey(page) ? page : "menu";
+        if (!domainSettingService.isMemberOgpEnabled(key)) return "";
+        StringBuilder b = new StringBuilder("<meta property=\"og:type\" content=\"website\">");
+        String[][] tags = {{"og:title", "title"}, {"og:description", "description"}, {"og:image", "image_url"}};
+        for (String[] t : tags) {
+            String v = domainSettingService.getMemberOgp(key, t[1]);
+            if (v != null && !v.trim().isEmpty()) {
+                b.append("<meta property=\"").append(t[0]).append("\" content=\"")
+                        .append(HtmlUtils.htmlEscape(v.trim(), "UTF-8")).append("\">");
+            }
+        }
+        return b.toString();
+    }
+
     private ResponseEntity<String> autoLogin(Optional<CrmUser> user, String page, HttpServletRequest request) {
         String next = "/#login";
         if (user.isPresent()) {
@@ -105,7 +131,7 @@ public class PublicSiteController {
         }
         String html = "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"robots\" content=\"noindex\">"
-                + "<meta http-equiv=\"refresh\" content=\"0;url=" + next + "\"><title>ログイン</title></head>"
+                + "<meta http-equiv=\"refresh\" content=\"0;url=" + next + "\">" + autoLoginOgp(page) + "<title>ログイン</title></head>"
                 + "<body><script>location.replace('" + next + "');</script>"
                 + "<p><a href=\"" + next + "\">ログインしています…</a></p></body></html>";
         return ResponseEntity.ok().header("Content-Type", "text/html; charset=UTF-8")

@@ -154,6 +154,12 @@ public class MemberSiteService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setLineAccountRepository(com.crm.repository.LineAccountRepository lineAccountRepository) { this.lineAccountRepository = lineAccountRepository; }
 
+    /** LINE設定 › 写真: the LINE account's キャラ画像 on its {@link #lineSender} (optional, as above). */
+    private LineAccountPhotoService lineAccountPhotoService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setLineAccountPhotoService(LineAccountPhotoService lineAccountPhotoService) { this.lineAccountPhotoService = lineAccountPhotoService; }
+
     /** 表示文字数: the 本文 shown in the 受信BOX / 受信一覧 — as much as the mail itself showed. */
     public int previewLength() {
         return domainSettingService == null ? 30 : domainSettingService.getEmailReplyUrlClipLength();
@@ -307,7 +313,7 @@ public class MemberSiteService {
      */
     public Optional<Chara> lineSender(long key) {
         if (key >= 0 || lineAccountRepository == null) return Optional.empty();
-        return lineAccountRepository.findById(-key).map(a -> lineSenderOf(a.getId(), a.getName()));
+        return lineAccountRepository.findById(-key).map(a -> lineSenderOf(a.getId(), a.getName(), photoOf(a.getId())));
     }
 
     /** Is {@code c} a LINE account shown as the sender ({@link #lineSender}), not a real キャラ? */
@@ -315,11 +321,17 @@ public class MemberSiteService {
         return c != null && c.getId() != null && c.getId() < 0;
     }
 
-    private static Chara lineSenderOf(Long accountId, String name) {
+    private static Chara lineSenderOf(Long accountId, String name, String photoUrl) {
         Chara c = new Chara();
         c.setId(-accountId);
         c.setName(name == null || name.trim().isEmpty() ? "LINE" : name);
+        c.setPhotoUrl(photoUrl);
         return c;
+    }
+
+    /** The LINE account's 写真 (LINE設定 › LINEアカウント編集), or null. */
+    private String photoOf(Long accountId) {
+        return lineAccountPhotoService == null ? null : lineAccountPhotoService.photoUrl(accountId);
     }
 
     /** LINE account ID → its {@link #lineSender} for the LINE messages of {@code msgs} that have no キャラ. */
@@ -328,12 +340,13 @@ public class MemberSiteService {
         if (lineAccountRepository == null) return out;
         Set<Long> accountIds = new HashSet<>();
         for (Message m : msgs) {
-            if (Message.CHANNEL_LINE.equals(m.getChannel()) && m.getLineAccountId() != null && !charaByMsg.containsKey(m.getId())) {
+            // LINE送信, and the member's 送信 to that LINE account (Web返信 with its LINE account ID)
+            if (m.getLineAccountId() != null && !charaByMsg.containsKey(m.getId())) {
                 accountIds.add(m.getLineAccountId());
             }
         }
         if (accountIds.isEmpty()) return out;
-        for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(accountIds)) out.put(a.getId(), lineSenderOf(a.getId(), a.getName()));
+        for (com.crm.entity.LineAccount a : lineAccountRepository.findAllById(accountIds)) out.put(a.getId(), lineSenderOf(a.getId(), a.getName(), photoOf(a.getId())));
         return out;
     }
 
@@ -469,7 +482,15 @@ public class MemberSiteService {
      */
     @Transactional
     public Message send(CrmUser u, long charaId, SendInput in, String ip, String ua) {
-        if (charaId < 0) throw new MemberException("LINEのメッセージにはLINEからご返信ください");
+        // < 0: a LINE account (lineSender) — 本文だけ (no タイトル / アドレス・電話番号・写真添付)
+        boolean lineAccount = charaId < 0;
+        if (lineAccount && !lineSender(charaId).isPresent()) throw new MemberException("お相手が見つかりません");
+        if (lineAccount) {
+            in.subject = null;
+            in.address = false;
+            in.tel = false;
+            in.photo = null;
+        }
         Chara chara = null;
         if (charaId > 0) chara = chara(charaId).orElseThrow(() -> new MemberException("お相手が見つかりません"));
         String subject = in.subject == null ? "" : in.subject.trim();
@@ -512,6 +533,8 @@ public class MemberSiteService {
             msg.setReplyToMessageId(latestOut.getId());
             msg.setReplyPageToken(latestOut.getReplyPageToken());
         }
+        // to a LINE account: kept in that LINE account's やり取り (受信BOX 送信済み, 管理画面 キャラ名)
+        if (lineAccount) msg.setLineAccountId(-charaId);
         Message saved = messageRepository.save(msg);
         if (chara != null) {
             charaLinkService.assign(CharaRef.OWNER_MESSAGE, saved.getId(), chara.getId());

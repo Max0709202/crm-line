@@ -229,7 +229,8 @@ public class MessageController {
             for (Message m : thread) {
                 boolean support = Message.DIR_OUT.equals(m.getDirection()) && !Message.CHANNEL_LINE.equals(m.getChannel())
                         && !charaOf.containsKey(m.getId());
-                if (support || (Message.CHANNEL_LINE.equals(m.getChannel()) && lineParam.equals(m.getLineAccountId()))) only.add(m);
+                // LINE送信, and the member's 会員ページ送信 to that LINE account (Web返信 with its LINE account ID)
+                if (support || lineParam.equals(m.getLineAccountId())) only.add(m);
             }
             thread = only;
         }

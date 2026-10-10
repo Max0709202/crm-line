@@ -533,26 +533,20 @@ public class MemberSiteController {
             if (!fp) b.append("<div class=\"boxline\"></div></section>");
             return render("reply", request, u, b.toString(), null);
         }
-        if (!realChara) {
-            // LINE送信 (LINE account): read here, replied to in LINE — no 送信フォーム
-            b.append(fp ? "<div class=\"row\">返信はLINEから送信してください</div>" : "<div class=\"note\">返信はLINEから送信してください</div>");
-            if (!fp) b.append("<div class=\"boxline\"></div></section>");
-            return render("reply", request, u, b.toString(), null);
-        }
-
-        // 送信フォーム — タイトル・本文の入力欄は受信メールと同じ文字サイズ; 写真添付 / アドレス添付・電話番号添付 (ポイント表示なし)
-        boolean address = site.offered(MemberSiteService.COST_ADDRESS, u);
-        boolean tel = site.offered(MemberSiteService.COST_TEL, u);
+        // 送信フォーム — タイトル・本文の入力欄は受信メールと同じ文字サイズ; 写真添付 / アドレス添付・電話番号添付 (ポイント表示なし).
+        // LINE送信 (LINE account, not a キャラ): 本文だけ
+        boolean address = realChara && site.offered(MemberSiteService.COST_ADDRESS, u);
+        boolean tel = realChara && site.offered(MemberSiteService.COST_TEL, u);
         int mailCost = site.cost(MemberSiteService.COST_MAIL, u);
         String sameSize = " style=\"font-size:inherit;font-family:inherit\"";
         b.append("<form method=\"post\" action=\"/member/reply\" enctype=\"multipart/form-data\">").append(csrf(request))
                 .append("<input type=\"hidden\" name=\"c\" value=\"").append(charaId).append("\">")
                 .append(openedId == null ? "" : "<input type=\"hidden\" name=\"m\" value=\"" + openedId + "\">")
                 .append(sendOnly ? "<input type=\"hidden\" name=\"send\" value=\"true\">" : "")
-                .append(field(fp, "タイトル", "<input type=\"text\" name=\"subject\" maxlength=\"" + MemberSiteService.SUBJECT_MAX + "\"" + sameSize + ">"))
+                .append(realChara ? field(fp, "タイトル", "<input type=\"text\" name=\"subject\" maxlength=\"" + MemberSiteService.SUBJECT_MAX + "\"" + sameSize + ">") : "")
                 .append(field(fp, "本文", "<textarea name=\"body\" maxlength=\"" + MemberSiteService.BODY_MAX + "\" required" + sameSize + "></textarea>"));
         // LINE用: no 写真添付 / アドレス添付
-        boolean line = line(request, u);
+        boolean line = line(request, u) || !realChara;
         if (line) address = false;
         StringBuilder attach = new StringBuilder();
         if (!line) attach.append("<div><label style=\"display:inline;font-weight:800\">写真添付</label> <input type=\"file\" name=\"photo\" accept=\"image/*\"></div>");
@@ -1256,10 +1250,12 @@ public class MemberSiteController {
                 + "<a class=\"smallbtn reply\" href=\"/member/reply?c=" + c.getId() + "&amp;send=1\">メッセージ送信</a></div></div></div>";
     }
 
-    /** The キャラ's photo as the avatar once 写真閲覧 is free / used, else the design's 👤. */
+    /** The キャラ's photo as the avatar once 写真閲覧 is free / used, else the design's 👤. A LINE account:
+     *  its LINE設定 写真 right away (no 写真閲覧 for it). */
     private String avatar(CrmUser u, Chara c) {
         if (c == null) return "🎧";
-        if (c.getPhotoUrl() == null || !site.isOpen(u, MemberUnlockService.PHOTO, c.getId())) return "👤";
+        if (c.getPhotoUrl() == null) return "👤";
+        if (!MemberSiteService.isLineSender(c) && !site.isOpen(u, MemberUnlockService.PHOTO, c.getId())) return "👤";
         return "<img src=\"" + e(c.getPhotoUrl()) + "\" alt=\"\" style=\"width:100%;height:100%;object-fit:cover;border-radius:7px\">";
     }
 

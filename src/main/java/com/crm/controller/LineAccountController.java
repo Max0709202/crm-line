@@ -108,6 +108,18 @@ public class LineAccountController {
         model.addAttribute("replyOgpTitle", domainSettingService.getReplyOgpTitle());
         model.addAttribute("replyOgpDescription", domainSettingService.getReplyOgpDescription());
         model.addAttribute("replyOgpImageUrl", domainSettingService.getReplyOgpImageUrl());
+        // 各URL (受信BOX・専用HTML・ポイント購入・自動ログインURL) のリンクプレビュー (OGP)
+        Map<String, Map<String, Object>> memberOgp = new LinkedHashMap<>();
+        for (Map.Entry<String, String> pg : com.crm.service.DomainSettingService.MEMBER_OGP_PAGES.entrySet()) {
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("label", pg.getValue());
+            o.put("enabled", domainSettingService.isMemberOgpEnabled(pg.getKey()));
+            o.put("title", domainSettingService.getMemberOgp(pg.getKey(), "title"));
+            o.put("description", domainSettingService.getMemberOgp(pg.getKey(), "description"));
+            o.put("imageUrl", domainSettingService.getMemberOgp(pg.getKey(), "image_url"));
+            memberOgp.put(pg.getKey(), o);
+        }
+        model.addAttribute("memberOgp", memberOgp);
         model.addAttribute("builtinTags", com.crm.service.PlaceholderService.BUILTIN_TAGS);
         return "line/account-list";
     }
@@ -403,6 +415,31 @@ public class LineAccountController {
         auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null, "reply.ogp_enabled=" + on);
         ra.addFlashAttribute("flashSuccess", "返信URLのリンクプレビュー (OGP) を更新しました");
         return "redirect:/manager/line-settings";
+    }
+
+    /** 各URLのリンクプレビュー (OGP): {@code <page>_enabled / _title / _description / _imageUrl} for each
+     *  {@link com.crm.service.DomainSettingService#MEMBER_OGP_PAGES}. */
+    @PostMapping("/member-ogp")
+    public String saveMemberOgp(@RequestParam Map<String, String> params, HttpSession session, RedirectAttributes ra) {
+        String denied = denyUnlessAdmin(session, ra);
+        if (denied != null) return denied;
+
+        StringBuilder audit = new StringBuilder();
+        for (String page : com.crm.service.DomainSettingService.MEMBER_OGP_PAGES.keySet()) {
+            boolean on = params.containsKey(page + "_enabled");
+            domainSettingService.save(com.crm.service.DomainSettingService.memberOgpKey(page, "enabled"), String.valueOf(on));
+            domainSettingService.save(com.crm.service.DomainSettingService.memberOgpKey(page, "title"), trimmed(params.get(page + "_title")));
+            domainSettingService.save(com.crm.service.DomainSettingService.memberOgpKey(page, "description"), trimmed(params.get(page + "_description")));
+            domainSettingService.save(com.crm.service.DomainSettingService.memberOgpKey(page, "image_url"), trimmed(params.get(page + "_imageUrl")));
+            audit.append(audit.length() == 0 ? "" : " ").append("member.ogp_").append(page).append("=").append(on);
+        }
+        auditLog.record(AuditLogService.ACTION_LINE_SETTINGS_CHANGE, "CrmSetting", null, audit.toString());
+        ra.addFlashAttribute("flashSuccess", "各URLのリンクプレビュー (OGP) を更新しました");
+        return "redirect:/manager/line-settings";
+    }
+
+    private static String trimmed(String s) {
+        return s == null ? "" : s.trim();
     }
 
     @PostMapping("/rate-per-minute")
