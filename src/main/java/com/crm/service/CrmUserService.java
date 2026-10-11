@@ -272,6 +272,18 @@ public class CrmUserService {
                 .collect(java.util.stream.Collectors.toList());
     }
 
+    /** ユーザーIDコピー: the ID shown in ユーザー管理 (login ID, or the internal ID when none) of every match, id order. */
+    public java.util.List<String> findDisplayIdsBySearch(com.crm.dto.UserSearchForm form) {
+        return repository.findAll(buildSpecification(form), Sort.by(Sort.Direction.ASC, "id")).stream()
+                .map(CrmUserService::displayId)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /** The ID shown for a user (ユーザー管理 の ID列): login ID, or the internal ID when none. */
+    public static String displayId(CrmUser u) {
+        return u.getLoginId() != null && !u.getLoginId().isEmpty() ? u.getLoginId() : String.valueOf(u.getId());
+    }
+
     public java.util.List<Long> findIdsInFolder(String folder, Integer limit) {
         java.util.List<Long> ids = (folder == null)
                 ? repository.findIdsByFolderIsNull()

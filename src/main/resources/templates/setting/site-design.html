@@ -438,8 +438,12 @@
             f.method = 'post';
             f.action = a.href.split('?')[0];
             f.target = '_blank';
-            [['page', page], ['html', ta.value],
-             ['_csrf', (document.querySelector('meta[name="_csrf"]') || {}).content || '']].forEach(function (kv) {
+            // (no nested array literal here: Thymeleaf reads two opening brackets as an inline expression → 500)
+            var fields = [];
+            fields.push(['page', page]);
+            fields.push(['html', ta.value]);
+            fields.push(['_csrf', (document.querySelector('meta[name="_csrf"]') || {}).content || '']);
+            fields.forEach(function (kv) {
                 var i = document.createElement('input');
                 i.type = 'hidden';
                 i.name = kv[0];

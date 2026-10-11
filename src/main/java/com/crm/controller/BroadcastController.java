@@ -482,7 +482,7 @@ public class BroadcastController {
                 ? java.util.Collections.emptyList() : userService.findAllByIds(targetUserIds);
         model.addAttribute("targetUsers", targetUsers);
         model.addAttribute("targetIdsText", targetUsers.stream()
-                .map(u -> String.valueOf(u.getId()))
+                .map(com.crm.service.CrmUserService::displayId)
                 .collect(java.util.stream.Collectors.joining("\n")));
         model.addAttribute("targetPhonesText", targetUsers.stream()
                 .map(u -> u.getPhoneNumber() == null ? "-" : u.getPhoneNumber())

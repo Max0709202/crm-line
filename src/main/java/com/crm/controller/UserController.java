@@ -1462,9 +1462,10 @@ public class UserController {
         if (searchForm.overPasteLimitField() != null) {
             return org.springframework.http.ResponseEntity.badRequest().body("");
         }
-        java.util.List<Long> ids = service.findIdsBySearch(searchForm, null);
+        // the ID shown in the list (login ID), not the internal ID (client request 2026-10-11)
+        java.util.List<String> ids = service.findDisplayIdsBySearch(searchForm);
         StringBuilder sb = new StringBuilder(ids.size() * 7);
-        for (Long id : ids) sb.append(id).append('\n');
+        for (String id : ids) sb.append(id).append('\n');
         return org.springframework.http.ResponseEntity.ok(sb.toString());
     }
 

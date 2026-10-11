@@ -153,7 +153,8 @@ public class MemberPageService {
         html = html.replace(LINE_MAIN, MAIN_MARK)
                 .replace("%title%", esc(title == null ? SiteDesignService.LINE_PAGES.get(page) : title))
                 .replace("%unread_badge%", unread > 0 ? "<i class=\"fb\">" + unread + "</i>" : "")
-                .replace("%news_new%", newsNew ? "<i class=\"fb\">NEW</i>" : "");
+                // NEW: own small size so it stays inside お知らせ (the .bi's 25px pushed it over 手続き)
+                .replace("%news_new%", newsNew ? "<i class=\"fb\" style=\"font-size:10px;line-height:1.6;padding:1px 6px;margin-left:2px\">NEW</i>" : "");
         html = fillTags(html, memberValues).replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
         return com.crm.util.NoZoom.apply(html);
     }

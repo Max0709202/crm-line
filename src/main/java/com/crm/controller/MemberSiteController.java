@@ -232,7 +232,7 @@ public class MemberSiteController {
                 b.append("</div>");
             }
             b.append("<div class=\"tools\"><select onchange=\"location.href='/member/inbox?tab=").append(t)
-                    .append("'+(this.value?'&amp;c='+this.value:'')\"><option value=\"\">過去の受信者から選択</option>");
+                    .append("'+(this.value?'&amp;c='+this.value:'')\"><option value=\"\">過去の送信宛から選択</option>");
             for (Map.Entry<Long, String> s : senders.entrySet()) {
                 b.append("<option value=\"").append(s.getKey()).append("\"").append(s.getKey().equals(charaFilter) ? " selected" : "")
                         .append(">").append(e(s.getValue())).append("</option>");
@@ -253,14 +253,19 @@ public class MemberSiteController {
                 b.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a></div></div>");
             }
             // 送信済み: as before (no age), 受信一覧 instead of やり取りを見る
+            boolean lineSent = line(request, u);
             for (MemberSiteService.InboxItem it : items) {
                 long cid = it.chara == null ? 0L : it.chara.getId();
                 b.append("<div class=\"msg\" id=\"m").append(it.message.getId()).append("\">");
                 b.append("<div class=\"avatar\">").append(avatar(u, it.chara)).append("</div><div><b>To: ").append(e(name(it.chara)))
                         .append("</b><div class=\"preview\">").append(e(preview(u, it)))
-                        .append("</div></div><div class=\"date\">").append(when(it.message)).append("</div><div class=\"msgactions\">");
-                if (it.chara != null && !MemberSiteService.isLineSender(it.chara)) b.append(charaButtons(request, u, it.chara, friendIds.contains(it.chara.getId()), pageBase + "&page=" + p, false));
-                b.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a></div></div>");
+                        .append("</div></div><div class=\"date\">").append(when(it.message)).append("</div>");
+                StringBuilder acts = new StringBuilder();
+                if (it.chara != null && !MemberSiteService.isLineSender(it.chara)) acts.append(charaButtons(request, u, it.chara, friendIds.contains(it.chara.getId()), pageBase + "&page=" + p, false));
+                // LINE用 送信済: no 受信一覧 (client request 2026-10-11); no buttons left → no empty row
+                if (!lineSent) acts.append("<a class=\"smallbtn reply\" href=\"/member/inbox/list?c=").append(cid).append("\">受信一覧</a>");
+                if (acts.length() > 0) b.append("<div class=\"msgactions\">").append(acts).append("</div>");
+                b.append("</div>");
             }
             b.append("<div class=\"boxline\"></div></section>");
             if (sentTab) b.append(pager(pageBase, p, pages, false));
@@ -559,8 +564,10 @@ public class MemberSiteController {
         if (attach.length() > 0) {
             b.append(fp ? "<div class=\"row\">" + attach + "</div>" : "<div class=\"row\" style=\"display:block;padding:12px 15px\">" + attach + "</div>");
         }
+        // LINE用: メール送信 0ポイント → no ポイント表示 (client request 2026-10-11)
         b.append(fp ? "<div class=\"row\"><button class=\"btn\">送信</button>（" + mailCost + "ポイント）</div>"
-                : "<div class=\"actions\"><button class=\"btn\">送信</button><div class=\"note\" style=\"padding:6px 0 0\">メール送信 " + mailCost + "ポイント</div></div>");
+                : "<div class=\"actions\"><button class=\"btn\">送信</button>"
+                + (line && mailCost <= 0 ? "" : "<div class=\"note\" style=\"padding:6px 0 0\">メール送信 " + mailCost + "ポイント</div>") + "</div>");
         b.append("</form>");
         if (!fp) b.append("<div class=\"boxline\"></div></section>");
         return render("reply", request, u, b.toString(), sendOnly ? "送信" : null);

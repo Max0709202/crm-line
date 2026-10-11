@@ -284,7 +284,7 @@ public class MemberSiteService {
         return inbox(u, "all", charaId);
     }
 
-    /** 過去の受信者から選択: the キャラ that wrote to the member (and サポート窓口 when it did). */
+    /** 過去の送信宛から選択: the キャラ that wrote to the member (and サポート窓口 when it did). */
     public Map<Long, String> pastSenders(CrmUser u) {
         List<Message> msgs = inboxMessages(u);
         Map<Long, Long> charaByMsg = charaLinkService.charaIdsOfMessages(msgs);
