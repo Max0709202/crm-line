@@ -142,8 +142,13 @@ public class MemberPageService {
     public String renderLine(String page, Map<String, String> memberValues, String mainHtml, String title,
                              int unread, boolean newsNew) {
         if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
-        String html = siteDesignService.getLineHtml(page);
-        if (html == null) html = getDefaultLineTemplate();
+        return renderLine(page, siteDesignService.getLineHtml(page), memberValues, mainHtml, title, unread, newsNew);
+    }
+
+    /** {@code html} = the LINE用 page's HTML (null/blank = the bundled default). */
+    private String renderLine(String page, String html, Map<String, String> memberValues, String mainHtml, String title,
+                              int unread, boolean newsNew) {
+        if (html == null || html.trim().isEmpty()) html = getDefaultLineTemplate();
         // %main% → a marker first, so a member's own value (e.g. a nickname "%main%") is never read as it
         html = html.replace(LINE_MAIN, MAIN_MARK)
                 .replace("%title%", esc(title == null ? SiteDesignService.LINE_PAGES.get(page) : title))
@@ -156,11 +161,17 @@ public class MemberPageService {
     /** 番組デザイン設定 › LINE用 check: one LINE用 page with the saved HTML and sample content. */
     public String renderLinePreview(String page) {
         if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
+        return renderLinePreview(page, siteDesignService.getLineHtml(page));
+    }
+
+    /** Same, with the HTML being edited (not yet saved) — 「この画面を確認」 next to each LINE用 HTML box. */
+    public String renderLinePreview(String page, String html) {
+        if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
         String main = "points".equals(page)
                 ? load("points.html").replace("%plans%", pointPlans())
                 : load("line/sample-" + page + ".html");
         String title = "inbox".equals(page) ? "受信BOX" : "reply".equals(page) ? "返信" : "memo".equals(page) ? "お知らせ" : "ポイント購入";
-        return renderLine(page, null, fillTags(main, null), title, 17, true);
+        return renderLine(page, html, null, fillTags(main, null), title, 17, true);
     }
 
     /** The bundled LINE用 page (the same frame for every LINE用 page). */

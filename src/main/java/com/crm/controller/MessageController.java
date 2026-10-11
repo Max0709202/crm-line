@@ -204,13 +204,13 @@ public class MessageController {
         // Mark inbound as read when admin opens the thread (drives dashboard unread-count)
         messageService.markThreadAsRead(userId);
         List<Message> thread = messageService.threadFor(userId);
-        // 受信ボックスの行をクリック → ?chara= / ?line= with from=inbox: the whole やり取り履歴 as received
-        // (no キャラ filter); the row's キャラ only picks the highlighted row and who replies (2026-10-09 client request).
+        // 受信ボックスの行をクリック → ?chara= / ?line= with from=inbox: like 紐づきキャラ, only that
+        // user × キャラ's exchange — each キャラ is a separate conversation (2026-10-11 client request).
         boolean inboxView = "inbox".equals(from);
         com.crm.entity.Chara rowChara = charaParam == null ? null : charaRepository.findById(charaParam).orElse(null);
         // 紐づきキャラ をクリック → ?chara=ID: this user × キャラ only (messages sent as / to it),
         // and replies go out as that キャラ.
-        com.crm.entity.Chara viewChara = inboxView ? null : rowChara;
+        com.crm.entity.Chara viewChara = rowChara;
         if (viewChara != null) {
             java.util.Map<Long, Long> charaOf = charaLinkService.charaIdsOfMessages(thread);
             List<Message> only = new java.util.ArrayList<>();
@@ -221,7 +221,7 @@ public class MessageController {
                 if (support || viewChara.getId().equals(charaOf.get(m.getId()))) only.add(m);
             }
             thread = only;
-        } else if (lineParam != null && !inboxView) {
+        } else if (lineParam != null) {
             // LINE の紐づきキャラ をクリック → ?line=ID: only that LINE account's exchange (each
             // character is a separate conversation), plus サポート窓口 as in the ?chara= view.
             java.util.Map<Long, Long> charaOf = charaLinkService.charaIdsOfMessages(thread);
@@ -264,7 +264,19 @@ public class MessageController {
         // separately from normal 予約送信 (2026-09-09 operator request).
         List<com.crm.entity.DiffScheduleStep> diffReservations =
                 diffScheduleService.listPendingMessageStepsForUser(userId);
-        if (viewChara == null && lineParam != null && !inboxView) {
+        if (viewChara != null && !diffReservations.isEmpty()) {
+            // ?chara=ID: another キャラ's pending sends belong to that キャラ's exchange (same rule as the messages)
+            List<Long> stepIds = new java.util.ArrayList<>();
+            for (com.crm.entity.DiffScheduleStep s : diffReservations) stepIds.add(s.getId());
+            java.util.Map<Long, Long> stepChara = charaLinkService.charaIdsOf(com.crm.entity.CharaRef.OWNER_DIFF_SCHEDULE_STEP, stepIds);
+            List<com.crm.entity.DiffScheduleStep> only = new java.util.ArrayList<>();
+            for (com.crm.entity.DiffScheduleStep s : diffReservations) {
+                Long c = stepChara.get(s.getId());
+                boolean support = c == null && !Message.CHANNEL_LINE.equals(s.getChannel());
+                if (support || viewChara.getId().equals(c)) only.add(s);
+            }
+            diffReservations = only;
+        } else if (viewChara == null && lineParam != null) {
             // ?line=ID: another LINE キャラ's pending sends belong to that キャラ's exchange
             List<com.crm.entity.DiffScheduleStep> only = new java.util.ArrayList<>();
             for (com.crm.entity.DiffScheduleStep s : diffReservations) {

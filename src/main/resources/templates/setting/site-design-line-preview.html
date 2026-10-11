@@ -25,11 +25,13 @@
         <span class="ttl">LINE用ページ確認（スマホ）</span>
         <a th:each="p : ${linePages}" th:href="@{/manager/settings/site-design/line-preview-frame(page=${p.key})}"
            th:classappend="${p.key == page} ? 'on'" th:text="${p.value}">受信BOX</a>
-        <span class="w" th:text="'表示幅 ' + ${width} + 'px（保存済みの内容・会員情報とページの中身はサンプル）'">表示幅</span>
+        <span class="w" th:text="'表示幅 ' + ${width} + 'px（' + (${draftHtml != null} ? '編集中の内容' : '保存済みの内容') + '・会員情報とページの中身はサンプル）'">表示幅</span>
     </div>
 </div>
 <div class="stage">
-    <iframe th:src="@{/manager/settings/site-design/line-preview(page=${page})}"
+    <iframe th:if="${draftHtml == null}" th:src="@{/manager/settings/site-design/line-preview(page=${page})}"
+            th:style="'width:' + ${width} + 'px'" title="LINE用ページ"></iframe>
+    <iframe th:if="${draftHtml != null}" th:srcdoc="${draftHtml}"
             th:style="'width:' + ${width} + 'px'" title="LINE用ページ"></iframe>
 </div>
 </body>

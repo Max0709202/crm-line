@@ -88,6 +88,10 @@
             border:1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; white-space:nowrap;
         }
         .sched-box .chip:hover { background:#eff6ff; border-color:#2563eb; color:#1d4ed8; }
+        .emoji-panel { display:flex; flex-wrap:wrap; gap:2px; margin-top:4px; padding:4px; border:1px solid #e2e8f0; border-radius:6px; background:#fff; }
+        .emoji-panel[hidden] { display:none; }
+        .emoji-panel button { width:28px; height:28px; font-size:18px; line-height:1; border:0; background:none; border-radius:4px; cursor:pointer; }
+        .emoji-panel button:hover { background:#eff6ff; }
         .sched-box input[type="datetime-local"] {
             padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:.78rem; outline:none; flex:1; min-width:180px;
         }
@@ -920,7 +924,9 @@
                         <button type="button" class="chip" data-sched-quick="180">+3時間</button>
                         <button type="button" class="chip" id="btnComposeImage" title="PCの画像を選んで添付します（メール・SMS：本文にURLは入らず、返信画面に📎付きで表示）">画像添付</button>
                         <input type="file" id="composeImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;"/>
+                        <button type="button" class="chip" id="btnEmoji" title="本文に絵文字を入れます（ドコモ・au・ソフトバンク共通の絵文字のみ）">絵文字</button>
                     </div>
+                    <div id="emojiPanel" class="emoji-panel" hidden></div>
                 </div>
 
                 <div style="margin-top:2px;border-top:1px solid #e2e8f0;padding-top:2px;">
@@ -1614,7 +1620,7 @@ document.addEventListener('keydown', function (e) {
     var counter = document.getElementById('smsCharCount');
     if (!ta || !counter) return;
     function update() {
-        var n = ta.value.length;
+        var n = Array.from(ta.value).length;
         counter.textContent = '60文字以内で送信 (' + n + '文字' + (n > 60 ? ' / 2通以上になります' : '') + ')';
         counter.style.color = n > 60 ? '#dc2626' : '';
     }
@@ -1628,7 +1634,7 @@ document.addEventListener('keydown', function (e) {
     if (!ta || !counter) return;
     var max = parseInt(counter.getAttribute('data-max'), 10) || 1000;
     function update() {
-        var n = ta.value.length;
+        var n = Array.from(ta.value).length;
         counter.textContent = max + '文字以内 (' + n + '文字' + (n > max ? ' / ' + max + '文字以降は返信URL先に表示' : '') + ')';
         counter.style.color = n > max ? '#b45309' : '';
     }
@@ -1735,6 +1741,29 @@ function insertTagToBody(token) {
 document.querySelectorAll('code.tag-name[data-token]').forEach(function (el) {
     el.addEventListener('click', function () { insertTagToBody(el.getAttribute('data-token')); });
 });
+
+// 絵文字: only emoji that exist in all of docomo / au / SoftBank's 絵文字 (Unicode 6.0 carrier set)
+// and show as emoji without a variation selector, so they don't turn into 〓 / ? on the user's device.
+(function () {
+    var btn = document.getElementById('btnEmoji');
+    var panel = document.getElementById('emojiPanel');
+    if (!btn || !panel) return;
+    var EMOJI = ['😊','😃','😄','😁','😉','😍','😘','😚','😜','😝','😳','😌','😏','😒','😔','😞','😥','😢','😭','😂',
+                 '😲','😱','😰','😓','😣','😖','😠','😡','😪','😷','💕','💓','💗','💖','💘','💝','💋','✨','⭐','🎵',
+                 '🎶','💡','💤','💦','💢','🔥','🌸','🌹','🍀','🌙','⚡','☔','☕','🍰','🍺','🎁','🎂','🎉','👍','👌',
+                 '👋','🙏','📱','🏠','🚗','🎤','🆗','🆕','🆓','⭕','❌','❗','❓'];
+    EMOJI.forEach(function (e) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = e;
+        b.addEventListener('click', function () {
+            insertTagToBody(e);
+            document.getElementById('body').dispatchEvent(new Event('input'));
+        });
+        panel.appendChild(b);
+    });
+    btn.addEventListener('click', function () { panel.hidden = !panel.hidden; });
+})();
 
 (function () {
     var memoBtn = document.getElementById('btnInternalMemoSave');

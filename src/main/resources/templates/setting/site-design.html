@@ -389,6 +389,7 @@
                         <span th:if="${lineCustomized.get(lp.key)}" class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">編集済み</span>
                         <span th:unless="${lineCustomized.get(lp.key)}" class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">初期デザイン</span>
                         <a th:href="@{/manager/settings/site-design/line-preview-frame(page=${lp.key})}" target="_blank"
+                           th:attr="data-line-draft=${lp.key}"
                            class="text-xs text-blue-600 hover:underline">この画面を確認</a>
                     </div>
                     <textarea class="tw-input font-mono" th:name="'lineHtml_' + ${lp.key}" rows="14" spellcheck="false"
@@ -425,6 +426,30 @@
         }
         ta.addEventListener('input', update);
         update();
+    });
+    // LINE用「この画面を確認」: show the HTML in the box as it is now (also before 保存する).
+    document.querySelectorAll('a[data-line-draft]').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+            var page = a.getAttribute('data-line-draft');
+            var ta = document.querySelector('textarea[name="lineHtml_' + page + '"]');
+            if (!ta) return;
+            e.preventDefault();
+            var f = document.createElement('form');
+            f.method = 'post';
+            f.action = a.href.split('?')[0];
+            f.target = '_blank';
+            [['page', page], ['html', ta.value],
+             ['_csrf', (document.querySelector('meta[name="_csrf"]') || {}).content || '']].forEach(function (kv) {
+                var i = document.createElement('input');
+                i.type = 'hidden';
+                i.name = kv[0];
+                i.value = kv[1];
+                f.appendChild(i);
+            });
+            document.body.appendChild(f);
+            f.submit();
+            f.remove();
+        });
     });
     // 表示範囲: the folder checkboxes only apply with フォルダ限定 selected.
     document.querySelectorAll('.js-scope').forEach(function (box) {

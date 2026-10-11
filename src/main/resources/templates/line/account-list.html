@@ -46,7 +46,7 @@
         これを設定しないと、友達追加やメッセージが届いても本システムには反映されません。
     </p>
 
-    <!-- 上の2つの設定（左）＋ LINE送信の固定テンプレート・友達追加 初期フォルダ（中）＋ 返信URLのリンクプレビュー (OGP)（右） -->
+    <!-- 上の2つの設定（左）＋ LINE送信の固定テンプレート・友達追加 初期フォルダ（中）＋ リンクプレビュー (OGP)（右） -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4 items-start">
     <div>
         <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex flex-wrap items-center gap-3">
@@ -128,63 +128,69 @@
     </div>
     </div>
 
-    <!-- 返信URLのリンクプレビュー (OGP) — ドメイン設定から移動 -->
-    <form method="post" th:action="@{/manager/line-settings/reply-ogp}"
-          class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 flex flex-col gap-2">
-        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
-        <div class="flex items-center gap-3">
-            <span class="text-sm font-medium text-slate-700">返信URLのリンクプレビュー (OGP)</span>
-            <label class="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-700">
-                <input type="checkbox" name="enabled" value="1" th:checked="${replyOgpEnabled}" class="h-4 w-4"/>有効にする
-            </label>
-        </div>
-        <label class="text-xs text-slate-600">タイトル
-            <input type="text" name="title" th:value="${replyOgpTitle}" maxlength="200" class="tw-input text-sm" placeholder="例: お客様サポート窓口"/>
-        </label>
-        <label class="text-xs text-slate-600">説明文
-            <input type="text" name="description" th:value="${replyOgpDescription}" maxlength="500" class="tw-input text-sm" placeholder="例: こちらのリンクからお問い合わせ内容をご確認いただけます"/>
-        </label>
-        <label class="text-xs text-slate-600">画像URL
-            <input type="text" name="imageUrl" th:value="${replyOgpImageUrl}" class="tw-input text-sm" placeholder="例: https://avu74g.jp/img/12"/>
-        </label>
-        <div class="text-xs text-slate-500 leading-relaxed">
-            LINEなどにURLを貼ると、返信ページ (/reply/{token}) の画像・タイトル・説明文がカード形式で表示されます。OFFの場合は何も表示されません。
-            画像は<a class="text-blue-600 hover:underline" th:href="@{/manager/settings/html-images}">HTML画像管理</a>でアップロードした公開URLを貼り付けてください。
-        </div>
-        <div><button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button></div>
-    </form>
+    <!-- リンクプレビュー (OGP): 返信URL・各URL を右上の1か所にまとめ、URLごとに折りたたみ表示 (2026-10-11 client request) -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 flex flex-col gap-2">
+        <span class="text-sm font-medium text-slate-700">リンクプレビュー (OGP)</span>
 
-    <!-- 各URL (受信BOX・専用HTML・ポイント購入・自動ログインURL) のリンクプレビュー (OGP) -->
-    <form method="post" th:action="@{/manager/line-settings/member-ogp}"
-          class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mt-4 flex flex-col gap-2">
-        <input type="hidden" name="_csrf" th:value="${_csrf}"/>
-        <span class="text-sm font-medium text-slate-700">各URLのリンクプレビュー (OGP)</span>
-        <details th:each="o : ${memberOgp}" class="border border-slate-100 rounded p-2" th:open="${o.value.enabled}">
+        <!-- 返信URL (%reply_url%) -->
+        <details class="border border-slate-100 rounded p-2" th:open="${replyOgpEnabled}">
             <summary class="text-xs font-medium text-slate-700 cursor-pointer">
-                <span th:text="${o.value.label}">受信BOX</span>
-                <span th:if="${o.value.enabled}" class="ml-1 text-[11px] text-white rounded px-1" style="background:#06C755;">有効</span>
+                返信URL
+                <span th:if="${replyOgpEnabled}" class="ml-1 text-[11px] text-white rounded px-1" style="background:#06C755;">有効</span>
             </summary>
-            <div class="flex flex-col gap-2 mt-2">
+            <form method="post" th:action="@{/manager/line-settings/reply-ogp}" class="flex flex-col gap-2 mt-2">
+                <input type="hidden" name="_csrf" th:value="${_csrf}"/>
                 <label class="inline-flex items-center gap-1.5 text-sm text-slate-700">
-                    <input type="checkbox" th:name="${o.key + '_enabled'}" value="1" th:checked="${o.value.enabled}" class="h-4 w-4"/>有効にする
+                    <input type="checkbox" name="enabled" value="1" th:checked="${replyOgpEnabled}" class="h-4 w-4"/>有効にする
                 </label>
                 <label class="text-xs text-slate-600">タイトル
-                    <input type="text" th:name="${o.key + '_title'}" th:value="${o.value.title}" maxlength="200" class="tw-input text-sm" placeholder="例: LINEより新着メッセージ"/>
+                    <input type="text" name="title" th:value="${replyOgpTitle}" maxlength="200" class="tw-input text-sm" placeholder="例: お客様サポート窓口"/>
                 </label>
                 <label class="text-xs text-slate-600">説明文
-                    <input type="text" th:name="${o.key + '_description'}" th:value="${o.value.description}" maxlength="500" class="tw-input text-sm" placeholder="例: こちらよりご確認頂けます♪"/>
+                    <input type="text" name="description" th:value="${replyOgpDescription}" maxlength="500" class="tw-input text-sm" placeholder="例: こちらのリンクからお問い合わせ内容をご確認いただけます"/>
                 </label>
                 <label class="text-xs text-slate-600">画像URL
-                    <input type="text" th:name="${o.key + '_imageUrl'}" th:value="${o.value.imageUrl}" class="tw-input text-sm" placeholder="例: https://avu74g.jp/img/12"/>
+                    <input type="text" name="imageUrl" th:value="${replyOgpImageUrl}" class="tw-input text-sm" placeholder="例: https://avu74g.jp/img/12"/>
                 </label>
-            </div>
+                <div class="text-xs text-slate-500 leading-relaxed">
+                    LINEなどにURLを貼ると、返信ページ (/reply/{token}) の画像・タイトル・説明文がカード形式で表示されます。OFFの場合は何も表示されません。
+                </div>
+                <div><button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button></div>
+            </form>
         </details>
+
+        <!-- 各URL (受信BOX・専用HTML・ポイント購入・自動ログインURL) -->
+        <form method="post" th:action="@{/manager/line-settings/member-ogp}" class="flex flex-col gap-2">
+            <input type="hidden" name="_csrf" th:value="${_csrf}"/>
+            <details th:each="o : ${memberOgp}" class="border border-slate-100 rounded p-2" th:open="${o.value.enabled}">
+                <summary class="text-xs font-medium text-slate-700 cursor-pointer">
+                    <span th:text="${o.value.label}">受信BOX</span>
+                    <span th:if="${o.value.enabled}" class="ml-1 text-[11px] text-white rounded px-1" style="background:#06C755;">有効</span>
+                </summary>
+                <div class="flex flex-col gap-2 mt-2">
+                    <label class="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                        <input type="checkbox" th:name="${o.key + '_enabled'}" value="1" th:checked="${o.value.enabled}" class="h-4 w-4"/>有効にする
+                    </label>
+                    <label class="text-xs text-slate-600">タイトル
+                        <input type="text" th:name="${o.key + '_title'}" th:value="${o.value.title}" maxlength="200" class="tw-input text-sm" placeholder="例: LINEより新着メッセージ"/>
+                    </label>
+                    <label class="text-xs text-slate-600">説明文
+                        <input type="text" th:name="${o.key + '_description'}" th:value="${o.value.description}" maxlength="500" class="tw-input text-sm" placeholder="例: こちらよりご確認頂けます♪"/>
+                    </label>
+                    <label class="text-xs text-slate-600">画像URL
+                        <input type="text" th:name="${o.key + '_imageUrl'}" th:value="${o.value.imageUrl}" class="tw-input text-sm" placeholder="例: https://avu74g.jp/img/12"/>
+                    </label>
+                </div>
+            </details>
+            <div class="text-xs text-slate-500 leading-relaxed">
+                受信BOX・専用HTML・ポイント購入などのURLごとに、カードに出る画像・タイトル・説明文を設定できます（OFFの場合は「ログイン」と表示されます）。
+            </div>
+            <div><button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button></div>
+        </form>
         <div class="text-xs text-slate-500 leading-relaxed">
-            LINEで送るURLごとに、カードに出る画像・タイトル・説明文を設定できます（OFFの場合は「ログイン」と表示されます）。
-            返信ページ (%reply_url%) は上の「返信URLのリンクプレビュー」で設定します。
+            画像は<a class="text-blue-600 hover:underline" th:href="@{/manager/settings/html-images}">HTML画像管理</a>でアップロードした公開URLを貼り付けてください。
         </div>
-        <div><button type="submit" class="px-3 py-1.5 text-sm text-white rounded-md" style="background:#06C755;">保存</button></div>
-    </form>
+    </div>
     </div>
 
     <div th:if="${parents == null or parents.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 text-center text-slate-400">

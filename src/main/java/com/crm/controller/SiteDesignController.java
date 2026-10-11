@@ -308,6 +308,15 @@ public class SiteDesignController {
         return "setting/site-design-line-preview";
     }
 
+    /** 「この画面を確認」 next to a LINE用 HTML box: that page with the HTML in the box (saved or not). */
+    @PostMapping("/line-preview-frame")
+    public String linePreviewDraft(@RequestParam(value = "page", defaultValue = "inbox") String page,
+                                   @RequestParam(value = "html", required = false) String html, Model model) {
+        linePreviewFrame(page, model);
+        model.addAttribute("draftHtml", memberPageService.renderLinePreview((String) model.getAttribute("page"), html));
+        return "setting/site-design-line-preview";
+    }
+
     /** One LINE用 page with the saved HTML and sample content / member values. */
     @GetMapping("/line-preview")
     public ResponseEntity<String> linePreview(@RequestParam(value = "page", defaultValue = "inbox") String page) {
