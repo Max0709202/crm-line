@@ -111,6 +111,12 @@ public class MailTemplateService {
         this.autoLoginService = autoLoginService;
     }
 
+    /** サポート窓口's 送信者名 — the From name of 決済入金通知 (shared with 一斉送信). Optional (tests). */
+    private SupportDeskService supportDeskService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setSupportDeskService(SupportDeskService supportDeskService) { this.supportDeskService = supportDeskService; }
+
     /* ===================== 設定画面 ===================== */
 
     /** Tags per template for the page: "common" + each key → [タグ, 説明, サンプル値]. */
@@ -202,7 +208,7 @@ public class MailTemplateService {
         Map<String, String> sample = new LinkedHashMap<>();
         for (String[] t : tags().get("common")) sample.put(t[0], t[2]);
         for (String[] t : tags().get(key)) sample.put(t[0], t[2]);
-        OutboundMailService.SendResult res = deliver(addr, fill(subject.trim(), sample), fill(body, sample));
+        OutboundMailService.SendResult res = deliver(addr, fill(subject.trim(), sample), fill(body, sample), displayNameFor(key));
         if (res == null) throw new TemplateException("送信元アドレスがありません（ドメイン設定・お問い合わせアドレスを確認してください）");
         if (!res.success) throw new TemplateException("送信に失敗しました: " + res.errorMessage);
     }
@@ -232,7 +238,8 @@ public class MailTemplateService {
             Map<String, String> values = commonValues(user, subject, body);
             values.put("%body%", "");   // only メール通知 sent with a キャラ mail has a 本文
             if (extra != null) values.putAll(extra);
-            OutboundMailService.SendResult res = deliver(user.getEmail().trim(), fill(subject, values), fill(body, values));
+            OutboundMailService.SendResult res = deliver(user.getEmail().trim(), fill(subject, values), fill(body, values),
+                    displayNameFor(key));
             if (res == null) {
                 log.warn("mail template {} not sent (no main domain / お問い合わせ address): user={}", key, user.getId());
                 return false;
@@ -363,10 +370,21 @@ public class MailTemplateService {
         return baseUrl() + "/#login";
     }
 
-    private OutboundMailService.SendResult deliver(String to, String subject, String body) {
+    /**
+     * From display name of template {@code key}: 決済入金通知 goes out under サポート窓口's 送信者名
+     * ("サポート窓口" while unset, as a キャラ指定なし 一斉送信); null = the address only.
+     */
+    private String displayNameFor(String key) {
+        if (!PAYMENT.equals(key) || supportDeskService == null) return null;
+        String name = supportDeskService.senderName();
+        return name.isEmpty() ? MemberSiteService.SUPPORT_NAME : name;
+    }
+
+    private OutboundMailService.SendResult deliver(String to, String subject, String body, String displayName) {
         String from = siteDesignService.getContactEmail();
         if (from == null) return null;
-        return mailService.send(new OutboundMailService.OutboundRequest(from, to, subject, body, "127.0.0.1", 25, null, null));
+        return mailService.send(new OutboundMailService.OutboundRequest(from, to, subject, body, "127.0.0.1", 25, null, null,
+                displayName));
     }
 
     /** Known tags → values; unknown %tags% are left as written. */

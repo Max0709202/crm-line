@@ -166,6 +166,15 @@ public class DashboardService {
         // ---- Recent messages (latest 10) ----
         s.recentMessages = messageRepository.findAll(
                 PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
+        // ID column: the member login ID (10000〜), CRM_USER.ID when none was issued
+        Map<Long, String> memberNos = new HashMap<>();
+        java.util.Set<Long> recentUserIds = new java.util.HashSet<>();
+        for (Message m : s.recentMessages) if (m.getUserId() != null) recentUserIds.add(m.getUserId());
+        for (CrmUser u : userRepository.findAllById(recentUserIds)) {
+            memberNos.put(u.getId(), u.getLoginId() != null && !u.getLoginId().isEmpty()
+                    ? u.getLoginId() : String.valueOf(u.getId()));
+        }
+        s.recentMemberNos = memberNos;
 
         return s;
     }
@@ -317,6 +326,8 @@ public class DashboardService {
         public long totalLineSent;
 
         public List<Message> recentMessages;
+        /** CRM_USER.ID → ID shown for {@link #recentMessages} (login ID, else CRM_USER.ID). */
+        public Map<Long, String> recentMemberNos;
 
         public String getNyukinScope() { return nyukinScope; }
         public YearMonth getNyukinMonth() { return nyukinMonth; }
@@ -333,6 +344,7 @@ public class DashboardService {
         public long getTotalSmsSent() { return totalSmsSent; }
         public long getTotalLineSent() { return totalLineSent; }
         public List<Message> getRecentMessages() { return recentMessages; }
+        public Map<Long, String> getRecentMemberNos() { return recentMemberNos; }
 
         /** For the <input type="month"> default. Empty when day scope is active. */
         public String getNyukinMonthValue() {

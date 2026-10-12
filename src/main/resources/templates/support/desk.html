@@ -326,6 +326,7 @@
             <input type="text" class="input" id="senderName" th:value="${senderName}" th:maxlength="${senderNameMax}" placeholder="例: サポート事務局（空欄なら受付アドレスのみ）"/>
             <button type="button" class="btn btn-outline btn-sm" id="btnSenderSave">保存</button>
           </div>
+          <p style="margin:-4px 0 6px; font-size:.75rem; color:#64748b;">※ この送信者名は、決済通知（決済入金通知メール）・一斉送信（キャラ指定なし）と共通の設定です。</p>
           <input type="text" class="input" id="replySubject" name="subject" maxlength="500" placeholder="件名（空欄なら「Re: 元の件名」）"/>
           <textarea class="input" id="replyBody" name="body" placeholder="本文（右の定型文・下のタグをクリックで挿入）"></textarea>
 
