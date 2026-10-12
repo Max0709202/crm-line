@@ -14,6 +14,12 @@
         .tag-name { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-size: .72rem; cursor: pointer; color: #1e40af; }
         .tag-name:hover { background: #e0e7ff; }
         .tag-desc { font-size: .72rem; color: #64748b; }
+        .emoji-btn { font-size: .7rem; font-weight: 600; padding: 2px 9px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff; color: #475569; cursor: pointer; }
+        .emoji-btn:hover { background: #eff6ff; border-color: #2563eb; color: #1d4ed8; }
+        .emoji-panel { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
+        .emoji-panel[hidden] { display: none; }
+        .emoji-panel button { width: 28px; height: 28px; font-size: 18px; line-height: 1; border: 0; background: none; border-radius: 4px; cursor: pointer; }
+        .emoji-panel button:hover { background: #eff6ff; }
     </style>
 </head>
 <body>
@@ -173,6 +179,11 @@
                                        th:text="'⚠ LINE本文の最大文字数（' + ${lineMaxBodyLength} + '文字）が設定されています。画像のURLを本文に貼ると、文字数の設定で途中で切れて画像が見られません。LINEの画像は「画像を挿入する」で入れてください（画像は本文とは別に送られ、文字数に含まれません）。'">⚠</p>
                                 </div>
                                 <textarea name="body" rows="4" placeholder="本文" class="tw-input" th:id="'body' + ${s.id}" th:text="${s.body}"></textarea>
+                                <div class="mt-1">
+                                    <button type="button" class="emoji-btn" th:attr="data-emoji-for=${s.id}"
+                                            title="本文に絵文字を入れます（ドコモ・au・ソフトバンク共通の絵文字のみ）">絵文字</button>
+                                    <div class="emoji-panel" th:id="'emojiPanel' + ${s.id}" hidden></div>
+                                </div>
                                 <div class="tag-panel mt-1">
                                     <div class="tag-row" th:each="t : ${builtinTags}">
                                         <code class="tag-name" th:text="${t.token}" th:attr="data-token=${t.token},onclick=|insertTag(${s.id}, '${t.token}')|"></code>
@@ -297,6 +308,11 @@
                            th:text="'⚠ LINE本文の最大文字数（' + ${lineMaxBodyLength} + '文字）が設定されています。画像のURLを本文に貼ると、文字数の設定で途中で切れて画像が見られません。LINEの画像は「画像を挿入する」で入れてください（画像は本文とは別に送られ、文字数に含まれません）。'">⚠</p>
                     </div>
                     <textarea name="body" rows="4" placeholder="本文" class="tw-input" id="bodynew"></textarea>
+                    <div class="mt-1">
+                        <button type="button" class="emoji-btn" data-emoji-for="new"
+                                title="本文に絵文字を入れます（ドコモ・au・ソフトバンク共通の絵文字のみ）">絵文字</button>
+                        <div class="emoji-panel" id="emojiPanelnew" hidden></div>
+                    </div>
                     <div class="tag-panel mt-1">
                         <div class="tag-row" th:each="t : ${builtinTags}">
                             <code class="tag-name" th:text="${t.token}" th:attr="onclick=|insertTag('new', '${t.token}')|"></code>
@@ -443,6 +459,27 @@
             ta.selectionStart = ta.selectionEnd = pos + token.length;
             ta.dispatchEvent(new Event('input'));
         }
+        // 絵文字: same set as the 返信画面 — only emoji that exist in all of docomo / au / SoftBank's 絵文字
+        // (Unicode 6.0 carrier set), so they don't turn into 〓 / ? on the user's device.
+        (function () {
+            var EMOJI = ['😊','😃','😄','😁','😉','😍','😘','😚','😜','😝','😳','😌','😏','😒','😔','😞','😥','😢','😭','😂',
+                         '😲','😱','😰','😓','😣','😖','😠','😡','😪','😷','💕','💓','💗','💖','💘','💝','💋','✨','⭐','🎵',
+                         '🎶','💡','💤','💦','💢','🔥','🌸','🌹','🍀','🌙','⚡','☔','☕','🍰','🍺','🎁','🎂','🎉','👍','👌',
+                         '👋','🙏','📱','🏠','🚗','🎤','🆗','🆕','🆓','⭕','❌','❗','❓'];
+            document.querySelectorAll('[data-emoji-for]').forEach(function (btn) {
+                var id = btn.getAttribute('data-emoji-for');
+                var panel = document.getElementById('emojiPanel' + id);
+                if (!panel) return;
+                EMOJI.forEach(function (e) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.textContent = e;
+                    b.addEventListener('click', function () { insertTag(id, e); });
+                    panel.appendChild(b);
+                });
+                btn.addEventListener('click', function () { panel.hidden = !panel.hidden; });
+            });
+        })();
         // LINE 文字数カウント — same count as the LINE send (%reply_url% / %external_url% are not counted)
         document.querySelectorAll('[id^="lineCount"]').forEach(function (counter) {
             var ta = document.getElementById(counter.getAttribute('data-body'));

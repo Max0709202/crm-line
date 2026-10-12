@@ -60,6 +60,14 @@ public class CrmUserService {
     private final CarrierBindingService bindingService;
     private final MemberLoginIdService loginIdService;
 
+    /** お知らせ's NEW when the 使用中 slot of the 専用HTML is switched on ユーザー詳細. */
+    private com.crm.repository.MemberMemoSeenRepository memoSeenRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMemoSeenRepository(com.crm.repository.MemberMemoSeenRepository memoSeenRepository) {
+        this.memoSeenRepository = memoSeenRepository;
+    }
+
     /**
      * Live CSV-import progress counter. Reset to 0 at the start of each importCsv()
      * call, incremented per processed row. Read by the GET /manager/users/import/progress
@@ -140,8 +148,12 @@ public class CrmUserService {
         if (phoneChanging && repository.existsByPhoneNumber(newPhone)) {
             throw new DuplicatePhoneException(newPhone);
         }
+        int oldSlot = u.getActiveMemoSlot();
         form.applyTo(u);
         u.setCarrierDomain(deriveCarrierDomainIfBlank(u.getCarrierDomain(), u.getEmail()));
+        if (memoSeenRepository != null && u.getActiveMemoSlot() != oldSlot) {
+            memoSeenRepository.markSwitched(java.util.Collections.singletonList(u.getId()));
+        }
         return repository.save(u);
     }
 

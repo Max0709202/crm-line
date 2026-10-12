@@ -5,18 +5,18 @@
 <head>
     <title>HTML画像管理</title>
     <style>
-        /* 種類ごとの列を横並び、各列は新しい順に下へ */
-        .img-cols { display: flex; align-items: flex-start; gap: 14px; overflow-x: auto; padding-bottom: 8px; }
-        .img-col { flex: none; width: 236px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }
+        /* 種類ごとの列を横並び、各列は新しい順に下へ。列は画面幅を等分して横スクロールなし */
+        .img-cols { display: flex; align-items: flex-start; gap: 8px; padding-bottom: 8px; }
+        .img-col { flex: 1 1 0; min-width: 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
         .img-col[hidden] { display: none; }
         .img-col-head {
-            position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 8px 10px;
-            background: #eef2f6; border-bottom: 1px solid #e2e8f0; border-radius: 10px 10px 0 0;
+            position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px;
+            background: #eef2f6; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0;
         }
-        .img-col-head b { flex: 1; min-width: 0; font-size: .8rem; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .img-col-head b { flex: 1 1 100%; min-width: 0; font-size: .74rem; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .img-col-head .cnt { font-size: .7rem; color: #64748b; font-variant-numeric: tabular-nums; }
         .img-col-head label { display: inline-flex; align-items: center; gap: 3px; font-size: .68rem; color: #475569; cursor: pointer; white-space: nowrap; }
-        .img-col-body { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+        .img-col-body { display: flex; flex-direction: column; gap: 8px; padding: 6px; }
         .img-card {
             position: relative; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff;
             display: flex; flex-direction: column;
@@ -25,32 +25,33 @@
         .img-card.is-checked { border-color: #f43f5e; box-shadow: 0 0 0 2px rgba(244, 63, 94, .2); }
         .img-card .pick { position: absolute; top: 6px; left: 6px; z-index: 1; width: 18px; height: 18px; accent-color: #e11d48; cursor: pointer; }
         .img-card .thumb-wrap {
-            display: flex; align-items: center; justify-content: center; height: 150px; background: #f8fafc;
+            display: flex; align-items: center; justify-content: center; height: 100px; background: #f8fafc;
             overflow: hidden; border-bottom: 1px solid #e2e8f0;
         }
-        .img-card .thumb-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .img-card .body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-        .img-card .url-row { display: flex; gap: 4px; }
+        .img-card .thumb-wrap img, .img-card .thumb-wrap video { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .img-card .video-badge { position: absolute; top: 6px; right: 6px; z-index: 1; padding: 0 5px; border-radius: 3px; background: #1e293b; color: #fff; font-size: .62rem; font-weight: 700; }
+        .img-card .body { padding: 5px; display: flex; flex-direction: column; gap: 4px; }
+        .img-card .url-row { display: flex; gap: 3px; }
         .img-card .url-row input[readonly] {
             flex: 1; min-width: 0; font-size: .68rem; padding: 3px 5px;
             border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; color: #475569;
             font-family: monospace;
         }
         .img-card .copy-btn {
-            font-size: .68rem; padding: 3px 7px; border-radius: 4px; border: 1px solid #cbd5e1;
+            font-size: .66rem; padding: 3px 5px; border-radius: 4px; border: 1px solid #cbd5e1;
             background: #fff; color: #475569; cursor: pointer; white-space: nowrap;
         }
         .img-card .copy-btn.copied { background: #10b981; color: #fff; border-color: #10b981; }
         .img-card .meta { font-size: .66rem; color: #94a3b8; }
         .img-card .fname { font-size: .7rem; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .img-card .label-form { display: flex; gap: 4px; }
+        .img-card .label-form { display: flex; gap: 3px; }
         .img-card .label-form input[type="text"] {
             flex: 1; min-width: 0; font-size: .72rem; padding: 3px 5px;
             border: 1px solid #cbd5e1; border-radius: 4px;
         }
         .img-card .actions { display: flex; gap: 4px; margin-top: 2px; }
         .img-card .btn-mini {
-            font-size: .68rem; padding: 3px 8px; border-radius: 4px; border: 1px solid transparent; cursor: pointer;
+            font-size: .66rem; padding: 3px 6px; border-radius: 4px; border: 1px solid transparent; cursor: pointer; white-space: nowrap;
         }
         .img-tools { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 12px;
             background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
@@ -76,8 +77,8 @@
           class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-end gap-3 flex-wrap">
         <input type="hidden" name="_csrf" th:value="${_csrf}"/>
         <div>
-            <label class="block text-xs text-slate-500 mb-1">画像ファイル</label>
-            <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp" required
+            <label class="block text-xs text-slate-500 mb-1">画像・動画ファイル</label>
+            <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,.mp4" required
                    class="text-sm"/>
         </div>
         <div>
@@ -88,7 +89,8 @@
         <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded">
             アップロード
         </button>
-        <span class="text-xs text-slate-400">JPEG / PNG / GIF / WebP、最大5MB（「その他」の列に入ります）</span>
+        <span class="text-xs text-slate-400">画像：JPEG / PNG / GIF / WebP、動画：MP4のみ、どちらも最大5MB（「その他」の列に入ります）<br/>
+            動画をHTMLに貼るとき：<code>&lt;video src="発行URL" controls playsinline&gt;&lt;/video&gt;</code></span>
     </form>
 
     <div th:if="${columns.empty}" class="bg-white rounded-lg shadow-sm border border-slate-100 p-8 text-center text-slate-400 text-sm">
@@ -120,8 +122,10 @@
                 <div class="img-card" th:each="img : ${col.items}"
                      th:attr="data-kind=${img.kind},data-id=${img.id},data-search=${col.name + ' ' + (img.label ?: '') + ' ' + img.fileName + ' ' + img.createdAt + ' ID' + img.id}">
                     <input type="checkbox" class="pick js-pick" title="選択"/>
+                    <span class="video-badge" th:if="${img.video}">動画</span>
                     <a class="thumb-wrap" th:href="${img.src}" target="_blank" rel="noopener" title="新しいタブで開く">
-                        <img th:src="${img.src}" th:alt="${img.fileName}" loading="lazy"/>
+                        <video th:if="${img.video}" th:src="${img.src}" preload="metadata" muted playsinline></video>
+                        <img th:unless="${img.video}" th:src="${img.src}" th:alt="${img.fileName}" loading="lazy"/>
                     </a>
                     <div class="body">
                         <th:block th:if="${img.kind == 'html'}">

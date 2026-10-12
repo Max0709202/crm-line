@@ -249,7 +249,7 @@ public class DiffScheduleController {
         model.addAttribute("maxSteps", DiffDefinitionService.MAX_STEPS_PER_DEFINITION);
         model.addAttribute("builtinTags", PlaceholderService.BUILTIN_TAGS);
         model.addAttribute("lineAccounts", allLineAccountsFlat());
-        model.addAttribute("htmlImages", htmlImageService.listAll());
+        model.addAttribute("htmlImages", htmlImageService.listImages());
         // LINEステップ: 文字数カウント・注意喚起 (LINE設定の最大文字数)
         model.addAttribute("lineMaxBodyLength", domainSettingService.getLineMaxBodyLength());
         // 送信キャラ (EMAIL / SMS のメッセージステップ): フォルダ → キャラ

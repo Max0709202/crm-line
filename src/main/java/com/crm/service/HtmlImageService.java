@@ -42,6 +42,8 @@ public class HtmlImageService {
     public static final long MAX_SIZE_BYTES = 5L * 1024 * 1024; // 5 MB
     public static final Set<String> ALLOWED_MIME = new java.util.HashSet<>(Arrays.asList(
             "image/jpeg", "image/png", "image/gif", "image/webp"));
+    /** 動画 (HTML画像管理 only): MP4, within {@link #MAX_SIZE_BYTES} like the images. */
+    public static final String MIME_MP4 = "video/mp4";
 
     private final HtmlImageRepository repo;
     private final Path uploadsRoot;
@@ -101,6 +103,17 @@ public class HtmlImageService {
         return repo.findAllByOrderByCreatedAtDesc();
     }
 
+    /** listAll() without the 動画 — for the screens that pick an image (画像添付 / 画像挿入). */
+    public List<HtmlImage> listImages() {
+        List<HtmlImage> out = new java.util.ArrayList<>();
+        for (HtmlImage img : listAll()) if (!isVideo(img)) out.add(img);
+        return out;
+    }
+
+    public static boolean isVideo(HtmlImage img) {
+        return img != null && img.getContentType() != null && img.getContentType().startsWith("video/");
+    }
+
     public Optional<HtmlImage> findById(Long id) {
         return repo.findById(id);
     }
@@ -114,13 +127,24 @@ public class HtmlImageService {
     @Transactional
     public HtmlImage upload(MultipartFile file, String label, String uploadedBy)
             throws HtmlImageException, IOException {
+        return upload(file, label, uploadedBy, false);
+    }
+
+    /** {@code allowVideo}: HTML画像管理's own upload also takes a small MP4 動画. */
+    @Transactional
+    public HtmlImage upload(MultipartFile file, String label, String uploadedBy, boolean allowVideo)
+            throws HtmlImageException, IOException {
         if (file == null || file.isEmpty()) throw new HtmlImageException("ファイルが空です");
         if (file.getSize() > MAX_SIZE_BYTES) {
             throw new HtmlImageException("ファイルサイズは " + (MAX_SIZE_BYTES / 1024 / 1024) + " MB 以内にしてください");
         }
         String mime = file.getContentType();
-        if (mime == null || !ALLOWED_MIME.contains(mime.toLowerCase(Locale.ROOT))) {
-            throw new HtmlImageException("画像ファイル (JPEG / PNG / GIF / WebP) のみアップロード可能です");
+        if (allowVideo && isMp4(file)) {
+            mime = MIME_MP4;
+        } else if (mime == null || !ALLOWED_MIME.contains(mime.toLowerCase(Locale.ROOT))) {
+            throw new HtmlImageException(allowVideo
+                    ? "画像ファイル (JPEG / PNG / GIF / WebP) または動画 (MP4) のみアップロード可能です"
+                    : "画像ファイル (JPEG / PNG / GIF / WebP) のみアップロード可能です");
         }
 
         String ext = pickExtension(file.getOriginalFilename(), mime);
@@ -160,6 +184,23 @@ public class HtmlImageService {
             repo.delete(img);
             return true;
         }).orElse(false);
+    }
+
+    /** An MP4: named .mp4 and starts with the MP4 'ftyp' box (bytes 4..7), whatever type the browser sent. */
+    private static boolean isMp4(MultipartFile file) throws IOException {
+        String name = file.getOriginalFilename();
+        if (name == null || !name.toLowerCase(Locale.ROOT).endsWith(".mp4")) return false;
+        byte[] head = new byte[8];
+        try (java.io.InputStream in = file.getInputStream()) {
+            int n = 0;
+            while (n < head.length) {
+                int r = in.read(head, n, head.length - n);
+                if (r < 0) break;
+                n += r;
+            }
+            if (n < head.length) return false;
+        }
+        return head[4] == 'f' && head[5] == 't' && head[6] == 'y' && head[7] == 'p';
     }
 
     private static String pickExtension(String originalName, String mime) {

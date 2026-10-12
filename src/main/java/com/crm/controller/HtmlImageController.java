@@ -69,6 +69,7 @@ public class HtmlImageController {
             m.put("kind", "html");
             m.put("id", img.getId());
             m.put("src", "/img/" + img.getId());
+            m.put("video", HtmlImageService.isVideo(img));
             m.put("label", img.getLabel());
             m.put("fileName", img.getFileName());
             m.put("createdAt", img.getCreatedAt() == null ? "" : img.getCreatedAt().format(f));
@@ -81,6 +82,7 @@ public class HtmlImageController {
             m.put("kind", "att");
             m.put("id", a.getId());
             m.put("src", "/manager/users/" + a.getUserId() + "/attachment/" + a.getId());
+            m.put("video", false);
             m.put("label", "ユーザーID " + a.getUserId());
             m.put("userId", a.getUserId());
             m.put("fileName", a.getFileName());
@@ -138,10 +140,10 @@ public class HtmlImageController {
                           HttpSession session, RedirectAttributes ra) {
         Object name = session.getAttribute(AuthInterceptor.SESSION_ADMIN_NAME);
         try {
-            HtmlImage img = htmlImageService.upload(file, label, name == null ? null : String.valueOf(name));
+            HtmlImage img = htmlImageService.upload(file, label, name == null ? null : String.valueOf(name), true);
             auditLog.record(AuditLogService.ACTION_HTML_IMAGE_UPLOAD, "HtmlImage", img.getId(),
                     "file=" + img.getFileName() + " size=" + img.getSizeBytes());
-            ra.addFlashAttribute("flashSuccess", "画像をアップロードしました");
+            ra.addFlashAttribute("flashSuccess", HtmlImageService.isVideo(img) ? "動画をアップロードしました" : "画像をアップロードしました");
         } catch (HtmlImageService.HtmlImageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         } catch (IOException e) {

@@ -61,6 +61,14 @@ public class DiffScheduleService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
+    /** お知らせ's NEW for the users whose 使用中 slot an HTML切替 step switched. */
+    private com.crm.repository.MemberMemoSeenRepository memoSeenRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMemoSeenRepository(com.crm.repository.MemberMemoSeenRepository memoSeenRepository) {
+        this.memoSeenRepository = memoSeenRepository;
+    }
+
     /** The step's 送信キャラ goes with its snapshot, so later edits of the step don't change it. */
     private void copyChara(DiffStep step, DiffScheduleStep ss) {
         if (charaLinkService == null || ss.getId() == null) return;
@@ -478,11 +486,15 @@ public class DiffScheduleService {
         for (int i = 0; i < ids.size(); i += chunkSize) {
             List<Long> chunk = ids.subList(i, Math.min(i + chunkSize, ids.size()));
             List<CrmUser> users = userRepository.findAllById(chunk);
+            List<Long> switched = new java.util.ArrayList<>();
             for (CrmUser u : users) {
+                int oldSlot = u.getActiveMemoSlot();
                 u.setActiveMemoSlot(step.getMemoSlotSnapshot());
+                if (u.getActiveMemoSlot() != oldSlot) switched.add(u.getId());
                 userRepository.save(u);
                 applied++;
             }
+            if (memoSeenRepository != null) memoSeenRepository.markSwitched(switched);
         }
         int missing = ids.size() - applied;
         step.setStatus(DiffScheduleStep.STATUS_EXECUTED);

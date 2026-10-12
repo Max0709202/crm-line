@@ -35,6 +35,14 @@ public class ReplyHtmlSlotService {
     private final CrmSettingRepository settingRepository;
     private final CrmUserRepository userRepository;
 
+    /** お知らせ's NEW for the users whose 使用中 slot this 一括適用 switched. */
+    private com.crm.repository.MemberMemoSeenRepository memoSeenRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMemoSeenRepository(com.crm.repository.MemberMemoSeenRepository memoSeenRepository) {
+        this.memoSeenRepository = memoSeenRepository;
+    }
+
     public ReplyHtmlSlotService(CrmSettingRepository settingRepository,
                                  CrmUserRepository userRepository) {
         this.settingRepository = settingRepository;
@@ -117,14 +125,17 @@ public class ReplyHtmlSlotService {
         final int chunkSize = 500;
         for (int i = 0; i < ids.size(); i += chunkSize) {
             List<Long> chunk = ids.subList(i, Math.min(i + chunkSize, ids.size()));
+            List<Long> switched = new ArrayList<>();
             for (CrmUser u : userRepository.findAllById(chunk)) {
                 for (int s = 1; s <= SLOT_COUNT; s++) {
                     u.setMemoSlot(s, htmls[s - 1]);
                 }
+                if (u.getActiveMemoSlot() != slot) switched.add(u.getId());
                 u.setActiveMemoSlot(slot);
                 userRepository.save(u);
                 total++;
             }
+            if (memoSeenRepository != null) memoSeenRepository.markSwitched(switched);
         }
         return total;
     }

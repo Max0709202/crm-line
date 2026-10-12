@@ -187,6 +187,10 @@
             padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:.78rem; outline:none; flex:1; min-width:180px;
         }
         .sched-box input[type="datetime-local"]:focus { border-color:#2563eb; }
+        .emoji-panel { display:flex; flex-wrap:wrap; gap:2px; margin-top:6px; padding:4px; border:1px solid #e2e8f0; border-radius:6px; background:#fff; }
+        .emoji-panel[hidden] { display:none; }
+        .emoji-panel button { width:28px; height:28px; font-size:18px; line-height:1; border:0; background:none; border-radius:4px; cursor:pointer; }
+        .emoji-panel button:hover { background:#eff6ff; }
 
         /* ---- Tag panel ---- */
         .tag-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 10px; margin-top:8px; }
@@ -372,9 +376,10 @@
                         <input type="datetime-local" th:field="*{scheduledAt}" data-sched-input/>
                         <button type="button" class="chip" data-sched-quick="60">+1時間</button>
                         <button type="button" class="chip" data-sched-quick="180">+3時間</button>
-                        <button type="button" class="chip" data-sched-quick="1440">明日同時刻</button>
+                        <button type="button" class="chip" id="btnEmoji" title="本文に絵文字を入れます（ドコモ・au・ソフトバンク共通の絵文字のみ）">絵文字</button>
                         <button type="button" class="chip clear" data-sched-clear>即時開始</button>
                     </div>
+                    <div id="emojiPanel" class="emoji-panel" hidden></div>
                 </div>
             </form>
             </div>
@@ -670,6 +675,29 @@ function insertTagToBody(token) {
 document.querySelectorAll('code.tag-name[data-token]').forEach(function (el) {
     el.addEventListener('click', function () { insertTagToBody(el.getAttribute('data-token')); });
 });
+
+// 絵文字: same set as the 返信画面 — only emoji that exist in all of docomo / au / SoftBank's 絵文字
+// (Unicode 6.0 carrier set), so they don't turn into 〓 / ? on the user's device.
+(function () {
+    var btn = document.getElementById('btnEmoji');
+    var panel = document.getElementById('emojiPanel');
+    if (!btn || !panel) return;
+    var EMOJI = ['😊','😃','😄','😁','😉','😍','😘','😚','😜','😝','😳','😌','😏','😒','😔','😞','😥','😢','😭','😂',
+                 '😲','😱','😰','😓','😣','😖','😠','😡','😪','😷','💕','💓','💗','💖','💘','💝','💋','✨','⭐','🎵',
+                 '🎶','💡','💤','💦','💢','🔥','🌸','🌹','🍀','🌙','⚡','☔','☕','🍰','🍺','🎁','🎂','🎉','👍','👌',
+                 '👋','🙏','📱','🏠','🚗','🎤','🆗','🆕','🆓','⭕','❌','❗','❓'];
+    EMOJI.forEach(function (e) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = e;
+        b.addEventListener('click', function () {
+            insertTagToBody(e);
+            document.getElementById('body').dispatchEvent(new Event('input'));
+        });
+        panel.appendChild(b);
+    });
+    btn.addEventListener('click', function () { panel.hidden = !panel.hidden; });
+})();
 
 // --- Reservation (予約送信) UI ---
 function pad2(n) { return String(n).padStart(2, '0'); }
