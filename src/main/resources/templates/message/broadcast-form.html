@@ -245,7 +245,7 @@
                 </tr>
                 <tr th:each="m,it : ${history}" class="hover:bg-slate-50">
                     <td class="px-3 py-2 text-xs font-mono text-slate-500" th:text="${it.count}">1</td>
-                    <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${m.userId}"></a></td>
+                    <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${userLoginIds != null and userLoginIds.get(m.userId) != null} ? ${userLoginIds.get(m.userId)} : ${m.userId}"></a></td>
                     <td class="px-3 py-2"
                         th:with="diff=${m.direction == 'OUT' and m.broadcastId != null and diffOriginByBroadcastId != null and diffOriginByBroadcastId.get(m.broadcastId) == true}">
                         <span th:if="${diff}"

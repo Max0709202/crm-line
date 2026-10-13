@@ -129,9 +129,12 @@ public class BroadcastController {
         java.util.Map<Long, String> userPhones       = new java.util.HashMap<>();
         java.util.Map<Long, String> userDisplayNames = new java.util.HashMap<>();
         java.util.Map<Long, String> userFolders      = new java.util.HashMap<>();
+        // ID column: the ID shown on ユーザー管理 (login ID 10000〜, else CRM_USER.ID)
+        java.util.Map<Long, String> userLoginIds     = new java.util.HashMap<>();
         if (!uids.isEmpty()) {
             for (com.crm.entity.CrmUser u : userService.findAllByIds(uids)) {
                 userEmails.put(u.getId(), u.getEmail());
+                userLoginIds.put(u.getId(), com.crm.service.CrmUserService.displayId(u));
                 if (u.getPhoneNumber() != null) userPhones.put(u.getId(), u.getPhoneNumber());
                 String name = (u.getDisplayName() == null || u.getDisplayName().isEmpty())
                         ? "" : u.getDisplayName();
@@ -165,6 +168,7 @@ public class BroadcastController {
         model.addAttribute("userPhones", userPhones);
         model.addAttribute("userDisplayNames", userDisplayNames);
         model.addAttribute("userFolders", userFolders);
+        model.addAttribute("userLoginIds", userLoginIds);
         model.addAttribute("lineAccountNames", lineAccountNames);
         // LINE No. column (2026-10-02, same as 個別メッセージ管理): users on this page linked to a LINE account.
         model.addAttribute("lineLinkedUserIds", uids.isEmpty()

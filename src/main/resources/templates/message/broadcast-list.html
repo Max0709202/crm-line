@@ -112,7 +112,7 @@
             <tr th:each="m,it : ${messages.content}" class="hover:bg-slate-50">
                 <td class="px-3 py-2"><input type="checkbox" class="bcast-msg-row-item" name="ids" th:value="${m.id}"/></td>
                 <!-- ID = ユーザーID (2026-10-02; was a sequential row number). -->
-                <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${m.userId}"></a></td>
+                <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${userLoginIds != null and userLoginIds.get(m.userId) != null} ? ${userLoginIds.get(m.userId)} : ${m.userId}"></a></td>
                 <td class="px-3 py-2">
                     <span th:if="${m.direction == 'OUT' and m.broadcastId != null and diffOriginByBroadcastId != null and diffOriginByBroadcastId.get(m.broadcastId) == true}"
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700"

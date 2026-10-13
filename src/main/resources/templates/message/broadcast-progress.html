@@ -104,7 +104,7 @@
                     </thead>
                     <tbody class="divide-y divide-amber-100">
                         <tr th:each="u : ${unsendableUsers}">
-                            <td class="px-2 py-1 font-mono" th:text="${u.id}"></td>
+                            <td class="px-2 py-1 font-mono" th:text="${u.loginId != null and !#strings.isEmpty(u.loginId)} ? ${u.loginId} : ${u.id}"></td>
                             <td class="px-2 py-1">
                                 <a class="text-blue-700 hover:underline"
                                    th:href="@{'/manager/users/' + ${u.id}}" th:text="${@roleMask.email(u.email)}"></a>

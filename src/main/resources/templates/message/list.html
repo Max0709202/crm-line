@@ -95,7 +95,7 @@
             <tr th:each="m,it : ${messages.content}" class="hover:bg-slate-50">
                 <td class="px-3 py-2"><input type="checkbox" class="msg-row-item" name="ids" th:value="${m.id}"/></td>
                 <!-- ID = ユーザーID (2026-10-02; was a sequential row number) — same for every tab. -->
-                <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${m.userId}"></a></td>
+                <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${userLoginIds != null and userLoginIds.get(m.userId) != null} ? ${userLoginIds.get(m.userId)} : ${m.userId}"></a></td>
                 <td class="px-3 py-2">
                     <span th:if="${m.direction == 'OUT' and m.channel == 'SMS'}"
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
