@@ -110,9 +110,19 @@ public class BroadcastController {
                 org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
         Page<com.crm.entity.Message> messages = messageRepository.findBroadcastRelated(addrLike, channelFilter, pageable);
 
+        model.addAttribute("messages", messages);
+        addHistoryTableAttributes(messages.getContent(), model);
+        model.addAttribute("addr", addrTrim == null ? "" : addrTrim);
+        model.addAttribute("channel", channelFilter == null ? "" : channelFilter);
+        return "message/broadcast-list";
+    }
+
+    /** The 一斉送信/返信履歴 table columns (ユーザー情報・キャラ名・種別・LINE No.・フォルダ色) for {@code rows} —
+     *  shared by the history list page and the history pane on the 一斉送信 new form. */
+    private void addHistoryTableAttributes(List<com.crm.entity.Message> rows, Model model) {
         // Resolve userIds → user attributes for the table columns
         java.util.Set<Long> uids = new java.util.HashSet<>();
-        for (com.crm.entity.Message m : messages.getContent()) {
+        for (com.crm.entity.Message m : rows) {
             if (m.getUserId() != null) uids.add(m.getUserId());
         }
         java.util.Map<Long, String> userEmails       = new java.util.HashMap<>();
@@ -132,7 +142,7 @@ public class BroadcastController {
         // キャラ名 column (replaced FROM / 広告コード, operator request 2026-09-30): the LINE
         // account (character) each LINE message was sent / received on.
         java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
-        for (com.crm.entity.Message m : messages.getContent()) {
+        for (com.crm.entity.Message m : rows) {
             Long aid = m.getLineAccountId();
             if (aid != null && !lineAccountNames.containsKey(aid)) {
                 lineAccountNames.put(aid, lineAccountService.findById(aid)
@@ -141,7 +151,7 @@ public class BroadcastController {
         }
         // 種別バッジ用: メッセージの元となったBROADCASTが差分スケジュールから実行されたものかどうか
         java.util.Set<Long> broadcastIds = new java.util.HashSet<>();
-        for (com.crm.entity.Message m : messages.getContent()) {
+        for (com.crm.entity.Message m : rows) {
             if (m.getBroadcastId() != null) broadcastIds.add(m.getBroadcastId());
         }
         java.util.Map<Long, Boolean> diffOriginByBroadcastId = new java.util.HashMap<>();
@@ -151,7 +161,6 @@ public class BroadcastController {
             }
         }
 
-        model.addAttribute("messages", messages);
         model.addAttribute("userEmails", userEmails);
         model.addAttribute("userPhones", userPhones);
         model.addAttribute("userDisplayNames", userDisplayNames);
@@ -164,12 +173,9 @@ public class BroadcastController {
         model.addAttribute("diffOriginByBroadcastId", diffOriginByBroadcastId);
         // キャラ名 for メール / SMS messages (the broadcast's キャラ) + フォルダの色分け
         model.addAttribute("charaNames", charaLinkService == null ? java.util.Collections.emptyMap()
-                : charaLinkService.charaNamesOfMessages(messages.getContent()));
+                : charaLinkService.charaNamesOfMessages(rows));
         model.addAttribute("folderColors", folderSettingService == null ? java.util.Collections.emptyMap()
                 : folderSettingService.colorMap());
-        model.addAttribute("addr", addrTrim == null ? "" : addrTrim);
-        model.addAttribute("channel", channelFilter == null ? "" : channelFilter);
-        return "message/broadcast-list";
     }
 
     /** Broadcast-level summary (totals, status, bulk-delete). Kept as a sub-page. */
@@ -322,18 +328,16 @@ public class BroadcastController {
         // Shared with the reply-page settings / message-thread panel — same ReplyPageSetting
         // row, so a change here is reflected everywhere %reply_url% / %external_url% expand.
         model.addAttribute("urlLeadText", replyPageSettingService.getOrCreate().getUrlLeadText());
-        // Recent history for the right panel: last 50 outbound messages (SENT + scheduled).
-        org.springframework.data.domain.Page<com.crm.entity.Message> recent = messageRepository.findAll(
+        // Top history pane = the 一斉送信/返信履歴 table (same rows as the history list page, same
+        // channel filter), latest 50, numbered 1–50 from the top (client request 2026-10-13).
+        String formChannel = ((BroadcastForm) model.asMap().get("form")).getChannel();
+        String historyChannel = ("SMS".equals(formChannel) || "LINE".equals(formChannel)) ? formChannel : null;
+        List<com.crm.entity.Message> history = messageRepository.findBroadcastRelated(null, historyChannel,
                 org.springframework.data.domain.PageRequest.of(0, 50,
-                        org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")));
-        java.util.List<com.crm.entity.Message> history = new java.util.ArrayList<>();
-        for (com.crm.entity.Message m : recent.getContent()) {
-            if (com.crm.entity.Message.DIR_OUT.equals(m.getDirection())
-                || com.crm.entity.Message.DIR_IN.equals(m.getDirection())) {
-                history.add(m);
-            }
-        }
+                        org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")))
+                .getContent();
         model.addAttribute("history", history);
+        addHistoryTableAttributes(history, model);
         model.addAttribute("lineAccounts", allLineAccountsFlat());
         model.addAttribute("lineMaxBodyLength", settingService.getLineMaxBodyLength());
         addCharaChoices(model);

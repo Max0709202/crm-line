@@ -139,17 +139,18 @@
             .bcast-tpl .tpl-empty { grid-column:1 / -1; background:#fff; }
             .bcast-tpl.is-searching .tpl-list::before { grid-column:1 / -1; }
         }
-        .hist-row { padding:7px 0; border-bottom:1px dashed #e2e8f0; font-size:.78rem; display:flex; gap:8px; }
-        .hist-row:last-child { border-bottom:none; }
-        .hist-row .type { flex-shrink:0; font-size:.68rem; font-weight:700; padding:2px 6px; border-radius:4px; }
-        .type-out { background:#dbeafe; color:#1d4ed8; }
-        .type-in  { background:#e2e8f0; color:#475569; }
-        .type-sms { background:#fef9c3; color:#854d0e; }
-        .hist-row .sub { flex:1; min-width:0; }
-        .hist-row .sub .title { font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .hist-row .sub .preview { color:#475569; font-size:.72rem; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .hist-row .sub .meta  { color:#64748b; font-size:.68rem; margin-top:2px; }
-        .hist-row .sub .sched { color:#d97706; font-size:.7rem; font-weight:600; margin-top:2px; }
+        /* 上部の履歴 = 一斉送信/返信履歴 table (scrolls both ways inside the pane; header row stays visible). */
+        .bcast-hist > .hist-body { padding:0; overflow:auto; }
+        .hist-table thead th { position:sticky; top:0; z-index:1; background:#f8fafc; white-space:nowrap; }
+        .hist-table .col-body { min-width:320px; max-width:480px; }
+        .hist-table .col-body .body-text {
+            max-height:4.5em; overflow-y:auto; line-height:1.45; font-size:.78rem; color:#475569;
+            white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
+        }
+        .hist-table .support-badge {
+            display:inline-block; padding:1px 8px; border-radius:999px; font-weight:700;
+            background:#0f766e; color:#fff; white-space:nowrap;
+        }
         .compose-body { display:flex; flex-direction:column; gap:8px; }
         .compose-body label { font-size:.72rem; font-weight:600; color:#475569; }
         .compose-body input, .compose-body textarea, .compose-body select {
@@ -214,25 +215,114 @@
         <a class="inline-flex items-center px-3 py-1.5 text-sm border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md" th:href="@{/manager/messages/broadcast}">一覧に戻る</a>
     </div>
 
-    <!-- Top (full width): history -->
-    <div class="bcast-pane bcast-hist">
-        <header>送受信履歴（最新50件・時間順）</header>
-        <div class="body">
-            <div th:if="${history == null or history.empty}" class="text-xs text-slate-400">履歴はまだありません</div>
-            <div th:each="m : ${history}" class="hist-row">
-                <span th:if="${m.channel == 'SMS'}" class="type type-sms">SMS</span>
-                <span th:if="${m.channel != 'SMS' and m.direction == 'OUT'}" class="type type-out">SENT</span>
-                <span th:if="${m.channel != 'SMS' and m.direction == 'IN'}"  class="type type-in">IN</span>
-                <div class="sub">
-                    <div class="title" th:if="${m.channel != 'SMS'}" th:text="${m.subject} ?: '(件名なし)'"></div>
-                    <div class="preview" th:text="${m.bodyText != null and m.bodyText.length() > 60} ? ${m.bodyText.substring(0, 60) + '…'} : ${m.bodyText}"></div>
-                    <div class="meta"
-                         th:text="${m.sentAt != null} ? ${#temporals.format(m.sentAt, 'MM-dd HH:mm')} : (${m.createdAt != null} ? ${#temporals.format(m.createdAt, 'MM-dd HH:mm')} : '-')"></div>
-                    <div class="sched"
-                         th:if="${m.scheduledAt != null and m.status == 'QUEUED'}"
-                         th:text="'予約: ' + ${#temporals.format(m.scheduledAt, 'yyyy-MM-dd HH:mm')}"></div>
-                </div>
-            </div>
+    <!-- Top (full width): 一斉送信/返信履歴 — same table as the history list page, without the
+         checkbox column; rows numbered 1–50 from the top (client request 2026-10-13). -->
+    <div class="bcast-pane bcast-hist" th:with="isSms=${form.channel == 'SMS'}">
+        <header th:text="(${isSms} ? 'SMS配信履歴' : '一斉送信/返信履歴') + '（最新50件）'">一斉送信/返信履歴（最新50件）</header>
+        <div class="body hist-body">
+            <table class="hist-table min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <tr>
+                    <th class="px-3 py-2 text-left" style="width:44px;">No.</th>
+                    <th class="px-3 py-2 text-left" style="width:60px;">ID</th>
+                    <th class="px-3 py-2 text-left" style="width:90px;">種別</th>
+                    <th class="px-3 py-2 text-left" style="width:120px;">番号</th>
+                    <th class="px-3 py-2 text-left" th:text="${isSms} ? '番号' : 'メールアドレス'">メールアドレス</th>
+                    <th class="px-3 py-2 text-left" style="width:80px;">LINE No.</th>
+                    <th class="px-3 py-2 text-left">表示名</th>
+                    <th class="px-3 py-2 text-left">キャラ名</th>
+                    <th class="px-3 py-2 text-left">フォルダ</th>
+                    <th class="px-3 py-2 text-left" th:unless="${isSms}">件名</th>
+                    <th class="px-3 py-2 text-left col-body">本文</th>
+                    <th class="px-3 py-2 text-left" style="width:110px;">ステータス</th>
+                    <th class="px-3 py-2 text-left" style="width:130px;">予約日時</th>
+                    <th class="px-3 py-2 text-left" style="width:130px;" th:text="${isSms} ? '送信日時' : '送信/受信日時'">送信/受信日時</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                <tr th:if="${history == null or history.empty}">
+                    <td colspan="14" class="px-3 py-6 text-center text-slate-400">一斉送信履歴はまだありません</td>
+                </tr>
+                <tr th:each="m,it : ${history}" class="hover:bg-slate-50">
+                    <td class="px-3 py-2 text-xs font-mono text-slate-500" th:text="${it.count}">1</td>
+                    <td class="px-3 py-2"><a class="text-xs font-mono text-blue-600 hover:underline" th:href="@{'/manager/users/' + ${m.userId}}" target="_blank" th:text="${m.userId}"></a></td>
+                    <td class="px-3 py-2"
+                        th:with="diff=${m.direction == 'OUT' and m.broadcastId != null and diffOriginByBroadcastId != null and diffOriginByBroadcastId.get(m.broadcastId) == true}">
+                        <span th:if="${diff}"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700"
+                              title="差分スケジュールから実行された送信">差分予約</span>
+                        <span th:if="${m.direction == 'OUT' and m.channel == 'SMS' and !diff}"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-yellow-100 text-yellow-800"
+                              title="SMS配信">SMS配信</span>
+                        <span th:if="${m.direction == 'OUT' and m.channel == 'LINE' and !diff}"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
+                              style="background:#d9f7e6; color:#046c3a;" title="LINE配信">LINE配信</span>
+                        <span th:if="${m.direction == 'OUT' and m.channel != 'SMS' and m.channel != 'LINE' and !diff}"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700"
+                              title="管理者送信">一斉送信</span>
+                        <span th:if="${m.direction == 'IN' and m.channel == 'WEB_REPLY'}"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700"
+                              title="返信URLからのフォーム返信">Web返信</span>
+                        <span th:if="${m.direction == 'IN' and m.channel == 'EMAIL'}"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-200 text-slate-600"
+                              title="ユーザーからの直接メール返信">メール返信</span>
+                        <span th:if="${m.direction == 'IN' and m.channel == 'LINE'}"
+                              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
+                              style="background:#d9f7e6; color:#046c3a;" title="ユーザーからのLINE返信">LINE返信</span>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
+                        th:text="${userPhones != null and userPhones.get(m.userId) != null} ? ${userPhones.get(m.userId)} : '-'"></td>
+                    <td class="px-3 py-2 text-xs">
+                        <a th:if="${isSms}" class="text-blue-600 hover:underline whitespace-nowrap"
+                           th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                           th:text="${m.toAddress} ?: '-'">-</a>
+                        <a th:unless="${isSms}" class="text-blue-600 hover:underline whitespace-nowrap"
+                           th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                           th:text="${userEmails != null and userEmails.get(m.userId) != null} ? ${userEmails.get(m.userId)} : '-'">-</a>
+                    </td>
+                    <td class="px-3 py-2 text-xs whitespace-nowrap">
+                        <a th:if="${lineLinkedUserIds.contains(m.userId)}"
+                           class="text-blue-600 hover:underline"
+                           th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
+                           th:text="'No.' + ${m.userId}"></a>
+                        <span th:unless="${lineLinkedUserIds.contains(m.userId)}" class="text-slate-400">-</span>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
+                        th:text="${userDisplayNames != null and userDisplayNames.get(m.userId) != null and userDisplayNames.get(m.userId) != ''} ? ${userDisplayNames.get(m.userId)} : '-'"></td>
+                    <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
+                        th:with="fromSupport=${m.direction == 'OUT' and m.broadcastId != null and m.channel != 'LINE' and (charaNames == null or charaNames.get(m.id) == null)}">
+                        <span th:if="${fromSupport}" class="support-badge">🎧 サポート窓口</span>
+                        <th:block th:unless="${fromSupport}"
+                                  th:text="${m.lineAccountId != null and lineAccountNames != null and lineAccountNames.get(m.lineAccountId) != null} ? ${lineAccountNames.get(m.lineAccountId)} : (${charaNames != null and charaNames.get(m.id) != null} ? ${charaNames.get(m.id)} : '-')"></th:block>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
+                        <span th:if="${userFolders != null and userFolders.get(m.userId) != null}"
+                              class="inline-block px-1.5 rounded font-semibold text-slate-700 bg-slate-100"
+                              th:style="${folderColors != null and folderColors.get(userFolders.get(m.userId)) != null} ? 'background:' + ${folderColors.get(userFolders.get(m.userId))}"
+                              th:text="${userFolders.get(m.userId)}">フォルダ</span>
+                        <th:block th:unless="${userFolders != null and userFolders.get(m.userId) != null}">-</th:block>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-slate-700 truncate" style="max-width:200px;" th:unless="${isSms}" th:text="${m.subject} ?: '(件名なし)'"></td>
+                    <td class="px-3 py-2 col-body"><div class="body-text" th:text="${m.bodyText}"></div></td>
+                    <td class="px-3 py-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                              th:classappend="${m.status == 'SENT' or m.status == 'DELIVERED'} ? 'bg-emerald-100 text-emerald-700'
+                                               : (${m.status == 'QUEUED'} ? 'bg-sky-100 text-sky-700'
+                                               : (${m.status == 'FAILED'} ? 'bg-red-100 text-red-700'
+                                               : (${m.status == 'CANCELLED'} ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 text-slate-600')))"
+                              th:text="${m.status}"></span>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
+                        <span th:if="${m.scheduledAt != null}" th:text="${#temporals.format(m.scheduledAt, 'yyyy-MM-dd HH:mm')}"></span>
+                        <span th:unless="${m.scheduledAt != null}" class="text-slate-300">-</span>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
+                        <span th:if="${m.sentAt != null}" th:text="${#temporals.format(m.sentAt, 'yyyy-MM-dd HH:mm')}"></span>
+                        <span th:unless="${m.sentAt != null}" th:text="${#temporals.format(m.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
