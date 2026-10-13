@@ -152,27 +152,58 @@ public class MemberPageService {
         // %main% → a marker first, so a member's own value (e.g. a nickname "%main%") is never read as it
         html = html.replace(LINE_MAIN, MAIN_MARK)
                 .replace("%title%", esc(title == null ? SiteDesignService.LINE_PAGES.get(page) : title))
-                .replace("%unread_badge%", unread > 0 ? "<i class=\"fb\">" + unread + "</i>" : "")
+                // 受信BOX's count: own small fixed size (like NEW) — the .bi's 25px made it cover「受信BOX」
+                .replace("%unread_badge%", unread > 0 ? "<i class=\"fb\" style=\"" + LINE_BADGE_STYLE + "\">" + unread + "</i>" : "")
                 // NEW: own small size so it stays inside お知らせ (the .bi's 25px pushed it over 手続き)
                 .replace("%news_new%", newsNew ? "<i class=\"fb\" style=\"font-size:10px;line-height:1.6;padding:1px 6px;margin-left:2px\">NEW</i>" : "");
         html = fillTags(html, memberValues).replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
         return com.crm.util.NoZoom.apply(html);
     }
 
-    /** 番組デザイン設定 › LINE用 check: one LINE用 page with the saved HTML and sample content. */
-    public String renderLinePreview(String page) {
-        if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
-        return renderLinePreview(page, siteDesignService.getLineHtml(page));
+    /** The LINE用 受信BOX badge's size (fixed, whatever the page's CSS gives the footer icon). */
+    private static final String LINE_BADGE_STYLE = "font-size:10px;line-height:1.6;padding:1px 6px;min-width:18px;text-align:center";
+
+    /** LINE用 check's pages: {@link SiteDesignService#LINE_PAGES} plus 送信済 (the 受信BOX page's design). */
+    public static final Map<String, String> LINE_PREVIEW_PAGES;
+    static {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("inbox", SiteDesignService.LINE_PAGES.get("inbox"));
+        m.put("sent", "送信済");
+        for (Map.Entry<String, String> e : SiteDesignService.LINE_PAGES.entrySet()) m.putIfAbsent(e.getKey(), e.getValue());
+        LINE_PREVIEW_PAGES = Collections.unmodifiableMap(m);
     }
 
-    /** Same, with the HTML being edited (not yet saved) — 「この画面を確認」 next to each LINE用 HTML box. */
+    /** 番組デザイン設定 › LINE用 check: one LINE用 page with the saved HTML and sample content. */
+    public String renderLinePreview(String page) {
+        if (!LINE_PREVIEW_PAGES.containsKey(page)) page = "inbox";
+        return renderLinePreview(page, siteDesignService.getLineHtml("sent".equals(page) ? "inbox" : page));
+    }
+
+    /**
+     * Same, with the HTML being edited (not yet saved) — 「この画面を確認」 next to each LINE用 HTML box.
+     * LINE専用 sample: no 写真閲覧 / プロフ, the LINE folder's ポイント設定, and the footer menu opens the
+     * other LINE用 checks (not the member pages — those asked the admin to log in).
+     */
     public String renderLinePreview(String page, String html) {
-        if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
+        if (!LINE_PREVIEW_PAGES.containsKey(page)) page = "inbox";
         String main = "points".equals(page)
-                ? load("points.html").replace("%plans%", pointPlans())
+                ? load("points.html").replace("%plans%", pointPlans(firstLineFolder()))
                 : load("line/sample-" + page + ".html");
-        String title = "inbox".equals(page) ? "受信BOX" : "reply".equals(page) ? "返信" : "memo".equals(page) ? "お知らせ" : "ポイント購入";
-        return renderLine(page, html, null, fillTags(main, null), title, 17, true);
+        String title = "inbox".equals(page) ? "受信BOX" : "sent".equals(page) ? "送信済" : "reply".equals(page) ? "返信"
+                : "memo".equals(page) ? "お知らせ" : "ポイント購入";
+        String out = renderLine("sent".equals(page) ? "inbox" : page, html, null, fillTags(main, null), title, 17, true);
+        return out.replace("href=\"/member/inbox?tab=sent\"", "href=\"" + LINE_PREVIEW_URL + "sent\"")
+                .replace("href=\"/member/inbox\"", "href=\"" + LINE_PREVIEW_URL + "inbox\"")
+                .replace("href=\"/member/memo\"", "href=\"" + LINE_PREVIEW_URL + "memo\"")
+                .replace("href=\"/member/points\"", "href=\"" + LINE_PREVIEW_URL + "points\"");
+    }
+
+    private static final String LINE_PREVIEW_URL = "/manager/settings/site-design/line-preview?page=";
+
+    /** The first LINE folder (its ポイント設定 is what a LINE member sees); null = none → 共通. */
+    private String firstLineFolder() {
+        List<String> folders = siteDesignService.getLineFolders();
+        return folders.isEmpty() ? null : folders.get(0);
     }
 
     /** The bundled LINE用 page (the same frame for every LINE用 page). */
@@ -306,8 +337,13 @@ public class MemberPageService {
 
     /** ポイント購入: each shown payment method (saved order and name) with its plans. */
     private String pointPlans() {
+        return pointPlans(null);
+    }
+
+    /** The same for a member in {@code folder} (its own ポイント設定, else 共通). */
+    private String pointPlans(String folder) {
         StringBuilder b = new StringBuilder();
-        for (PaymentSettingService.Method m : paymentSettingService.getMethods(null)) {
+        for (PaymentSettingService.Method m : paymentSettingService.getMethods(folder)) {
             List<PaymentSettingService.Plan> plans = m.getOfferedPlans();
             if (plans.isEmpty()) continue;
             b.append("<h3 class=\"methodtitle\">").append(esc(m.getLabel())).append("</h3>");

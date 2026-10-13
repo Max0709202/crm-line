@@ -232,7 +232,9 @@ public class MemberSiteController {
                 b.append("</div>");
             }
             b.append("<div class=\"tools\"><select onchange=\"location.href='/member/inbox?tab=").append(t)
-                    .append("'+(this.value?'&amp;c='+this.value:'')\"><option value=\"\">過去の送信宛から選択</option>");
+                    .append("'+(this.value?'&amp;c='+this.value:'')\"><option value=\"\">")
+                    // 受信BOX: 過去の受信先から選択 / 送信済: 過去の送信先から選択 (client request 2026-10-12)
+                    .append(sentTab ? "過去の送信先から選択" : "過去の受信先から選択").append("</option>");
             for (Map.Entry<Long, String> s : senders.entrySet()) {
                 b.append("<option value=\"").append(s.getKey()).append("\"").append(s.getKey().equals(charaFilter) ? " selected" : "")
                         .append(">").append(e(s.getValue())).append("</option>");

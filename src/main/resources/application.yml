@@ -86,7 +86,8 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-      max-request-size: 10MB
+      # HTML画像管理: a 10MB MP4 plus the form's other fields
+      max-request-size: 11MB
 
 logging:
   level:

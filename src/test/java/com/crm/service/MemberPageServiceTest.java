@@ -77,6 +77,28 @@ class MemberPageServiceTest {
     }
 
     @Test
+    void linePreviewIsTheLineOnlySampleWithFooterLinksInsideThePreview() {
+        SiteDesignService site = mock(SiteDesignService.class);
+        when(site.getLineFolders()).thenReturn(Collections.singletonList("LINE"));
+        PaymentSettingService pay = mock(PaymentSettingService.class);
+        when(pay.getMethods("LINE")).thenReturn(Collections.singletonList(
+                method("bank", "LINE振込", true, new PaymentSettingService.Plan(true, 3000, 300))));
+        MemberPageService svc = new MemberPageService(site, pay);
+
+        String inbox = svc.renderLinePreview("inbox");
+        assertThat(inbox).contains("過去の受信先から選択")
+                .doesNotContain("写真閲覧").doesNotContain("プロフィール閲覧")
+                .contains("href=\"/manager/settings/site-design/line-preview?page=sent\"")
+                .contains("href=\"/manager/settings/site-design/line-preview?page=points\"")
+                .doesNotContain("href=\"/member/inbox").doesNotContain("href=\"/member/memo\"").doesNotContain("href=\"/member/points\"")
+                // 受信BOX's count: small fixed size
+                .contains("<i class=\"fb\" style=\"font-size:10px;");
+        assertThat(svc.renderLinePreview("sent")).contains("過去の送信先から選択").contains("<title>送信済</title>");
+        assertThat(svc.renderLinePreview("reply")).doesNotContain("写真閲覧").doesNotContain("タイトル").doesNotContain("ポイント</div>");
+        assertThat(svc.renderLinePreview("points")).contains("LINE振込");
+    }
+
+    @Test
     void everyPageShowsBothHtmlAreasAndNoLeftoverTags() {
         SiteDesignService site = mock(SiteDesignService.class);
         List<SiteDesignService.Slot> slots = new ArrayList<>();

@@ -55,6 +55,19 @@ class HtmlImageServiceTest {
     }
 
     @Test
+    void upload_takesAnMp4UpTo10MbButNotOver() throws Exception {
+        byte[] mp4 = new byte[(int) HtmlImageService.MAX_VIDEO_BYTES];
+        System.arraycopy("ftyp".getBytes("US-ASCII"), 0, mp4, 4, 4);
+        assertThat(svc.upload(new MockMultipartFile("file", "a.mp4", "video/mp4", mp4), null, "admin", true).getContentType())
+                .isEqualTo("video/mp4");
+
+        byte[] big = java.util.Arrays.copyOf(mp4, mp4.length + 1);
+        assertThatThrownBy(() -> svc.upload(new MockMultipartFile("file", "b.mp4", "video/mp4", big), null, "admin", true))
+                .isInstanceOf(HtmlImageService.HtmlImageException.class)
+                .hasMessageContaining("10 MB");
+    }
+
+    @Test
     void upload_rejectsDisallowedMime() {
         MockMultipartFile file = new MockMultipartFile("file", "doc.pdf", "application/pdf", new byte[]{1, 2, 3});
 

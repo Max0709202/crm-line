@@ -58,6 +58,14 @@
         .img-tools input[type="search"] { flex: 1; min-width: 240px; max-width: 460px; }
         .img-tools .hit { font-size: .75rem; color: #64748b; }
         .img-none { padding: 30px 0; text-align: center; font-size: .85rem; color: #94a3b8; }
+        /* 画像・動画の拡大表示: 固定サイズの枠、枠（画像の外側）か×をクリックで閉じる */
+        .img-zoom { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, .7); cursor: pointer; }
+        .img-zoom[hidden] { display: none; }
+        .img-zoom-box { position: relative; width: min(90vw, 640px); height: min(80vh, 480px); display: flex; align-items: center; justify-content: center;
+            background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+        .img-zoom-box img, .img-zoom-box video { max-width: 100%; max-height: 100%; object-fit: contain; cursor: default; }
+        .img-zoom-close { position: absolute; top: -12px; right: -12px; width: 28px; height: 28px; border-radius: 99px; border: 0;
+            background: #1e293b; color: #fff; font-size: 16px; line-height: 28px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -73,7 +81,7 @@
     </p>
 
     <!-- Upload form -->
-    <form method="post" th:action="@{/manager/settings/html-images}" enctype="multipart/form-data"
+    <form id="uploadForm" method="post" th:action="@{/manager/settings/html-images}" enctype="multipart/form-data"
           class="bg-white rounded-lg shadow-sm border border-slate-100 p-4 mb-4 flex items-end gap-3 flex-wrap">
         <input type="hidden" name="_csrf" th:value="${_csrf}"/>
         <div>
@@ -89,7 +97,7 @@
         <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded">
             アップロード
         </button>
-        <span class="text-xs text-slate-400">画像：JPEG / PNG / GIF / WebP、動画：MP4のみ、どちらも最大5MB（「その他」の列に入ります）<br/>
+        <span class="text-xs text-slate-400">画像：JPEG / PNG / GIF / WebP 最大5MB、動画：MP4のみ 最大10MB（「その他」の列に入ります）<br/>
             動画をHTMLに貼るとき：<code>&lt;video src="発行URL" controls playsinline&gt;&lt;/video&gt;</code></span>
     </form>
 
@@ -123,7 +131,7 @@
                      th:attr="data-kind=${img.kind},data-id=${img.id},data-search=${col.name + ' ' + (img.label ?: '') + ' ' + img.fileName + ' ' + img.createdAt + ' ID' + img.id}">
                     <input type="checkbox" class="pick js-pick" title="選択"/>
                     <span class="video-badge" th:if="${img.video}">動画</span>
-                    <a class="thumb-wrap" th:href="${img.src}" target="_blank" rel="noopener" title="新しいタブで開く">
+                    <a class="thumb-wrap js-zoom" th:href="${img.src}" th:attr="data-video=${img.video}" title="クリックで拡大">
                         <video th:if="${img.video}" th:src="${img.src}" preload="metadata" muted playsinline></video>
                         <img th:unless="${img.video}" th:src="${img.src}" th:alt="${img.fileName}" loading="lazy"/>
                     </a>
@@ -169,6 +177,10 @@
     <div class="img-none" id="imgNone" hidden>該当する画像はありません</div>
     </th:block>
 
+    <div class="img-zoom" id="imgZoom" hidden>
+        <div class="img-zoom-box" id="imgZoomBox"><button type="button" class="img-zoom-close" title="閉じる">×</button></div>
+    </div>
+
     <script>
         function copyImageUrl(id, btn) {
             var input = document.getElementById('imgUrl' + id);
@@ -183,6 +195,41 @@
                 document.execCommand('copy');
             });
         }
+        // アップロード前のサイズ確認: 画像 5MB・動画（MP4）10MB まで
+        document.getElementById('uploadForm').addEventListener('submit', function (e) {
+            var f = this.querySelector('input[type=file]').files[0];
+            if (!f) return;
+            var video = /\.mp4$/i.test(f.name) || f.type === 'video/mp4';
+            var max = video ? 10 : 5;
+            if (f.size > max * 1024 * 1024) {
+                e.preventDefault();
+                alert((video ? '動画' : '画像') + 'のファイルサイズは ' + max + 'MB 以内にしてください');
+            }
+        });
+        // 画像・動画クリック: 固定サイズの枠で表示、枠をクリックで閉じる
+        (function () {
+            var zoom = document.getElementById('imgZoom'), box = document.getElementById('imgZoomBox');
+            function close() {
+                var media = box.querySelector('img, video');
+                if (media) box.removeChild(media);
+                zoom.hidden = true;
+            }
+            document.addEventListener('click', function (e) {
+                var a = e.target.closest('.js-zoom');
+                if (!a) return;
+                e.preventDefault();
+                var media = document.createElement(a.getAttribute('data-video') === 'true' ? 'video' : 'img');
+                media.src = a.getAttribute('href');
+                if (media.tagName === 'VIDEO') { media.controls = true; media.playsInline = true; }
+                box.appendChild(media);
+                zoom.hidden = false;
+            });
+            // 画像・動画の外側（枠）か×をクリックで閉じる
+            zoom.addEventListener('click', function (e) {
+                if (e.target.tagName !== 'IMG' && e.target.tagName !== 'VIDEO') close();
+            });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !zoom.hidden) close(); });
+        })();
         (function () {
             var cols = document.getElementById('imgCols');
             if (!cols) return;

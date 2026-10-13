@@ -301,9 +301,9 @@ public class SiteDesignController {
     /** LINE用 check: one LINE用 page in a スマホ-width frame, with page tabs. */
     @GetMapping("/line-preview-frame")
     public String linePreviewFrame(@RequestParam(value = "page", defaultValue = "inbox") String page, Model model) {
-        if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
+        if (!com.crm.service.MemberPageService.LINE_PREVIEW_PAGES.containsKey(page)) page = "inbox";
         model.addAttribute("page", page);
-        model.addAttribute("linePages", SiteDesignService.LINE_PAGES);
+        model.addAttribute("linePages", com.crm.service.MemberPageService.LINE_PREVIEW_PAGES);
         model.addAttribute("width", DEVICE_WIDTHS.get("sp"));
         return "setting/site-design-line-preview";
     }

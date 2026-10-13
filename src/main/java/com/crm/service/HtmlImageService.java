@@ -42,8 +42,9 @@ public class HtmlImageService {
     public static final long MAX_SIZE_BYTES = 5L * 1024 * 1024; // 5 MB
     public static final Set<String> ALLOWED_MIME = new java.util.HashSet<>(Arrays.asList(
             "image/jpeg", "image/png", "image/gif", "image/webp"));
-    /** 動画 (HTML画像管理 only): MP4, within {@link #MAX_SIZE_BYTES} like the images. */
+    /** 動画 (HTML画像管理 only): MP4 only, up to {@link #MAX_VIDEO_BYTES}. */
     public static final String MIME_MP4 = "video/mp4";
+    public static final long MAX_VIDEO_BYTES = 10L * 1024 * 1024; // 10 MB
 
     private final HtmlImageRepository repo;
     private final Path uploadsRoot;
@@ -135,12 +136,14 @@ public class HtmlImageService {
     public HtmlImage upload(MultipartFile file, String label, String uploadedBy, boolean allowVideo)
             throws HtmlImageException, IOException {
         if (file == null || file.isEmpty()) throw new HtmlImageException("ファイルが空です");
-        if (file.getSize() > MAX_SIZE_BYTES) {
-            throw new HtmlImageException("ファイルサイズは " + (MAX_SIZE_BYTES / 1024 / 1024) + " MB 以内にしてください");
-        }
         String mime = file.getContentType();
         if (allowVideo && isMp4(file)) {
+            if (file.getSize() > MAX_VIDEO_BYTES) {
+                throw new HtmlImageException("動画のファイルサイズは " + (MAX_VIDEO_BYTES / 1024 / 1024) + " MB 以内にしてください");
+            }
             mime = MIME_MP4;
+        } else if (file.getSize() > MAX_SIZE_BYTES) {
+            throw new HtmlImageException("ファイルサイズは " + (MAX_SIZE_BYTES / 1024 / 1024) + " MB 以内にしてください");
         } else if (mime == null || !ALLOWED_MIME.contains(mime.toLowerCase(Locale.ROOT))) {
             throw new HtmlImageException(allowVideo
                     ? "画像ファイル (JPEG / PNG / GIF / WebP) または動画 (MP4) のみアップロード可能です"
