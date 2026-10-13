@@ -116,12 +116,18 @@ public class MemberSiteController {
         this.userActivityService = userActivityService;
     }
 
+    /** LINE用 ログイン保持 ({@link com.crm.service.MemberAutoLoginService#REMEMBER_COOKIE}) — optional like the above. */
+    private com.crm.service.MemberAutoLoginService autoLoginService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setAutoLoginService(com.crm.service.MemberAutoLoginService autoLoginService) { this.autoLoginService = autoLoginService; }
+
     /* ===================== ログイン / ログアウト ===================== */
 
     @PostMapping("/member/login")
     public Object login(@RequestParam(name = "login_id", required = false) String loginId,
                         @RequestParam(name = "login_password", required = false) String password,
-                        HttpServletRequest request, Model model) {
+                        HttpServletRequest request, javax.servlet.http.HttpServletResponse response, Model model) {
         String key = "member:" + ClientIpResolver.resolve(request);
         if (throttle.isBlocked(key)) {
             return publicMessage(request, model, "ログインできません", "<p>ログインの試行回数が多すぎます。しばらく時間をおいてからもう一度お試しください。</p>"
@@ -140,6 +146,8 @@ public class MemberSiteController {
         if (!session.isNew()) request.changeSessionId();
         session.setAttribute(PublicSiteController.SESSION_MEMBER_ID, user.get().getId());
         site.touch(user.get());
+        // LINE用: stays logged in after the session ends
+        if (autoLoginService != null && line(request, user.get())) response.addHeader("Set-Cookie", autoLoginService.rememberCookie(user.get()));
         return "redirect:/member/menu";
     }
 
@@ -149,9 +157,10 @@ public class MemberSiteController {
     }
 
     @GetMapping("/member/logout")
-    public String logout(HttpSession session) {
+    public String logout(HttpSession session, javax.servlet.http.HttpServletResponse response) {
         session.removeAttribute(PublicSiteController.SESSION_MEMBER_ID);
         session.removeAttribute(SESSION_PREVIEW_ID);
+        if (autoLoginService != null) response.addHeader("Set-Cookie", autoLoginService.forgetCookie());
         return "redirect:/";
     }
 
@@ -1070,7 +1079,24 @@ public class MemberSiteController {
     private CrmUser member(HttpSession session) {
         Object previewId = session.getAttribute(SESSION_PREVIEW_ID);
         if (previewId != null) return site.member(previewId).orElse(null);
-        return site.member(session.getAttribute(PublicSiteController.SESSION_MEMBER_ID)).orElse(null);
+        CrmUser u = site.member(session.getAttribute(PublicSiteController.SESSION_MEMBER_ID)).orElse(null);
+        return u != null ? u : rememberedLineMember(session);
+    }
+
+    /**
+     * LINE用: the session ended (LINE's browser closed, 24h idle, restart) — the member is logged back in
+     * from {@link com.crm.service.MemberAutoLoginService#REMEMBER_COOKIE} instead of being sent to the
+     * non-LINE ログイン page. Only while the member is still in a LINE folder.
+     */
+    private CrmUser rememberedLineMember(HttpSession session) {
+        if (autoLoginService == null) return null;
+        HttpServletRequest req = ((org.springframework.web.context.request.ServletRequestAttributes)
+                org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes()).getRequest();
+        CrmUser u = autoLoginService.resolveRemembered(req).filter(m -> line(req, m)).orElse(null);
+        if (u == null) return null;
+        req.changeSessionId();   // no session fixation
+        session.setAttribute(PublicSiteController.SESSION_MEMBER_ID, u.getId());
+        return u;
     }
 
     /* ===================== 管理者プレビュー ===================== */

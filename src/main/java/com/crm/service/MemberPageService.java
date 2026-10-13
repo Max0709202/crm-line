@@ -157,7 +157,27 @@ public class MemberPageService {
                 // NEW: own small size so it stays inside お知らせ (the .bi's 25px pushed it over 手続き)
                 .replace("%news_new%", newsNew ? "<i class=\"fb\" style=\"font-size:10px;line-height:1.6;padding:1px 6px;margin-left:2px\">NEW</i>" : "");
         html = fillTags(html, memberValues).replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
-        return com.crm.util.NoZoom.apply(html);
+        return com.crm.util.NoZoom.apply(lineHeader(html));
+    }
+
+    /**
+     * LINE用 header: the サイトロゴ across the full screen width (not %sitelogo%'s fixed small size), and
+     * ID・ユーザー名 under it at the right edge. As CSS added to the page's own (saved HTML included), so
+     * every LINE用 page shows it whatever HTML is saved.
+     */
+    private static final String LINE_HEADER_CSS = "<style>"
+            + ".top .head{flex-wrap:wrap}"
+            + ".top .head>div:first-child{flex:0 0 100%;min-width:0}"
+            + ".top .sitelogo{margin-top:0}"
+            + ".top .sitelogo img{display:block;width:calc(100% + 40px)!important;max-width:none!important;max-height:none!important;"
+            + "height:auto!important;margin:-14px -20px 6px}"
+            + ".top .acct{margin-left:auto;text-align:right}"
+            + "@media(max-width:700px){.top .sitelogo img{width:calc(100% + 20px)!important;margin:-10px -10px 6px}}"
+            + "</style>";
+
+    private static String lineHeader(String html) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)</head\\s*>").matcher(html);
+        return m.find() ? html.substring(0, m.start()) + LINE_HEADER_CSS + html.substring(m.start()) : LINE_HEADER_CSS + html;
     }
 
     /** The LINE用 受信BOX badge's size (fixed, whatever the page's CSS gives the footer icon). */

@@ -97,7 +97,7 @@
         <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded">
             アップロード
         </button>
-        <span class="text-xs text-slate-400">画像：JPEG / PNG / GIF / WebP 最大5MB、動画：MP4のみ 最大10MB（「その他」の列に入ります）<br/>
+        <span class="text-xs text-slate-400">画像：JPEG / PNG / GIF / WebP 最大5MB、動画：MP4のみ 最大25MB（「その他」の列に入ります）<br/>
             動画をHTMLに貼るとき：<code>&lt;video src="発行URL" controls playsinline&gt;&lt;/video&gt;</code></span>
     </form>
 
@@ -195,12 +195,12 @@
                 document.execCommand('copy');
             });
         }
-        // アップロード前のサイズ確認: 画像 5MB・動画（MP4）10MB まで
+        // アップロード前のサイズ確認: 画像 5MB・動画（MP4）25MB まで
         document.getElementById('uploadForm').addEventListener('submit', function (e) {
             var f = this.querySelector('input[type=file]').files[0];
             if (!f) return;
             var video = /\.mp4$/i.test(f.name) || f.type === 'video/mp4';
-            var max = video ? 10 : 5;
+            var max = video ? 25 : 5;
             if (f.size > max * 1024 * 1024) {
                 e.preventDefault();
                 alert((video ? '動画' : '画像') + 'のファイルサイズは ' + max + 'MB 以内にしてください');

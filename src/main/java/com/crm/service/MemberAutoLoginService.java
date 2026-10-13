@@ -113,6 +113,43 @@ public class MemberAutoLoginService {
                 .filter(u -> CrmUser.STATUS_ACTIVE.equals(u.getStatus()));
     }
 
+    /**
+     * LINE用 members stay logged in: LINE's in-app browser drops the session cookie when it is closed
+     * (and a restart / 24h idle ends the session), which sent them to the non-LINE ログイン page.
+     * This cookie keeps their 自動ログイン token (already a login credential in every LINE link) so
+     * the member pages can log them back in. Lax: sent when a link in LINE opens the site.
+     */
+    public static final String REMEMBER_COOKIE = "crm_line_login";
+    private static final java.time.Duration REMEMBER_MAX_AGE = java.time.Duration.ofDays(365);
+
+    @org.springframework.beans.factory.annotation.Value("${server.servlet.session.cookie.secure:false}")
+    private boolean secureCookie;
+
+    /** Set-Cookie value that keeps {@code user} logged in ({@link #REMEMBER_COOKIE}). */
+    @Transactional
+    public String rememberCookie(CrmUser user) {
+        return org.springframework.http.ResponseCookie.from(REMEMBER_COOKIE, tokenFor(user.getId()))
+                .path("/").maxAge(REMEMBER_MAX_AGE).httpOnly(true).secure(secureCookie).sameSite("Lax")
+                .build().toString();
+    }
+
+    /** Set-Cookie value that removes {@link #REMEMBER_COOKIE} (ログアウト). */
+    public String forgetCookie() {
+        return org.springframework.http.ResponseCookie.from(REMEMBER_COOKIE, "")
+                .path("/").maxAge(0).httpOnly(true).secure(secureCookie).sameSite("Lax")
+                .build().toString();
+    }
+
+    /** The ACTIVE member of the request's {@link #REMEMBER_COOKIE} (as {@link #resolve}); empty without one. */
+    public Optional<CrmUser> resolveRemembered(javax.servlet.http.HttpServletRequest request) {
+        javax.servlet.http.Cookie[] cookies = request.getCookies();
+        if (cookies == null) return Optional.empty();
+        for (javax.servlet.http.Cookie c : cookies) {
+            if (REMEMBER_COOKIE.equals(c.getName())) return resolve(c.getValue());
+        }
+        return Optional.empty();
+    }
+
     private String tokenFor(Long userId) {
         Optional<MemberAutoLogin> existing = repository.findById(userId);
         if (existing.isPresent()) return existing.get().getToken();

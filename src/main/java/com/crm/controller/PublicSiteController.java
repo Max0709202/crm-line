@@ -120,6 +120,7 @@ public class PublicSiteController {
 
     private ResponseEntity<String> autoLogin(Optional<CrmUser> user, String page, HttpServletRequest request) {
         String next = "/#login";
+        String remember = null;
         if (user.isPresent()) {
             // New session ID (no session fixation) but the same session: the admin screens share this
             // cookie, so an operator opening a member's link must not be logged out of 管理画面.
@@ -128,14 +129,20 @@ public class PublicSiteController {
             session.setAttribute(SESSION_MEMBER_ID, user.get().getId());
             String target = page == null ? null : com.crm.service.MemberAutoLoginService.PAGES.get(page);
             next = target == null ? "/member/menu" : target;
+            // LINE用: stays logged in after the session ends (MemberAutoLoginService#REMEMBER_COOKIE)
+            if (!MemberSiteController.fp(request) && siteDesignService.isLineFolder(user.get().getFolder())) {
+                remember = autoLoginService.rememberCookie(user.get());
+            }
         }
         String html = "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"robots\" content=\"noindex\">"
                 + "<meta http-equiv=\"refresh\" content=\"0;url=" + next + "\">" + autoLoginOgp(page) + "<title>ログイン</title></head>"
                 + "<body><script>location.replace('" + next + "');</script>"
                 + "<p><a href=\"" + next + "\">ログインしています…</a></p></body></html>";
-        return ResponseEntity.ok().header("Content-Type", "text/html; charset=UTF-8")
-                .header("Cache-Control", "no-store").header("Referrer-Policy", "no-referrer").body(html);
+        ResponseEntity.BodyBuilder ok = ResponseEntity.ok().header("Content-Type", "text/html; charset=UTF-8")
+                .header("Cache-Control", "no-store").header("Referrer-Policy", "no-referrer");
+        if (remember != null) ok.header("Set-Cookie", remember);
+        return ok.body(html);
     }
 
     @GetMapping("/page/{code}")

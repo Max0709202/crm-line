@@ -117,7 +117,8 @@ public class CsrfInterceptor implements HandlerInterceptor {
             // show as a file-download screen (会員登録 on a page left open across a restart).
             try {
                 boolean member = path != null && path.startsWith("/member/");
-                String back = "/member/register".equals(path) ? "/#register" : member ? "/#login" : "/manager";
+                // member: /member/menu — a LINE用 member is logged back in there (else it goes on to ログイン)
+                String back = "/member/register".equals(path) ? "/#register" : member ? "/member/menu" : "/manager";
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 response.setContentType("text/html;charset=UTF-8");
                 response.setHeader("Cache-Control", "no-store");

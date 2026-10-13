@@ -44,7 +44,7 @@ public class HtmlImageService {
             "image/jpeg", "image/png", "image/gif", "image/webp"));
     /** 動画 (HTML画像管理 only): MP4 only, up to {@link #MAX_VIDEO_BYTES}. */
     public static final String MIME_MP4 = "video/mp4";
-    public static final long MAX_VIDEO_BYTES = 10L * 1024 * 1024; // 10 MB
+    public static final long MAX_VIDEO_BYTES = 25L * 1024 * 1024; // 25 MB
 
     private final HtmlImageRepository repo;
     private final Path uploadsRoot;
