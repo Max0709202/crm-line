@@ -342,7 +342,9 @@ public class MemberPageService {
         String n = String.valueOf(unread);
         return html
                 .replace("<span class=\"badge\">17</span>", unread > 0 ? "<span class=\"badge\">" + n + "</span>" : "")
-                .replace("<i class=\"fb\">17</i>", unread > 0 ? "<i class=\"fb\">" + n + "</i>" : "")
+                // footer 受信BOX count: the LINE用 badge's small fixed size, so it's a round badge rather than the
+                // tall one the .bi's 25px gave it (client request 2026-10-14: LINEカスタマイズと同じように)
+                .replace("<i class=\"fb\">17</i>", unread > 0 ? "<i class=\"fb\" style=\"" + LINE_BADGE_STYLE + "\">" + n + "</i>" : "")
                 .replace("受信BOX(17)", unread > 0 ? "受信BOX(" + n + ")" : "受信BOX")
                 .replace("<a href=\"#\">利用規約　›</a><a href=\"#\">特定商取引法　›</a><a href=\"#\">プライバシーポリシー　›</a>",
                         "<a href=\"/page/terms\">利用規約　›</a><a href=\"/page/tokushoho\">特定商取引法　›</a>"

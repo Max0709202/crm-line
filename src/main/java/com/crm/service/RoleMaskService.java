@@ -35,4 +35,25 @@ public class RoleMaskService {
     public String address(String v) {
         return masks("address") ? AdminRoleService.maskAddress(v) : v;
     }
+
+    /** A list of addresses (e.g. 差分スケジュール's アドレス縛り): each one masked, separators kept. */
+    public String emails(String v) {
+        return masks("email") ? eachToken(v, AdminRoleService::maskEmail) : v;
+    }
+
+    /** A list of numbers (e.g. 差分スケジュール's 番号縛り): each one masked, separators kept. */
+    public String phones(String v) {
+        return masks("phone") ? eachToken(v, AdminRoleService::maskPhone) : v;
+    }
+
+    private static final java.util.regex.Pattern LIST_TOKEN = java.util.regex.Pattern.compile("[^\\s,、，;；]+");
+
+    private static String eachToken(String v, java.util.function.UnaryOperator<String> mask) {
+        if (v == null || v.isEmpty()) return v;
+        java.util.regex.Matcher m = LIST_TOKEN.matcher(v);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(mask.apply(m.group())));
+        m.appendTail(sb);
+        return sb.toString();
+    }
 }

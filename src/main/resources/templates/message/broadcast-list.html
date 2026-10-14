@@ -137,14 +137,14 @@
                           style="background:#d9f7e6; color:#046c3a;" title="ユーザーからのLINE返信">LINE返信</span>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
-                    th:text="${userPhones != null and userPhones.get(m.userId) != null} ? ${userPhones.get(m.userId)} : '-'"></td>
+                    th:text="${userPhones != null and userPhones.get(m.userId) != null} ? ${@roleMask.phone(userPhones.get(m.userId))} : '-'"></td>
                 <td class="px-3 py-2 text-xs">
                     <a th:if="${channel == 'SMS'}" class="text-blue-600 hover:underline whitespace-nowrap"
                        th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
-                       th:text="${m.toAddress} ?: '-'">-</a>
+                       th:text="${m.toAddress != null} ? ${@roleMask.phone(m.toAddress)} : '-'">-</a>
                     <a th:unless="${channel == 'SMS'}" class="text-blue-600 hover:underline whitespace-nowrap"
                        th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
-                       th:text="${userEmails != null and userEmails.get(m.userId) != null} ? ${userEmails.get(m.userId)} : '-'">-</a>
+                       th:text="${userEmails != null and userEmails.get(m.userId) != null} ? ${@roleMask.email(userEmails.get(m.userId))} : '-'">-</a>
                 </td>
                 <!-- LINE No. (2026-10-02, same as 個別メッセージ管理) -->
                 <td class="px-3 py-2 text-xs whitespace-nowrap">

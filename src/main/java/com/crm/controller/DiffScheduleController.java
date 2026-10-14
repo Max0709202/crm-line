@@ -93,7 +93,8 @@ public class DiffScheduleController {
         if (!singleTargetUserIds.isEmpty()) {
             for (com.crm.entity.CrmUser u : crmUserService.findAllByIds(singleTargetUserIds)) {
                 String name = (u.getDisplayName() == null || u.getDisplayName().isEmpty())
-                        ? u.getEmail() : u.getDisplayName();
+                        ? (com.crm.service.RoleMaskService.isMasked("email") ? com.crm.service.AdminRoleService.maskEmail(u.getEmail()) : u.getEmail())
+                        : u.getDisplayName();
                 displayNameByUserId.put(u.getId(), name);
                 if (u.getFolder() != null && !u.getFolder().isEmpty()) folderByUserId.put(u.getId(), u.getFolder());
             }
@@ -107,6 +108,33 @@ public class DiffScheduleController {
                 if (folderByUserId.containsKey(e.getValue())) info.put("folder", folderByUserId.get(e.getValue()));
                 out.put(e.getKey(), info);
             }
+        }
+        return out;
+    }
+
+    /** ID column: each schedule's TARGET_USER_IDS rewritten as user IDs (login ID 10000〜,
+     *  CRM_USER.ID when none was issued), same order, comma-joined — keyed by DiffSchedule.id. */
+    private java.util.Map<Long, String> buildMemberNosBySchedule(java.util.Collection<DiffSchedule> schedules) {
+        java.util.Set<Long> userIds = new java.util.HashSet<>();
+        for (DiffSchedule sched : schedules) {
+            if (sched == null || sched.getTargetUserIds() == null) continue;
+            for (String p : sched.getTargetUserIds().split(",")) {
+                try { userIds.add(Long.parseLong(p.trim())); } catch (NumberFormatException ignored) { /* skip malformed */ }
+            }
+        }
+        java.util.Map<String, String> memberNoByUserId = new java.util.HashMap<>();
+        for (com.crm.entity.CrmUser u : crmUserService.findAllByIds(userIds)) {
+            if (u.getLoginId() != null && !u.getLoginId().isEmpty()) memberNoByUserId.put(String.valueOf(u.getId()), u.getLoginId());
+        }
+        java.util.Map<Long, String> out = new java.util.HashMap<>();
+        for (DiffSchedule sched : schedules) {
+            if (sched == null || sched.getTargetUserIds() == null) continue;
+            java.util.List<String> nos = new java.util.ArrayList<>();
+            for (String p : sched.getTargetUserIds().split(",")) {
+                String id = p.trim();
+                if (!id.isEmpty()) nos.add(memberNoByUserId.getOrDefault(id, id));
+            }
+            out.put(sched.getId(), String.join(",", nos));
         }
         return out;
     }
@@ -358,6 +386,7 @@ public class DiffScheduleController {
         model.addAttribute("results", results);
         model.addAttribute("schedulesById", schedulesById);
         model.addAttribute("userInfoById", buildUserInfoById(schedulesById.values()));
+        model.addAttribute("memberNosBySchedule", buildMemberNosBySchedule(schedulesById.values()));
         // キャラ名 column: LINE account name per step (the -1 紐づきアカ sentinel is labelled in the template).
         java.util.Map<Long, String> lineAccountNames = new java.util.HashMap<>();
         for (DiffScheduleStep step : results.getContent()) {

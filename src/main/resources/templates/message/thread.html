@@ -574,6 +574,7 @@
                 </thead>
                 <tbody>
                 <tr th:each="r : ${inboxRows}" th:with="iu=${inboxUsers.get(r.userId)},
+                                  starKey=${T(com.crm.service.ThreadPanelService).starKey(r.userId, r.charaId, r.lineAccountId)},
                                   rowHref=${r.charaId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(chara=${r.charaId},from='inbox')}
                                      : (${r.lineAccountId != null} ? @{'/manager/users/' + ${r.userId} + '/thread'(line=${r.lineAccountId},from='inbox')} : @{'/manager/users/' + ${r.userId} + '/thread'})"
                     class="inbox-row" th:classappend="${r == currentInboxRow} ? 'is-current'"
@@ -581,7 +582,8 @@
                     th:data-href="${rowHref}"
                     th:data-gender="${iu != null and iu.gender == 'M'} ? 'male' : (${iu != null and iu.gender == 'F'} ? 'female' : '')"
                     th:data-pending="${r.unreplied} ? '1' : '0'"
-                    th:data-starred="${starredUserIds.contains(r.userId)} ? '1' : '0'">
+                    th:data-star-key="${starKey}"
+                    th:data-starred="${starredRowKeys.contains(starKey)} ? '1' : '0'">
                     <td class="col-check"><label class="inbox-check-wrap"><input type="checkbox" class="inbox-check" name="ids" th:value="${r.userId}" form="inboxBulkForm"/></label></td>
                     <td class="col-star"><button type="button" class="inbox-star"></button></td>
                     <td>
@@ -1266,9 +1268,9 @@ function threadLayoutValues() {
     }
     function clearSelection() { rowsAll().forEach(function (r) { if (checkOf(r)) checkOf(r).checked = false; }); }
 
-    function persistStar(id, on) {
+    function persistStar(key, on) {
         var fd = new FormData();
-        fd.append('id', id);
+        fd.append('key', key);
         fd.append('starred', on ? '1' : '0');
         return fetch(STAR_API, { method: 'POST', credentials: 'same-origin', body: fd })
             .then(checkResponse);
@@ -1295,12 +1297,11 @@ function threadLayoutValues() {
         if (star) {
             var row = star.closest('tr.inbox-row');
             var on = !isStarred(row);
-            // ★ is per user: every キャラ row of the same user follows
-            var same = rowsAll().filter(function (r) { return r.getAttribute('data-id') === row.getAttribute('data-id'); });
-            function setStar(v) { same.forEach(function (r) { r.setAttribute('data-starred', v ? '1' : '0'); syncStar(r); }); }
+            // ★ is per user × キャラ: only this row (the user's other キャラ rows keep their own ★)
+            function setStar(v) { row.setAttribute('data-starred', v ? '1' : '0'); syncStar(row); }
             setStar(on);
             render();
-            persistStar(row.getAttribute('data-id'), on).catch(function (err) {
+            persistStar(row.getAttribute('data-star-key'), on).catch(function (err) {
                 setStar(!on);
                 render();
                 alert('★の保存に失敗しました (' + err.message + ')');

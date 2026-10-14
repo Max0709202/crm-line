@@ -72,7 +72,8 @@ public class SupportDeskController {
             m.put("id", String.valueOf(q.getId()));
             m.put("channel", q.getChannel());
             m.put("name", nz(q.getName()));
-            m.put("email", nz(q.getEmail()));
+            // 権限設定 でメールアドレスを伏せる権限には ユーザー詳細 と同じく伏せて表示 (返信の宛先はサーバー側で DB の値を使う)
+            m.put("email", nz(com.crm.service.RoleMaskService.isMasked("email") ? com.crm.service.AdminRoleService.maskEmail(q.getEmail()) : q.getEmail()));
             m.put("subject", nz(q.getSubject()));
             m.put("body", nz(q.getBody()));
             m.put("receivedAt", q.getReceivedAt().format(ISO_MIN));
@@ -84,12 +85,15 @@ public class SupportDeskController {
             m.put("orderNo", nz(q.getOrderNo()));
             m.put("formPage", nz(q.getFormPage()));
             List<Map<String, String>> rs = new ArrayList<>();
+            // sent replies hold %email% already filled with the real address — masked the same way here
+            boolean maskReplyEmail = com.crm.service.RoleMaskService.isMasked("email") && !nz(q.getEmail()).isEmpty();
+            String maskedEmail = maskReplyEmail ? com.crm.service.AdminRoleService.maskEmail(q.getEmail()) : null;
             for (SupportReply r : replies.getOrDefault(q.getId(), Collections.emptyList())) {
                 Map<String, String> x = new LinkedHashMap<>();
                 x.put("at", r.getCreatedAt().format(ISO_MIN));
                 x.put("staff", nz(r.getStaffName()));
-                x.put("subject", nz(r.getSubject()));
-                x.put("body", nz(r.getBody()));
+                x.put("subject", maskReplyEmail ? nz(r.getSubject()).replace(q.getEmail(), maskedEmail) : nz(r.getSubject()));
+                x.put("body", maskReplyEmail ? nz(r.getBody()).replace(q.getEmail(), maskedEmail) : nz(r.getBody()));
                 rs.add(x);
             }
             m.put("replies", rs);

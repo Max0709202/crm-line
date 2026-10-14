@@ -56,9 +56,11 @@
             <input type="checkbox" class="diff-tbl-row-item" name="ids" th:value="${s.id}" th:attr="form=${checkboxForm}"/>
         </td>
         <!-- ユーザーID: the single target user, or the first ID + 他N名 for multi-user schedules (full list on hover). -->
+        <!-- memberNosBySchedule (差分スケジュール履歴): the same list as user IDs (ログインID 10000〜) instead of CRM_USER.ID -->
         <td class="px-2 py-1.5 text-xs font-mono text-slate-600 whitespace-nowrap"
-            th:with="uids=${sched != null and sched.targetUserIds != null} ? ${#strings.arraySplit(sched.targetUserIds, ',')} : null"
-            th:title="${sched != null} ? ${sched.targetUserIds} : null"
+            th:with="idList=${sched != null and memberNosBySchedule != null and memberNosBySchedule.get(sched.id) != null} ? ${memberNosBySchedule.get(sched.id)} : (${sched != null} ? ${sched.targetUserIds} : null),
+                     uids=${idList != null} ? ${#strings.arraySplit(idList, ',')} : null"
+            th:title="${idList}"
             th:text="${uids == null or uids.length == 0} ? '-' : (${uids.length == 1} ? ${uids[0]} : ${uids[0]} + ' 他' + ${uids.length - 1} + '名')"></td>
         <td class="px-2 py-1.5 text-xs whitespace-nowrap">
             <span th:if="${s.stepType == 'MESSAGE' or s.stepType == 'MESSAGE_IMAGE'}"
@@ -81,9 +83,11 @@
             <span th:if="${sched.targetType == 'LINE_NAME'}">LINE名前縛り</span>
             <span th:if="${sched.targetType == 'ID'}">ID縛り</span>
             <span th:if="${sched.targetType == 'REGISTER'}">新規登録(自動)</span>
+            <!-- アドレス縛り / 番号縛り: masked like ユーザー詳細 for a 権限 that hides メールアドレス / 電話番号 -->
             <div th:if="${sched.targetType != 'REGISTER' and sched.targetValue != null and !#strings.isEmpty(sched.targetValue)}"
+                 th:with="shownValue=${sched.targetType == 'EMAIL'} ? ${@roleMask.emails(sched.targetValue)} : (${sched.targetType == 'PHONE'} ? ${@roleMask.phones(sched.targetValue)} : ${sched.targetValue})"
                  class="text-slate-500 truncate" style="max-width:180px;"
-                 th:text="${sched.targetValue}" th:title="${sched.targetValue}"></div>
+                 th:text="${shownValue}" th:title="${shownValue}"></div>
         </td>
         <td class="px-2 py-1.5 text-xs text-slate-400" th:if="${sched == null}">-</td>
         <td class="px-2 py-1.5 text-slate-700 whitespace-nowrap">

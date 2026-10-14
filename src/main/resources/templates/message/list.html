@@ -118,7 +118,7 @@
                           style="background:#d9f7e6; color:#046c3a;" title="ユーザーからのLINE返信">LINE返信</span>
                 </td>
                 <td class="px-3 py-2 text-xs text-slate-700 whitespace-nowrap"
-                    th:text="${userPhones != null and userPhones.get(m.userId) != null} ? ${userPhones.get(m.userId)} : '-'"></td>
+                    th:text="${userPhones != null and userPhones.get(m.userId) != null} ? ${@roleMask.phone(userPhones.get(m.userId))} : '-'"></td>
                 <!-- LINE-linked users have no email, so their "No.{id}" used to show here; it now has
                      its own LINE No. column (2026-10-02 client request). Non-LINE users without an
                      email (SMS-only) keep the No. fallback so the row still links to the user. -->
@@ -126,7 +126,7 @@
                     <a th:if="${userEmails != null and userEmails.get(m.userId) != null}"
                        class="text-blue-600 hover:underline whitespace-nowrap"
                        th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"
-                       th:text="${userEmails.get(m.userId)}"></a>
+                       th:text="${@roleMask.email(userEmails.get(m.userId))}"></a>
                     <a th:if="${(userEmails == null or userEmails.get(m.userId) == null) and !lineLinkedUserIds.contains(m.userId)}"
                        class="text-blue-600 hover:underline whitespace-nowrap"
                        th:href="@{'/manager/users/' + ${m.userId}}" target="_blank"

@@ -18,7 +18,9 @@ import java.util.Set;
 public class ThreadPanelService {
 
     public static final int MEMO_MAX = 500;
-    private static final String STAR_KEY = "inbox.starredUserIds";
+    /** ★ is per user × キャラ (client request 2026-10-14), so stored as row keys — see {@link #starKey}. */
+    private static final String STAR_KEY = "inbox.starredRows";
+    private static final java.util.regex.Pattern STAR_KEY_FORMAT = java.util.regex.Pattern.compile("\\d+:(?:[cl]\\d+)?");
 
     private final ThreadMemoRepository memoRepository;
     private final CrmSettingRepository settingRepository;
@@ -60,34 +62,39 @@ public class ThreadPanelService {
         return true;
     }
 
-    public Set<Long> starredUserIds() {
-        Set<Long> out = new LinkedHashSet<>();
+    /**
+     * A 受信ボックス row's ★ key: {@code userId:c<charaId>} (メール/Web キャラ), {@code userId:l<lineAccountId>}
+     * (LINE account) or {@code userId:} (no キャラ) — the same user × キャラ pair the row stands for.
+     */
+    public static String starKey(Long userId, Long charaId, Long lineAccountId) {
+        return userId + ":" + (charaId != null ? "c" + charaId : lineAccountId != null ? "l" + lineAccountId : "");
+    }
+
+    public Set<String> starredRowKeys() {
+        Set<String> out = new LinkedHashSet<>();
         String raw = settingRepository.findBySettingKey(STAR_KEY).map(CrmSetting::getSettingValue).orElse(null);
         if (raw == null) return out;
         for (String s : raw.split(",")) {
-            try { out.add(Long.parseLong(s.trim())); } catch (NumberFormatException ignored) { /* skip */ }
+            if (STAR_KEY_FORMAT.matcher(s.trim()).matches()) out.add(s.trim());
         }
         return out;
     }
 
+    /** Returns false for a malformed key. */
     @Transactional
-    public void setStarred(Long userId, boolean starred) {
-        if (userId == null) return;
-        Set<Long> ids = starredUserIds();
-        boolean changed = starred ? ids.add(userId) : ids.remove(userId);
-        if (!changed) return;
+    public boolean setStarred(String key, boolean starred) {
+        if (key == null || !STAR_KEY_FORMAT.matcher(key).matches()) return false;
+        Set<String> keys = starredRowKeys();
+        boolean changed = starred ? keys.add(key) : keys.remove(key);
+        if (!changed) return true;
         CrmSetting s = settingRepository.findBySettingKey(STAR_KEY).orElseGet(() -> {
             CrmSetting n = new CrmSetting();
             n.setSettingKey(STAR_KEY);
-            n.setDescription("受信ボックスで★を付けたユーザーID");
+            n.setDescription("受信ボックスで★を付けたユーザー×キャラ");
             return n;
         });
-        StringBuilder sb = new StringBuilder();
-        for (Long id : ids) {
-            if (sb.length() > 0) sb.append(',');
-            sb.append(id);
-        }
-        s.setSettingValue(sb.toString());
+        s.setSettingValue(String.join(",", keys));
         settingRepository.save(s);
+        return true;
     }
 }

@@ -220,7 +220,7 @@ class MemberPageServiceTest {
                     .doesNotContain("サイト名", "まい", "ゆか");                       // logo registered → no site name; no sample rows
         }
         assertThat(svc.renderMember("menu", "sp", values, "", null, null, 3, c -> "/member/" + c))
-                .contains("<span class=\"badge\">3</span>", "<i class=\"fb\">3</i>", "href=\"/member/logout\"", "href=\"/page/terms\"")
+                .contains("<span class=\"badge\">3</span>", "<i class=\"fb\" style=\"font-size:10px;line-height:1.6;padding:1px 6px;min-width:18px;text-align:center\">3</i>", "href=\"/member/logout\"", "href=\"/page/terms\"")
                 .doesNotContain(">17<");
         assertThat(svc.renderMember("menu", "fp", values, "", null, null, 0, c -> "/member/" + c))
                 .contains("受信BOX</a>", "href=\"/member/logout\"").doesNotContain("(17)");

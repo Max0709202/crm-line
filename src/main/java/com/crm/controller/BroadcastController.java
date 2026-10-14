@@ -492,11 +492,12 @@ public class BroadcastController {
         model.addAttribute("targetIdsText", targetUsers.stream()
                 .map(com.crm.service.CrmUserService::displayId)
                 .collect(java.util.stream.Collectors.joining("\n")));
+        // 番号 / アドレス: masked like ユーザー詳細 for a 権限 that hides 電話番号 / メールアドレス
         model.addAttribute("targetPhonesText", targetUsers.stream()
-                .map(u -> u.getPhoneNumber() == null ? "-" : u.getPhoneNumber())
+                .map(u -> u.getPhoneNumber() == null ? "-" : (com.crm.service.RoleMaskService.isMasked("phone") ? com.crm.service.AdminRoleService.maskPhone(u.getPhoneNumber()) : u.getPhoneNumber()))
                 .collect(java.util.stream.Collectors.joining("\n")));
         model.addAttribute("targetEmailsText", targetUsers.stream()
-                .map(u -> u.getEmail() == null ? "-" : u.getEmail())
+                .map(u -> u.getEmail() == null ? "-" : (com.crm.service.RoleMaskService.isMasked("email") ? com.crm.service.AdminRoleService.maskEmail(u.getEmail()) : u.getEmail()))
                 .collect(java.util.stream.Collectors.joining("\n")));
         return "message/broadcast-progress";
     }

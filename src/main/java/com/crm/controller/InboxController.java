@@ -32,12 +32,14 @@ public class InboxController {
         this.threadPanelService = threadPanelService;
     }
 
-    /** ★ on a 受信ボックス row (thread page): starred users are listed first in 全受信履歴. */
+    /** ★ on a 受信ボックス row (thread page): starred user × キャラ rows are listed first in 全受信履歴. */
     @PostMapping("/manager/inbox/star")
     @org.springframework.web.bind.annotation.ResponseBody
-    public org.springframework.http.ResponseEntity<String> star(@RequestParam("id") Long userId,
+    public org.springframework.http.ResponseEntity<String> star(@RequestParam String key,
                                                                 @RequestParam String starred) {
-        threadPanelService.setStarred(userId, "1".equals(starred));
+        if (!threadPanelService.setStarred(key, "1".equals(starred))) {
+            return org.springframework.http.ResponseEntity.badRequest().body("invalid key");
+        }
         return org.springframework.http.ResponseEntity.ok("ok");
     }
 

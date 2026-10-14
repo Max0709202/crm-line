@@ -373,7 +373,7 @@ public class MessageController {
         }
         model.addAttribute("currentInboxRow", currentInboxRow);
         model.addAttribute("inboxPoints", userPointService.getAll(inboxUserIds));
-        model.addAttribute("starredUserIds", threadPanelService.starredUserIds());
+        model.addAttribute("starredRowKeys", threadPanelService.starredRowKeys());
         model.addAttribute("folderColors", folderSettingService.colorMap());
         // Gates the LINE返信 button — LINE only lets you message someone who has already
         // followed the Official Account (see LineWebhookService's javadoc).
