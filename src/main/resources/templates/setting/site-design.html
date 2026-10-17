@@ -366,6 +366,18 @@
                     チェックした項目だけが、この順番（左から）でフッターに並びます。チェックが1つならフッターは1項目だけ、0ならフッターは表示しません。
                     サポート窓口を開くと、お問い合わせ内容の入力欄と送信ボタンだけが表示されます（お名前・メールアドレスは不要）。
                 </p>
+
+                <!-- 2026-10-18 client request: LINE用 専用ロゴ (the サイトロゴ above stays for the other pages). -->
+                <div class="text-sm font-medium text-slate-700 mt-4 mb-1">LINE用ロゴ <code class="text-xs font-normal text-slate-500">%sitelogo%</code></div>
+                <p class="text-xs text-slate-500 mb-2">LINE用の画面（受信BOX・返信ページ・お知らせ・ポイント購入・サポート窓口）のヘッダーにだけ、サイトロゴの代わりに表示されます。表示サイズはサイトロゴと同じ（画面幅いっぱい）です。未登録の場合は上の共通サイトロゴが表示されます。JPEG / PNG / GIF / WebP、5MBまで。</p>
+                <div th:if="${lineLogoUrl != null}" class="mb-2 flex items-center gap-4 flex-wrap">
+                    <img th:src="${lineLogoUrl}" alt="現在のLINE用ロゴ" class="max-h-16 max-w-xs border border-slate-200 rounded bg-slate-50 p-1"/>
+                    <label class="inline-flex items-center text-sm text-slate-700">
+                        <input type="checkbox" name="lineLogoRemove" value="true" class="h-4 w-4 mr-1.5 border-slate-300 rounded"/> 削除して共通サイトロゴに戻す
+                    </label>
+                </div>
+                <p th:if="${lineLogoUrl == null}" class="mb-2 text-xs text-slate-400">未登録（共通サイトロゴを表示）</p>
+                <input type="file" name="lineLogoFile" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm max-w-full"/>
             </div>
 
             <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-4">

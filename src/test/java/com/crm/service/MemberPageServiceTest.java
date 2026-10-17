@@ -187,6 +187,30 @@ class MemberPageServiceTest {
     }
 
     @Test
+    void linePagesUseTheLineLogoWhenSavedAndOtherPagesKeepTheSiteLogo() {
+        SiteDesignService site = mock(SiteDesignService.class);
+        List<SiteDesignService.Slot> slots = new ArrayList<>();
+        for (String code : SiteDesignService.MEMBER_PAGES.keySet()) {
+            slots.add(new SiteDesignService.Slot(code, code, "", "", "",
+                    Collections.<String>emptyList(), Collections.<String>emptyList()));
+        }
+        when(site.getSlots()).thenReturn(slots);
+        when(site.getConfiguredSiteName()).thenReturn("サイト名");
+        when(site.getLogoUrl()).thenReturn("/img/6");
+        PaymentSettingService pay = mock(PaymentSettingService.class);
+        when(pay.getMethods(null)).thenReturn(new ArrayList<>());
+        MemberPageService svc = new MemberPageService(site, pay);
+
+        // no LINE用ロゴ → the サイトロゴ
+        assertThat(svc.renderLine("inbox", null, "", null, 0, false)).contains("<img src=\"/img/6\"");
+        when(site.getLineLogoUrl()).thenReturn("/img/9");
+        assertThat(svc.renderLine("inbox", null, "", null, 0, false)).contains("<img src=\"/img/9\"").doesNotContain("/img/6");
+        assertThat(svc.renderLinePreview("points")).contains("<img src=\"/img/9\"");
+        // the normal member pages keep the サイトロゴ
+        assertThat(svc.renderPreview("menu", "sp", false, c -> c + ".html")).contains("/img/6").doesNotContain("/img/9");
+    }
+
+    @Test
     void topHtmlSitsUnderThePageNameEverywhereAndFeaturePhoneHeadersMatchMenu() {
         SiteDesignService site = mock(SiteDesignService.class);
         List<SiteDesignService.Slot> slots = new ArrayList<>();

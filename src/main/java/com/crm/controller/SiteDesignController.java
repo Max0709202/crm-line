@@ -111,6 +111,7 @@ public class SiteDesignController {
         model.addAttribute("lineFooterLabels", SiteDesignService.LINE_FOOTER_LABELS);
         model.addAttribute("lineFooterItems", siteDesignService.getLineFooterItems());
         model.addAttribute("lineFooterMax", SiteDesignService.MAX_LINE_FOOTER_ITEMS);
+        model.addAttribute("lineLogoUrl", siteDesignService.getLineLogoUrl());
         model.addAttribute("siteBaseUrl", siteBaseUrl());
         return "setting/site-design";
     }
@@ -120,6 +121,7 @@ public class SiteDesignController {
                        @RequestParam(value = "logoFile", required = false) MultipartFile logoFile,
                        @RequestParam(value = "topPcFile", required = false) MultipartFile topPcFile,
                        @RequestParam(value = "topSpFile", required = false) MultipartFile topSpFile,
+                       @RequestParam(value = "lineLogoFile", required = false) MultipartFile lineLogoFile,
                        HttpServletRequest request, HttpSession session, RedirectAttributes ra) {
         List<String> errors = new ArrayList<>();
 
@@ -225,6 +227,8 @@ public class SiteDesignController {
                 "true".equals(params.get("topPcRemove")), uploadedBy, errors);
         applyImage(SiteDesignService.KEY_TOP_IMAGE_SP, "トップ画像（スマホ）", topSpFile,
                 "true".equals(params.get("topSpRemove")), uploadedBy, errors);
+        applyImage(SiteDesignService.KEY_LINE_LOGO_URL, "LINE用ロゴ", lineLogoFile,
+                "true".equals(params.get("lineLogoRemove")), uploadedBy, errors);
 
         auditLog.record(AuditLogService.ACTION_SETTINGS_UPDATE, "SiteDesign", null, "番組デザイン設定を更新");
         if (errors.isEmpty()) {

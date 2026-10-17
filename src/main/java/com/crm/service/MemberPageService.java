@@ -189,7 +189,7 @@ public class MemberPageService {
                 .replace("%unread_badge%", unread > 0 ? "<i class=\"fb\" style=\"" + LINE_BADGE_STYLE + "\">" + unread + "</i>" : "")
                 // NEW: own small size so it stays inside お知らせ (the .bi's 25px pushed it over 手続き)
                 .replace("%news_new%", newsNew ? "<i class=\"fb\" style=\"font-size:10px;line-height:1.6;padding:1px 6px;margin-left:2px\">NEW</i>" : "");
-        html = fillTags(html, memberValues).replace(SUPPORT_MARK, supportFormHtml == null ? "" : supportFormHtml)
+        html = fillTags(html, memberValues, true).replace(SUPPORT_MARK, supportFormHtml == null ? "" : supportFormHtml)
                 .replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
         return com.crm.util.NoZoom.apply(lineHeader(html));
     }
@@ -312,7 +312,7 @@ public class MemberPageService {
                 : load("line/sample-" + page + ".html");
         String title = "inbox".equals(page) ? "受信BOX" : "sent".equals(page) ? "送信済" : "reply".equals(page) ? "返信"
                 : "memo".equals(page) ? "お知らせ" : "support".equals(page) ? "サポート窓口" : "ポイント購入";
-        String out = renderLine(lineFramePage(page), html, null, fillTags(main, null), title, 17, true,
+        String out = renderLine(lineFramePage(page), html, null, fillTags(main, null, true), title, 17, true,
                 supportForm("", "/member/points", true));
         return out.replace("href=\"/member/inbox?tab=sent\"", "href=\"" + LINE_PREVIEW_URL + "sent\"")
                 .replace("href=\"/member/inbox\"", "href=\"" + LINE_PREVIEW_URL + "inbox\"")
@@ -512,7 +512,13 @@ public class MemberPageService {
 
     /** The design's member tags: the member's values when given, else sample values (admin preview). */
     private String fillTags(String html, Map<String, String> memberValues) {
-        String logo = siteDesignService.getLogoUrl();
+        return fillTags(html, memberValues, false);
+    }
+
+    /** Same; {@code line} = a LINE用 page, whose %sitelogo% is the LINE用 専用ロゴ when one is saved (else the サイトロゴ). */
+    private String fillTags(String html, Map<String, String> memberValues, boolean line) {
+        String lineLogo = line ? siteDesignService.getLineLogoUrl() : null;
+        String logo = lineLogo != null ? lineLogo : siteDesignService.getLogoUrl();
         Map<String, String> values = new HashMap<>();
         // never the bare domain; with a サイトロゴ registered the logo replaces the name (no double title)
         values.put("sitename", logo == null ? esc(siteDesignService.getConfiguredSiteName()) : "");

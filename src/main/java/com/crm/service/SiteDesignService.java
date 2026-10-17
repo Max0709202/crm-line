@@ -118,6 +118,8 @@ public class SiteDesignService {
     private static final String KEY_LINE_FOOTER = "site.line.footer";
     private static final String KEY_LINE_HTML_PREFIX = "site.line.html.";
     private static final String KEY_LINE_FOLDERS = "site.line.folders";
+    /** LINE用 専用ロゴ (2026-10-18 client request): shown in the LINE用 pages' header instead of the サイトロゴ; blank = サイトロゴ. */
+    public static final String KEY_LINE_LOGO_URL = "site.line.logo_url";
 
     /** Length limits of the post-login HTML areas (characters, line breaks count as one). */
     public static final int MAX_SLOT_HTML_CHARS = 8000;
@@ -206,6 +208,7 @@ public class SiteDesignService {
     public String getLogoUrl()       { return blankToNull(get(DomainSettingService.KEY_SITE_LOGO_URL)); }
     public String getTopImagePcUrl() { return blankToNull(get(KEY_TOP_IMAGE_PC)); }
     public String getTopImageSpUrl() { return blankToNull(get(KEY_TOP_IMAGE_SP)); }
+    public String getLineLogoUrl()   { return blankToNull(get(KEY_LINE_LOGO_URL)); }
 
     /** Stores (or with null/blank, clears) one of the image keys above. */
     @Transactional
