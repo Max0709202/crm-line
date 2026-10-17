@@ -747,9 +747,56 @@ public class MessageService {
 
         // Immediate send
         msg.setStatus(Message.STATUS_QUEUED); // transient; updated below
-        Message saved = attachImages(messageRepository.save(msg), imageIds);
-        sendNow(saved, pool);
-        return saved;
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            // no transaction (unit tests): send in place as before
+            Message saved = attachImages(messageRepository.save(msg), imageIds);
+            sendNow(saved, pool);
+            return saved;
+        }
+        // The relay upload (SSH + HTTP, several seconds from b32kd to the 転送機) no longer holds up
+        // the 返信 request: the caller hands the row to sendInBackground() once it has finished
+        // with it (2026-10-18 client request). Until then NEXT_RETRY_AT keeps dispatchQueued() off
+        // the row so it isn't sent twice; sendNow() clears it.
+        msg.setNextRetryAt(now.plus(IMMEDIATE_SEND_GUARD));
+        return attachImages(messageRepository.save(msg), imageIds);
+    }
+
+    /** How long dispatchQueued() leaves an immediate reply to {@link #sendInBackground} before it
+     *  sends the row itself (only when the background send never ran, e.g. a restart). */
+    private static final java.time.Duration IMMEDIATE_SEND_GUARD = java.time.Duration.ofMinutes(5);
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(MessageService.class);
+
+    private final java.util.concurrent.ExecutorService immediateSendLane =
+            java.util.concurrent.Executors.newFixedThreadPool(4, r -> {
+                Thread t = new Thread(r, "crm-reply-send");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /**
+     * Sends an immediate reply left QUEUED by {@link #compose} on a background thread. Call it
+     * after the row is committed and the caller's own updates to it (キャラ / LINEアカウント) are
+     * done — sendNow() saves the whole row, so a send loaded earlier would undo them.
+     * Scheduled (予約) and already-sent messages are ignored.
+     */
+    public void sendInBackground(Message sent) {
+        if (sent == null || sent.getId() == null || sent.getScheduledAt() != null
+                || sent.getNextRetryAt() == null || !Message.STATUS_QUEUED.equals(sent.getStatus())) return;
+        final Long id = sent.getId();
+        immediateSendLane.submit(() -> {
+            try {
+                Message fresh = messageRepository.findById(id).orElse(null);
+                if (fresh == null || !Message.STATUS_QUEUED.equals(fresh.getStatus())) return;
+                // same pool lookup as the dispatcher; through the proxy so sendNow() is transactional
+                CarrierAddressPool pool = fresh.getFromAddress() == null ? null
+                        : poolRepository.findByAddress(fresh.getFromAddress()).orElse(null);
+                ctx.getBean(MessageService.class).sendNow(fresh, pool);
+            } catch (Exception e) {
+                // the row stays QUEUED; dispatchQueued() sends it once the guard has passed
+                log.warn("Background send failed for message {}: {}", id, e.toString());
+            }
+        });
     }
 
     /**

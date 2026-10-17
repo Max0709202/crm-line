@@ -592,7 +592,9 @@ public class MessageController {
             Message sent = messageService.compose(userId, adminId, form);
             charaLinkService.assign(com.crm.entity.CharaRef.OWNER_MESSAGE, sent.getId(), charaId);
             if (charaId == null) messageService.assignLineAccount(sent, cardLineAccountId);
-            String kind = Message.STATUS_QUEUED.equals(sent.getStatus()) ? "予約送信" : "送信";
+            messageService.sendInBackground(sent);
+            // an immediate send is still QUEUED here (it goes out in the background) — only a 予約 has a scheduledAt
+            String kind = sent.getScheduledAt() != null ? "予約送信" : "送信";
             ra.addFlashAttribute("flashSuccess", "メッセージを" + kind + "しました");
         } catch (MessageService.MessageException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
