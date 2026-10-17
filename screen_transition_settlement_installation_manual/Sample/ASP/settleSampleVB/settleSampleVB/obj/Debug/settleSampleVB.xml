@@ -1,0 +1,36 @@
+﻿<?xml version="1.0"?>
+<doc>
+<assembly>
+<name>
+settleSampleVB
+</name>
+</assembly>
+<members>
+<member name="P:settleSampleVB.My.MyWebExtension.Computer">
+	<summary>
+ ホスト コンピューターに関する情報を返します。
+ </summary>
+</member><member name="P:settleSampleVB.My.MyWebExtension.User">
+	<summary>
+ 現在の Web ユーザーに関する情報を返します。
+ </summary>
+</member><member name="P:settleSampleVB.My.MyWebExtension.Request">
+	<summary>
+ Request オブジェクトを返します。
+ </summary>
+</member><member name="P:settleSampleVB.My.MyWebExtension.Response">
+	<summary>
+ Response オブジェクトを返します。
+ </summary>
+</member><member name="P:settleSampleVB.My.MyWebExtension.Log">
+	<summary>
+ Asp ログ オブジェクトを返します。
+ </summary>
+</member><member name="T:settleSampleVB.My.MyWebExtension">
+	<summary>
+ Web プロジェクトの My Namespace で使用できるプロパティを定義するためのモジュール。
+ </summary>
+	<remarks></remarks>
+</member>
+</members>
+</doc>

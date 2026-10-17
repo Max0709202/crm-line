@@ -52,7 +52,9 @@ public class CsrfInterceptor implements HandlerInterceptor {
             "/manager/login",
             "/api/inbound/receive-raw",
             // テレコムクレジット 決済データ — Telecom's server (no session); only its 決済サーバー IPs are accepted
-            com.crm.service.TelecomCreditService.NOTIFY_PATH
+            com.crm.service.TelecomCreditService.NOTIFY_PATH,
+            // ビットキャッシュ 完了通知 — BitCash's server (no session); its IPs only, hash checked with the 通知キー
+            com.crm.service.BitcashService.NOTIFY_PATH
     ));
 
     /**
@@ -81,6 +83,10 @@ public class CsrfInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        if (crossSiteNavigationWithoutCookie(request)) {
+            reloadSameSite(response);
+            return false;
+        }
         HttpSession session = request.getSession(true);
         String token = (String) session.getAttribute(SESSION_KEY);
         if (token == null) {
@@ -132,6 +138,35 @@ public class CsrfInterceptor implements HandlerInterceptor {
             return false;
         }
         return true;
+    }
+
+    /**
+     * A page opened from another site (a link in a web chat / web mail): the SameSite=Strict session
+     * cookie is not sent, so creating a session here would replace the browser's logged-in one —
+     * the login page shows, and the pages still open in other tabs then fail with 有効期限切れ.
+     * Only when the browser says so (Sec-Fetch-*) and no session cookie came.
+     */
+    private static boolean crossSiteNavigationWithoutCookie(HttpServletRequest request) {
+        return "GET".equals(request.getMethod())
+                && request.getRequestedSessionId() == null
+                && "cross-site".equals(request.getHeader("Sec-Fetch-Site"))
+                && "navigate".equals(request.getHeader("Sec-Fetch-Mode"))
+                && "document".equals(request.getHeader("Sec-Fetch-Dest"));
+    }
+
+    /** Opens the same URL again from this site, so the browser sends its session cookie. No session is made. */
+    private static void reloadSameSite(HttpServletResponse response) {
+        try {
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setContentType("text/html;charset=UTF-8");
+            response.setHeader("Cache-Control", "no-store");
+            response.setHeader("Referrer-Policy", "no-referrer");
+            response.getWriter().write("<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
+                    + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                    + "<meta name=\"robots\" content=\"noindex\"><title></title>"
+                    + "<noscript><meta http-equiv=\"refresh\" content=\"0\"></noscript>"
+                    + "<script>location.replace(location.href)</script></head><body></body></html>");
+        } catch (Exception ignored) { /* best-effort */ }
     }
 
     private static String generateToken() {

@@ -701,6 +701,8 @@
                             <div class="dtl-ident">
                                 <div class="dtl-name"><span th:text="${charName} ?: 'キャラ未設定'"
                                     th:classappend="${cardLineAccount != null and blockedLineAccountIds.contains(cardLineAccount.id)} ? 'is-blocked'">キャラ</span><span
+                                    th:if="${cardChara != null and cardChara.gender == 'male'}" class="dtl-gender is-male">男性</span><span
+                                    th:if="${cardChara != null and cardChara.gender == 'female'}" class="dtl-gender is-female">女性</span><span
                                     th:if="${cardLineAccount != null and blockedLineAccountIds.contains(cardLineAccount.id)}" class="dtl-block-tag">ブロック</span></div>
                                 <!-- LINEキャラは名前の直下に LINE公式アカウントID (例: @088nncrx) -->
                                 <span class="dtl-id is-none" th:if="${cardLineAccount != null}"
@@ -745,7 +747,7 @@
             <span><i>年齢</i><th:block th:text="${userProfile.age != null} ? ${userProfile.age} + '歳' : '未設定'"/></span>
             <span class="dtl-mini-pt" th:text="${#numbers.formatInteger(userPoints, 1, 'COMMA')} + 'pt'">0pt</span>
             <span><i>入金額</i><th:block th:text="${#numbers.formatDecimal(totalPaid, 1, 'COMMA', 0, 'POINT')} + '円'"/></span>
-            <span class="dtl-mini-staff"><b th:text="${charName} ?: 'キャラ未設定'">キャラ</b></span>
+            <span class="dtl-mini-staff"><b th:text="${charName} ?: 'キャラ未設定'">キャラ</b><span th:if="${cardChara != null and cardChara.gender == 'male'}" class="dtl-gender is-male">男性</span><span th:if="${cardChara != null and cardChara.gender == 'female'}" class="dtl-gender is-female">女性</span></span>
         </div>
 
         <div class="dtl-log-head" th:data-gender="${ugender}">
@@ -872,6 +874,8 @@
                 <input type="hidden" name="charaId" th:if="${cardChara != null}" th:value="${cardChara.id}"/>
                 <input type="hidden" name="charaView" value="1" th:if="${viewChara != null}"/>
                 <input type="hidden" name="lineView" value="1" th:if="${lineView}"/>
+                <!-- LINEキャラ (例: 【総合窓口】②) の画面からのメール・SMS返信は、そのキャラとして送る（サポート窓口にしない） -->
+                <input type="hidden" name="cardLineAccountId" th:if="${cardChara == null and cardLineAccount != null and selectedLineAccountId != null and selectedLineAccountId == cardLineAccount.id}" th:value="${cardLineAccount.id}"/>
 
                 <div>
                     <input type="text" id="subject" th:field="*{subject}" placeholder="件名"/>

@@ -312,6 +312,13 @@ public interface MessageRepository extends JpaRepository<Message, Long>, JpaSpec
     int dismissInboxByUserId(@org.springframework.data.repository.query.Param("userId") Long userId,
                               @org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now);
 
+    /** メール・SMS sent from a LINE キャラ's page: records that LINE account only (status etc. untouched). */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Query("UPDATE Message m SET m.lineAccountId = :lineAccountId WHERE m.id = :id")
+    int setLineAccountId(@org.springframework.data.repository.query.Param("id") Long id,
+                         @org.springframework.data.repository.query.Param("lineAccountId") Long lineAccountId);
+
     /**
      * メッセージボックス: paginated OUT/SENT history for one user, newest sentAt first,
      * excluding anything the admin has soft-deleted (BOX_DISMISSED_AT). Shared by the

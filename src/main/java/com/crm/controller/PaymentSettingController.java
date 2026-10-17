@@ -35,6 +35,8 @@ public class PaymentSettingController {
     private com.crm.service.TelecomCreditService telecomCreditService;
     private com.crm.repository.TelecomOrderRepository telecomOrderRepository;
     private com.crm.service.DomainSettingService domainSettingService;
+    private com.crm.service.BitcashService bitcashService;
+    private com.crm.repository.BitcashOrderRepository bitcashOrderRepository;
 
     public PaymentSettingController(PaymentSettingService paymentSettingService,
                                     FolderSettingService folderSettingService, AuditLogService auditLog) {
@@ -50,6 +52,13 @@ public class PaymentSettingController {
         this.telecomCreditService = telecomCreditService;
         this.telecomOrderRepository = telecomOrderRepository;
         this.domainSettingService = domainSettingService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setBitcash(com.crm.service.BitcashService bitcashService,
+                           com.crm.repository.BitcashOrderRepository bitcashOrderRepository) {
+        this.bitcashService = bitcashService;
+        this.bitcashOrderRepository = bitcashOrderRepository;
     }
 
     @GetMapping
@@ -71,6 +80,10 @@ public class PaymentSettingController {
         String base = domainSettingService.getReplyBaseUrl();
         model.addAttribute("telecomNotifyUrl", (base == null ? "" : base.trim().replaceAll("/+$", "")) + com.crm.service.TelecomCreditService.NOTIFY_PATH);
         model.addAttribute("telecomOrders", telecomOrderRepository.findTop10ByOrderByIdDesc());
+        // ビットキャッシュ接続 (right side, under テレコムクレジット; 全フォルダ共通)
+        model.addAttribute("bitcash", bitcashService.getSettings());
+        model.addAttribute("bitcashNotifyUrl", (base == null ? "" : base.trim().replaceAll("/+$", "")) + com.crm.service.BitcashService.NOTIFY_PATH);
+        model.addAttribute("bitcashOrders", bitcashOrderRepository.findTop10ByOrderByIdDesc());
         return "setting/payments";
     }
 
@@ -90,6 +103,30 @@ public class PaymentSettingController {
             auditLog.record(AuditLogService.ACTION_SETTINGS_UPDATE, "PaymentSetting", null,
                     "テレコムクレジット接続: " + (enabled ? "有効" : "無効"));
             ra.addFlashAttribute("flashSuccess", "テレコムクレジットの接続設定を保存しました");
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("flashError", e.getMessage());
+        }
+        if (folder != null && !folder.isEmpty()) ra.addAttribute("folder", folder);
+        return "redirect:/manager/settings/payments";
+    }
+
+    /** ビットキャッシュ接続: 店舗ID・認証キー・通知キー・商品レイティング・使う決済方法. */
+    @PostMapping("/bitcash")
+    public String saveBitcash(@RequestParam(name = "enabled", defaultValue = "false") boolean enabled,
+                              @RequestParam(name = "shopId", required = false) String shopId,
+                              @RequestParam(name = "shopKey", required = false) String shopKey,
+                              @RequestParam(name = "notifyKey", required = false) String notifyKey,
+                              @RequestParam(name = "rating", required = false) String rating,
+                              @RequestParam(name = "methods", required = false) List<String> methods,
+                              @RequestParam(name = "testMode", defaultValue = "false") boolean testMode,
+                              @RequestParam(name = "serverIps", required = false) String serverIps,
+                              @RequestParam(value = "folder", required = false) String folder,
+                              RedirectAttributes ra) {
+        try {
+            bitcashService.saveSettings(enabled, shopId, shopKey, notifyKey, rating, methods, testMode, serverIps);
+            auditLog.record(AuditLogService.ACTION_SETTINGS_UPDATE, "PaymentSetting", null,
+                    "ビットキャッシュ接続: " + (enabled ? "有効" : "無効") + (testMode ? "（テスト環境）" : ""));
+            ra.addFlashAttribute("flashSuccess", "ビットキャッシュの接続設定を保存しました");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("flashError", e.getMessage());
         }

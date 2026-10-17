@@ -529,6 +529,18 @@ public class MessageService {
         return recentMessages(page, size, null);
     }
 
+    /**
+     * 受信/返信管理 when nothing is in the 受信ボックス and only 一斉送信 / SMS配信 have been sent (a new
+     * site): the user whose 受信やり取り page to open — the newest message of any kind, else the newest
+     * user. Null when there are no users at all.
+     */
+    public Long newestThreadUserId() {
+        java.util.List<Message> any = messageRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 1)).getContent();
+        if (!any.isEmpty() && any.get(0).getUserId() != null) return any.get(0).getUserId();
+        java.util.List<CrmUser> users = userRepository.findAll(PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "id"))).getContent();
+        return users.isEmpty() ? null : users.get(0).getId();
+    }
+
     @org.springframework.transaction.annotation.Transactional
     public int deleteByIds(java.util.List<Long> ids) {
         if (ids == null || ids.isEmpty()) return 0;
@@ -801,6 +813,22 @@ public class MessageService {
      *  lead-text/URL suffix appended after clipping. Unlike SMS there's no per-segment
      *  billing reason to clip much shorter, so this is a safety cap, not a real limit. */
     static final int LINE_REPLY_URL_CLIP_LENGTH = 4900;
+
+    /**
+     * メール・SMS sent from a LINE キャラ's page (?line=, 2026-10-14 client request): kept in that LINE キャラ's
+     * やり取り, so the member sees it from that LINE account (MemberSiteService#lineSender) instead of
+     * サポート窓口, and the member's reply comes back to the same 受信ボックス row. Only a LINE account the
+     * user is friends with.
+     */
+    public void assignLineAccount(Message sent, Long lineAccountId) {
+        if (sent == null || sent.getId() == null || lineAccountId == null) return;
+        boolean linked = lineUserRepository.findByCrmUserIdInOrderByLastMessageAtDesc(
+                java.util.Collections.singletonList(sent.getUserId())).stream()
+                .anyMatch(lu -> lineAccountId.equals(lu.getLineAccountId()));
+        if (!linked) return;
+        messageRepository.setLineAccountId(sent.getId(), lineAccountId);
+        sent.setLineAccountId(lineAccountId);
+    }
 
     /**
      * LINE reply from the thread page — mirrors {@link #composeSms}. Only available once

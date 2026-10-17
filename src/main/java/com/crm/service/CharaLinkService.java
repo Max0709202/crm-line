@@ -147,9 +147,10 @@ public class CharaLinkService {
         try {
             ownTx.execute(status -> {
                 Long charaId = null;
-                if (in.getReplyToMessageId() != null) {
-                    charaId = messageRepository.findById(in.getReplyToMessageId()).map(this::charaIdOfMessage).orElse(null);
-                }
+                Message answered = in.getReplyToMessageId() == null ? null : messageRepository.findById(in.getReplyToMessageId()).orElse(null);
+                if (answered != null) charaId = charaIdOfMessage(answered);
+                // an answer to a LINE キャラ's message (メール・SMS sent from its page) stays with that LINE キャラ
+                if (charaId == null && answered != null && answered.getLineAccountId() != null) return null;
                 if (charaId == null) {
                     List<Number> latest = refRepository.latestOutboundCharaId(in.getUserId());
                     if (!latest.isEmpty() && latest.get(0) != null) charaId = latest.get(0).longValue();

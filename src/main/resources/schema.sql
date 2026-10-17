@@ -806,6 +806,25 @@ CREATE TABLE IF NOT EXISTS TELECOM_ORDER (
   KEY IDX_TELECOM_ORDER_USER (USER_ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 決済関連設定 › ビットキャッシュ (画面遷移型 BitCash 決済サービス): one row per ポイント購入 sent to
+-- ビットキャッシュ's 決済画面. Credited once, by the 完了通知 or by 決済確認処理 when the member comes back.
+CREATE TABLE IF NOT EXISTS BITCASH_ORDER (
+  ID            BIGINT       AUTO_INCREMENT PRIMARY KEY,
+  USER_ID       BIGINT       NOT NULL,
+  METHOD        VARCHAR(32)  NOT NULL COMMENT '決済関連設定の決済方法コード (emoney …)',
+  AMOUNT        INT          NOT NULL,
+  POINTS        INT          NOT NULL,
+  STATUS        VARCHAR(16)  NOT NULL COMMENT 'PENDING | PAID | FAILED',
+  TRAN_ID       VARCHAR(32)  DEFAULT NULL COMMENT '決済トランザクションID',
+  CNO           VARCHAR(20)  DEFAULT NULL COMMENT '管理番号',
+  PAYMENT_ID    BIGINT       DEFAULT NULL,
+  RESULT_PARAMS TEXT         DEFAULT NULL COMMENT '完了通知 / 決済確認 (as received)',
+  CREATED_AT    DATETIME     NOT NULL,
+  PAID_AT       DATETIME     DEFAULT NULL,
+  UNIQUE KEY UK_BITCASH_ORDER_TRAN (TRAN_ID),
+  KEY IDX_BITCASH_ORDER_USER (USER_ID, STATUS)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 画像添付 (メール / SMS: shown on the 返信画面 with a 📎 mark, not as a URL in the mail) and
 -- LINE画像挿入 (sent to LINE as image messages) of an outbound message or a broadcast (一斉送信 / 差分).
 CREATE TABLE IF NOT EXISTS MESSAGE_IMAGE (

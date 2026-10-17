@@ -116,6 +116,18 @@ public class MemberSiteController {
         this.userActivityService = userActivityService;
     }
 
+    /** ビットキャッシュ決済 — optional like the above. */
+    private com.crm.service.BitcashService bitcashService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setBitcash(com.crm.service.BitcashService bitcashService) {
+        this.bitcashService = bitcashService;
+    }
+
+    private boolean bitcashHandles(String methodCode) {
+        return bitcashService != null && bitcashService.handles(methodCode);
+    }
+
     /** LINE用 ログイン保持 ({@link com.crm.service.MemberAutoLoginService#REMEMBER_COOKIE}) — optional like the above. */
     private com.crm.service.MemberAutoLoginService autoLoginService;
 
@@ -907,6 +919,28 @@ public class MemberSiteController {
         return "redirect:" + (back == null ? "/member/support" : safeBack(back));
     }
 
+    /** LINE用 page's %support_form%: the entered ID → サポート窓口, back to the page it was sent from. */
+    @PostMapping("/member/support/id")
+    public Object sendSupportId(@RequestParam(name = "id", required = false) String id,
+                                @RequestParam(name = "back", required = false) String back,
+                                HttpSession session, RedirectAttributes ra) {
+        CrmUser u = member(session);
+        if (u == null) return toLogin();
+        if (preview(session)) return previewBlocked();
+        String page = back == null ? "/member/points" : safeBack(back);
+        // 結果は %support_form% の中に出す (ページのHTMLに %main% が無くても見える); #supportForm でフォームの位置に戻る
+        try {
+            site.supportId(u, id, page);
+            ra.addFlashAttribute(SUPPORT_ID_DONE, "送信しました。担当者からのご連絡をお待ちください。");
+        } catch (MemberSiteService.MemberException e) {
+            ra.addFlashAttribute(SUPPORT_ID_ERROR, e.getMessage());
+        }
+        return "redirect:" + page + "#supportForm";
+    }
+
+    private static final String SUPPORT_ID_DONE = "supportIdDone";
+    private static final String SUPPORT_ID_ERROR = "supportIdError";
+
     private String supportHtml(HttpServletRequest request, CrmUser u, String note) {
         boolean fp = fp(request);
         StringBuilder b = new StringBuilder(fp ? "" : "<section class=\"box\"><div class=\"boxline\"></div>");
@@ -996,21 +1030,27 @@ public class MemberSiteController {
 
     @GetMapping("/member/points")
     public Object points(@RequestParam(name = "done", required = false) String done,
+                         @RequestParam(name = "cancel", required = false) String cancel,
                          HttpServletRequest request, HttpSession session, Model model) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
         boolean fp = fp(request);
         StringBuilder b = new StringBuilder(fp ? "" : "<section class=\"box plans\"><div class=\"boxline\"></div>");
         String note = flash(model);
+        if ("bitcash".equals(done) && bitcashService != null) bitcashService.confirmPending(u.getId());   // 完了通知が届いていない分も確認
         if (done != null) note = "決済が完了しました。ポイントの反映まで少しお待ちください（反映されない場合はページを再読み込みしてください）。";
+        else if (cancel != null) note = "お支払いはキャンセルされました。";
         if (note != null) b.append(fp ? "<div class=\"row\">" + e(note) + "</div>" : "<div class=\"note\">" + e(note) + "</div>");
         boolean any = false;
         for (PaymentSettingService.Method m : paymentSettingService.getMethods(u.getFolder())) {
             List<PaymentSettingService.Plan> plans = m.getOfferedPlans();
             if (plans.isEmpty()) continue;
             any = true;
-            boolean payable = telecomCreditService.handles(m.getCode());
+            boolean bitcash = bitcashHandles(m.getCode());
+            // ビットキャッシュの決済画面は PC・スマートフォンのみ (導入マニュアル 7.1) — ガラケーでは購入ボタンを出さない
+            boolean payable = bitcash ? !fp : telecomCreditService.handles(m.getCode());
             b.append(fp ? "<div class=\"ttl\">" + e(m.getLabel()) + "</div><div class=\"m\">" : "<h3 class=\"methodtitle\">" + e(m.getLabel()) + "</h3>");
+            if (bitcash) b.append(bitcashNote(fp));
             for (int i = 0; i < m.getPlans().size(); i++) {
                 PaymentSettingService.Plan p = m.getPlans().get(i);
                 if (!p.isOffered()) continue;
@@ -1040,6 +1080,23 @@ public class MemberSiteController {
         CrmUser u = member(session);
         if (u == null) return toLogin();
         if (preview(session)) return previewBlocked();
+        if (bitcashHandles(method)) {
+            if (fp(request)) {
+                ra.addFlashAttribute("memberNote", "ビットキャッシュでのお支払いはスマートフォン・PCからご利用ください");
+                return "redirect:/member/points";
+            }
+            try {
+                String base = ServletUriComponentsBuilder.fromCurrentContextPath().toUriString();
+                String settleUrl = bitcashService.startOrder(u, method, plan,
+                        base + com.crm.service.BitcashService.NOTIFY_PATH,
+                        base + com.crm.service.BitcashService.RETURN_PATH + "?r=done",
+                        base + com.crm.service.BitcashService.RETURN_PATH + "?r=cancel");
+                return ResponseEntity.status(302).location(java.net.URI.create(settleUrl)).build();   // as returned (already URL-encoded)
+            } catch (com.crm.service.BitcashService.CheckoutException e) {
+                ra.addFlashAttribute("memberNote", e.getMessage());
+                return "redirect:/member/points";
+            }
+        }
         TelecomCreditService.Checkout co;
         try {
             String back = ServletUriComponentsBuilder.fromCurrentContextPath().path("/member/points").queryParam("done", "1").toUriString();
@@ -1058,6 +1115,15 @@ public class MemberSiteController {
         b.append("<button type=\"submit\">決済画面へ進む</button></form>"
                 + "<script>document.getElementById('co').submit();</script></body></html>");
         return html(b.toString());
+    }
+
+    /** ビットキャッシュ ロゴ (導入マニュアル 3.1) and the 残高引継ページ link (3.2), under the method title. */
+    private static String bitcashNote(boolean fp) {
+        String logo = "<img src=\"/member/images/bc_b_523px_236px.png\" alt=\"ビットキャッシュ\" width=\"" + (fp ? 73 : 120) + "\" style=\"height:auto;vertical-align:middle\">";
+        String merge = "<a href=\"" + com.crm.service.BitcashService.MERGE_URL + "\" target=\"_blank\" rel=\"noopener\">複数のひらがなIDの残高をまとめる（残高引継）</a>";
+        return fp ? "<div class=\"row\">" + logo + "<br>ビットキャッシュでのお支払いはスマートフォン・PCからご利用ください</div>"
+                  : "<div class=\"note\" style=\"display:flex;align-items:center;gap:10px;flex-wrap:wrap\">" + logo
+                    + "<span style=\"font-size:12px\">ビットキャッシュのひらがなIDでお支払いいただけます。<br>" + merge + "</span></div>";
     }
 
     @GetMapping("/member/point-table")
@@ -1158,8 +1224,12 @@ public class MemberSiteController {
         values.put("email", nz(u.getEmail(), ""));
         if (line(request, u)) {
             String page = LINE_PAGE.getOrDefault(code, "inbox");
+            Map<String, ?> sent = org.springframework.web.servlet.support.RequestContextUtils.getInputFlashMap(request);
+            String done = sent == null ? null : (String) sent.get(SUPPORT_ID_DONE);
+            String error = sent == null ? null : (String) sent.get(SUPPORT_ID_ERROR);
             String html = pages.renderLine(page, values, mainHtml, title != null ? title : MemberPageService.BAR_TITLES.get(code),
-                    site.unreadCount(u), notice != null && notice.isNew(u));
+                    site.unreadCount(u), notice != null && notice.isNew(u),
+                    MemberPageService.supportForm(csrf(request), request.getRequestURI(), false, done, error));
             if (preview(request.getSession(false))) html = previewBanner(html, u);
             return html(html);
         }

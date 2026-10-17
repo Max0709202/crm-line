@@ -211,7 +211,7 @@ class ReplyPageControllerTest {
         String view = controller.show("tok123", 0, 0, req, model);
 
         assertThat(view).isEqualTo("member/handoff");
-        assertThat(model.getAttribute("next")).isEqualTo("/member/reply?c=5#m77");
+        assertThat(model.getAttribute("next")).isEqualTo("/member/reply?c=5&m=77");
         assertThat(req.getSession().getAttribute(PublicSiteController.SESSION_MEMBER_ID)).isEqualTo(1L);
     }
 }

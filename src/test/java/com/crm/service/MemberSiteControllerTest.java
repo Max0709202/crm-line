@@ -155,7 +155,7 @@ class MemberSiteControllerTest {
             assertThat(body(controller.search(req(fp), session))).contains("name=\"pref\"", "東京都");
             assertThat(body(controller.support(req(fp), session, new ExtendedModelMap()))).contains("naoto@example.jp");
             assertThat(body(controller.profile(req(fp), session, new ExtendedModelMap()))).contains("name=\"nickname\"", "なおと&lt;b&gt;");
-            assertThat(body(controller.points(null, req(fp), session, new ExtendedModelMap()))).contains("現在購入できるプランはありません");
+            assertThat(body(controller.points(null, null, req(fp), session, new ExtendedModelMap()))).contains("現在購入できるプランはありません");
             body(controller.pointTable(req(fp), session));
             body(controller.menu(req(fp), session));
         }

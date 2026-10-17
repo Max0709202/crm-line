@@ -78,6 +78,9 @@ public class MemberPageService {
 
     /** LINE用 page template tags (besides the member tags above). */
     private static final String LINE_MAIN = "%main%";
+    /** LINE用: お問い合わせ（ID送信）フォーム — the member enters an ID and it arrives at サポート窓口. */
+    public static final String SUPPORT_FORM_TAG = "%support_form%";
+    private static final String SUPPORT_MARK = "<!--member-support-form-->";
 
     private static final String MENU_FREE_AREA = "<div class=\"htmlslot\">%HTML%</div>";
     /** Class on every HTML area's wrapper; the operator's CSS only applies inside it. */
@@ -141,23 +144,60 @@ public class MemberPageService {
      */
     public String renderLine(String page, Map<String, String> memberValues, String mainHtml, String title,
                              int unread, boolean newsNew) {
+        return renderLine(page, memberValues, mainHtml, title, unread, newsNew, null);
+    }
+
+    /** Same, with {@code supportFormHtml} in the page's %support_form% (null = the tag is left empty). */
+    public String renderLine(String page, Map<String, String> memberValues, String mainHtml, String title,
+                             int unread, boolean newsNew, String supportFormHtml) {
         if (!SiteDesignService.LINE_PAGES.containsKey(page)) page = "inbox";
-        return renderLine(page, siteDesignService.getLineHtml(page), memberValues, mainHtml, title, unread, newsNew);
+        return renderLine(page, siteDesignService.getLineHtml(page), memberValues, mainHtml, title, unread, newsNew, supportFormHtml);
     }
 
     /** {@code html} = the LINE用 page's HTML (null/blank = the bundled default). */
     private String renderLine(String page, String html, Map<String, String> memberValues, String mainHtml, String title,
-                              int unread, boolean newsNew) {
+                              int unread, boolean newsNew, String supportFormHtml) {
         if (html == null || html.trim().isEmpty()) html = getDefaultLineTemplate();
         // %main% → a marker first, so a member's own value (e.g. a nickname "%main%") is never read as it
-        html = html.replace(LINE_MAIN, MAIN_MARK)
+        html = html.replace(LINE_MAIN, MAIN_MARK).replace(SUPPORT_FORM_TAG, SUPPORT_MARK)
                 .replace("%title%", esc(title == null ? SiteDesignService.LINE_PAGES.get(page) : title))
                 // 受信BOX's count: own small fixed size (like NEW) — the .bi's 25px made it cover「受信BOX」
                 .replace("%unread_badge%", unread > 0 ? "<i class=\"fb\" style=\"" + LINE_BADGE_STYLE + "\">" + unread + "</i>" : "")
                 // NEW: own small size so it stays inside お知らせ (the .bi's 25px pushed it over 手続き)
                 .replace("%news_new%", newsNew ? "<i class=\"fb\" style=\"font-size:10px;line-height:1.6;padding:1px 6px;margin-left:2px\">NEW</i>" : "");
-        html = fillTags(html, memberValues).replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
+        html = fillTags(html, memberValues).replace(SUPPORT_MARK, supportFormHtml == null ? "" : supportFormHtml)
+                .replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
         return com.crm.util.NoZoom.apply(lineHeader(html));
+    }
+
+    /**
+     * %support_form%: ID + 送信, posted to /member/support/id (→ サポート窓口), back to {@code back}.
+     * {@code csrfInput} is the page's hidden _csrf field; {@code sample} (the admin check) never submits.
+     */
+    public static String supportForm(String csrfInput, String back, boolean sample) {
+        return supportForm(csrfInput, back, sample, null, null);
+    }
+
+    /**
+     * Same, with the result of the last 送信 shown in the form itself (the page's own HTML may have no
+     * %main%): {@code done} = 送信しました, {@code error} in #formError. #supportForm / #message /
+     * #formError are the ids a page's own check script uses (e.g. 「16桁で入力してください」).
+     */
+    public static String supportForm(String csrfInput, String back, boolean sample, String done, String error) {
+        return "<form id=\"supportForm\" method=\"post\" action=\"/member/support/id\" class=\"support-id-form\" style=\"margin:12px 0;scroll-margin-top:160px\""
+                + (sample ? " onsubmit=\"return false\"" : "") + ">" + (csrfInput == null ? "" : csrfInput)
+                + "<input type=\"hidden\" name=\"back\" value=\"" + esc(back) + "\">"
+                + "<label style=\"display:block;font-size:13px;margin-bottom:4px\">ID</label>"
+                + "<div style=\"display:flex;gap:6px\">"
+                + "<input type=\"text\" id=\"message\" name=\"id\" maxlength=\"100\" required placeholder=\"IDを入力\""
+                + " style=\"flex:1;min-width:0;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:16px\">"
+                + "<button type=\"submit\" style=\"padding:8px 16px;border:0;border-radius:6px;background:#06c755;color:#fff;font-size:15px\">送信</button>"
+                + "</div>"
+                + "<div id=\"formError\" role=\"alert\" style=\"min-height:1.5em;margin-top:8px;color:#dc2626;font-size:13px;font-weight:700\">"
+                + (error == null ? "" : esc(error)) + "</div>"
+                + (done == null ? "" : "<div class=\"support-id-done\" style=\"margin-top:4px;padding:10px;border-radius:6px;background:#f0fdf4;"
+                        + "border:1px solid #bbf7d0;color:#15803d;font-size:14px;font-weight:700\">" + esc(done) + "</div>")
+                + "</form>";
     }
 
     /**
@@ -211,7 +251,8 @@ public class MemberPageService {
                 : load("line/sample-" + page + ".html");
         String title = "inbox".equals(page) ? "受信BOX" : "sent".equals(page) ? "送信済" : "reply".equals(page) ? "返信"
                 : "memo".equals(page) ? "お知らせ" : "ポイント購入";
-        String out = renderLine("sent".equals(page) ? "inbox" : page, html, null, fillTags(main, null), title, 17, true);
+        String out = renderLine("sent".equals(page) ? "inbox" : page, html, null, fillTags(main, null), title, 17, true,
+                supportForm("", "/member/points", true));
         return out.replace("href=\"/member/inbox?tab=sent\"", "href=\"" + LINE_PREVIEW_URL + "sent\"")
                 .replace("href=\"/member/inbox\"", "href=\"" + LINE_PREVIEW_URL + "inbox\"")
                 .replace("href=\"/member/memo\"", "href=\"" + LINE_PREVIEW_URL + "memo\"")

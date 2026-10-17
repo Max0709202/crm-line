@@ -1,0 +1,81 @@
+﻿<%@ LANGUAGE="VBScript" %>
+<html>
+<head>
+<title>決済API-javaサンプル | 2.支払い方法選択画面</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<body>
+	<div id="content">
+		<h3>決済API-javaサンプル | 2.支払い方法選択画面</h3>
+		<form method="post" action="confirm.asp">
+<br />
+			<h3>お支払い方法を選択してください</h3>
+<br />
+
+<%
+
+            ' サンプルコード
+            ' ダミーの支払い方法選択画面
+            ' @copyright	Copyright (c) 2014 BitCash Inc. All Rights Reserved.
+            ' @author		BitCash
+            ' @since		2014/1/10
+            '
+            ' < 免責事項 >
+            ' ①サンプルプログラムはBitCash決済を導入するための参考として、弊社が十分に動作確認を行った上で提供しておりますが、
+            ' 加盟店様のご利用環境に よっては利用できない場合があります。
+            ' ご利用は加盟店様ご自身の責任において行っていただきますようお願いいたします。
+            '
+            ' ②本サンプルプログラムのご利用により発生した、いかなるトラブルや損失・損害等につきましては
+            ' 一切責任を負わないものとします。
+            '
+            ' ③本サンプルプログラムに不備があった場合でも、弊社は修正およびサポートの義務を負いかねます。
+            '
+            ' ④本サンプルプログラムに関する財産権、所有権、知的財産権、その他一切の権限は、弊社に帰属します。
+
+		    '選択できる決済方法を出力（DBから取得して一覧表示など）
+		    '※サンプルではハードコーディングをしております。
+
+            itemCode = Request.Form("itemCode")
+            select case itemCode
+                case 1
+                    itemName = "商品A"
+                    itemRating = "19"
+                    itemPrice = "1000"
+                case 2:
+                    itemName = "商品B"
+                    itemRating = "19"
+                    itemPrice = "3000"
+                case 3:
+                    itemName = "商品C"
+                    itemRating = "19"
+                    itemPrice = "5000"
+                case 4:
+                    itemName = "商品D"
+                    itemRating = "99"
+                    itemPrice = "1000"
+                case 5:
+                    itemName = "商品E"
+                    itemRating = "99"
+                    itemPrice = "3000"
+                case 6:
+                    itemName = "商品F"
+                    itemRating = "99"
+                    itemPrice = "5000"
+            end select
+%>
+
+			<p><input type="radio" name="methodKind" value="1" checked="checked">BitCash</p>
+			<p><input type="radio" name="methodKind" value="2">クレジットカード</p>
+
+
+<br />
+			<input type="submit" name="next" value="次へ" />
+			<input type="hidden" name="itemCode" value="<% = itemCode %>" />
+			<input type="hidden" name="itemName" value="<% = itemName %>" />
+			<input type="hidden" name="itemRating" value="<% = itemRating %>" />
+			<input type="hidden" name="itemPrice" value="<% = itemPrice %>" />
+
+<br />
+		</form>
+	</div>
+</body>
+</html>

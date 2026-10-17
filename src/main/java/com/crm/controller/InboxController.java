@@ -77,6 +77,9 @@ public class InboxController {
         if (!latest.isEmpty() && latest.get(0).getUserId() != null) {
             return "redirect:/manager/users/" + latest.get(0).getUserId() + "/thread";
         }
+        // Only 一斉送信 / SMS配信 so far (a new site): still the 受信やり取り page, not this old list page (2026-10-16).
+        Long threadUserId = messageService.newestThreadUserId();
+        if (threadUserId != null) return "redirect:/manager/users/" + threadUserId + "/thread";
         // Totals are summed straight from the same `rows` the table renders, so this box and
         // the per-row 件数内訳 breakdown below always reconcile exactly (operator request
         // 2026-09-10: 件数内訳が一致するように).

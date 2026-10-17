@@ -321,12 +321,14 @@ public class ReplyPageController {
             Long cid = charaLinkService.charaIdsOfMessages(java.util.Collections.singletonList(msg.get())).get(messageId);
             if (cid != null) charaId = cid;
         }
-        // a LINE送信 without a キャラ is shown as from its LINE account (MemberSiteService#lineSender)
-        if (charaId == 0L && msg.isPresent() && Message.CHANNEL_LINE.equals(msg.get().getChannel())
-                && msg.get().getLineAccountId() != null) {
+        // a LINE送信 without a キャラ — and a メール・SMS sent from a LINE キャラ's page — is shown as from its
+        // LINE account (MemberSiteService#lineSender)
+        if (charaId == 0L && msg.isPresent() && msg.get().getLineAccountId() != null) {
             charaId = -msg.get().getLineAccountId();
         }
-        return "/member/reply?c=" + charaId + (msg.isPresent() ? "#m" + messageId : "");
+        // その1通だけ (受信一覧 → 1通 と同じ): the mail sent with this reply URL and the 返信フォーム, not the
+        // whole やり取り with the キャラ
+        return "/member/reply?c=" + charaId + (msg.isPresent() ? "&m=" + messageId : "");
     }
 
     /**

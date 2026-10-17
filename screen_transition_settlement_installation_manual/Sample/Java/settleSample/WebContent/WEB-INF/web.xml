@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE web-app
+    PUBLIC "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
+    "http://java.sun.com/dtd/web-app_2_3.dtd">
+
+<web-app>
+
+	<!-- Tomcat管理画面で表示されるアプリケーション名称 -->
+	<display-name>
+		Settle Sample
+	</display-name>
+
+	<session-config>
+		<!-- セッションタイムアウト時間の設定 -->
+		<session-timeout>1</session-timeout>
+	</session-config>
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>selectItem</servlet-name>
+		<servlet-class>sample.SelectItem</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>selectItem</servlet-name>
+		<url-pattern>/selectItem</url-pattern>
+	</servlet-mapping>
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>selectMethod</servlet-name>
+		<servlet-class>sample.SelectMethod</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>selectMethod</servlet-name>
+		<url-pattern>/selectMethod</url-pattern>
+	</servlet-mapping>
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>confirm</servlet-name>
+		<servlet-class>sample.Confirm</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>confirm</servlet-name>
+		<url-pattern>/confirm</url-pattern>
+	</servlet-mapping>
+
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>settle</servlet-name>
+		<servlet-class>sample.Settle</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>settle</servlet-name>
+		<url-pattern>/settle</url-pattern>
+	</servlet-mapping>
+
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>complete</servlet-name>
+		<servlet-class>sample.Complete</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>complete</servlet-name>
+		<url-pattern>/complete</url-pattern>
+	</servlet-mapping>
+
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>acceptNotification</servlet-name>
+		<servlet-class>sample.AcceptNotification</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>acceptNotification</servlet-name>
+		<url-pattern>/acceptNotification</url-pattern>
+	</servlet-mapping>
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>confirmSettle</servlet-name>
+		<servlet-class>sample.ConfirmSettle</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>confirmSettle</servlet-name>
+		<url-pattern>/confirmSettle</url-pattern>
+	</servlet-mapping>
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>refund</servlet-name>
+		<servlet-class>sample.Refund</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>refund</servlet-name>
+		<url-pattern>/refund</url-pattern>
+	</servlet-mapping>
+
+	<servlet>
+		<!-- サーブレット設定 -->
+		<servlet-name>refundSettle</servlet-name>
+		<servlet-class>sample.RefundSettle</servlet-class>
+	</servlet>
+
+	<servlet-mapping>
+		<!-- サーブレットのマッピング設定 -->
+		<servlet-name>refundSettle</servlet-name>
+		<url-pattern>/refundSettle</url-pattern>
+	</servlet-mapping>
+
+	<welcome-file-list>
+		<!-- スタートアップページの設定 -->
+		<welcome-file>index.jsp</welcome-file>
+		<welcome-file>top.jsp</welcome-file>
+		<welcome-file>start.jsp</welcome-file>
+		<welcome-file>index.html</welcome-file>
+		<welcome-file>top.html</welcome-file>
+		<welcome-file>start.html</welcome-file>
+	</welcome-file-list>
+</web-app>

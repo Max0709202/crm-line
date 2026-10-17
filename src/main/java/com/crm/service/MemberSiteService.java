@@ -640,6 +640,27 @@ public class MemberSiteService {
         supportInquiryRepository.save(q);
     }
 
+    /**
+     * LINE用 page's %support_form% (ID送信): the ID the member entered → サポート窓口. No e-mail is asked
+     * (LINE members often have none); the member's own address is kept when there is one.
+     */
+    public void supportId(CrmUser u, String id, String formPage) {
+        String v = id == null ? "" : id.replaceAll("[\\r\\n\\t]+", " ").trim();
+        if (v.isEmpty()) throw new MemberException("IDを入力してください");
+        if (v.length() > 100) throw new MemberException("IDが長すぎます");
+        String page = formPage == null || formPage.length() > 255 ? "/member/points" : formPage;
+        SupportInquiry q = new SupportInquiry();
+        q.setChannel(SupportInquiry.CHANNEL_WEB);
+        String n = u.getDisplayName();
+        q.setName(n == null ? null : (n.length() > 255 ? n.substring(0, 255) : n));
+        q.setEmail(u.getEmail() == null ? "" : u.getEmail());
+        q.setSubject("ID送信（" + ("/member/points".equals(page) ? "ポイント購入（手続き）" : "会員ページ") + "）");
+        q.setBody("ID: " + v);
+        q.setMemberId(u.getId());
+        q.setFormPage(page);
+        supportInquiryRepository.save(q);
+    }
+
     /* ===================== プロフ編集 ===================== */
 
     /** プロフィール入力. */
