@@ -60,9 +60,8 @@ public class ReplyPageAttachment {
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
-        // Keep in sync with ReplyHtmlSlotService.SLOT_COUNT (10) — an @Entity can't
-        // depend on a @Service, so the slot count is duplicated here as a literal.
-        if (slotNo == null || slotNo < 1 || slotNo > 10) slotNo = 1;
+        // Keep in sync with ReplyHtmlSlotService.SLOT_COUNT — an @Entity can't depend on a @Service.
+        if (slotNo == null || slotNo < 1 || slotNo > CrmUser.MAX_MEMO_SLOTS) slotNo = 1;
     }
 
     public Long getId() { return id; }

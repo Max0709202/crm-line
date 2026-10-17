@@ -80,6 +80,7 @@ class MemberPageServiceTest {
     void linePreviewIsTheLineOnlySampleWithFooterLinksInsideThePreview() {
         SiteDesignService site = mock(SiteDesignService.class);
         when(site.getLineFolders()).thenReturn(Collections.singletonList("LINE"));
+        when(site.getLineFooterItems()).thenReturn(Arrays.asList("inbox", "sent", "memo", "points"));
         PaymentSettingService pay = mock(PaymentSettingService.class);
         when(pay.getMethods("LINE")).thenReturn(Collections.singletonList(
                 method("bank", "LINE振込", true, new PaymentSettingService.Plan(true, 3000, 300))));
@@ -96,6 +97,31 @@ class MemberPageServiceTest {
         assertThat(svc.renderLinePreview("sent")).contains("過去の送信先から選択").contains("<title>送信済</title>");
         assertThat(svc.renderLinePreview("reply")).doesNotContain("写真閲覧").doesNotContain("タイトル").doesNotContain("ポイント</div>");
         assertThat(svc.renderLinePreview("points")).contains("LINE振込");
+    }
+
+    @Test
+    void lineFooterShowsOnlyTheCheckedItems() {
+        SiteDesignService site = mock(SiteDesignService.class);
+        when(site.getLineFolders()).thenReturn(Collections.singletonList("LINE"));
+        when(site.getLineFooterItems()).thenReturn(Arrays.asList("points", "support"));
+        MemberPageService svc = new MemberPageService(site, mock(PaymentSettingService.class));
+
+        String html = svc.renderLine("inbox", null, "本文", null, 0, false);
+        assertThat(html).contains("<nav class=\"bottom\" style=\"grid-template-columns:repeat(2,1fr)\">")
+                .contains("href=\"/member/points\"").contains("href=\"/member/support\"").contains("🎧").contains("サポート窓口")
+                .doesNotContain("href=\"/member/inbox\"").doesNotContain("href=\"/member/memo\"")
+                .doesNotContain("href=\"/member/inbox?tab=sent\"");
+
+        when(site.getLineFooterItems()).thenReturn(Collections.singletonList("memo"));
+        assertThat(svc.renderLine("inbox", null, "本文", null, 0, false))
+                .contains("repeat(1,1fr)").contains("href=\"/member/memo\"").doesNotContain("href=\"/member/points\"");
+
+        when(site.getLineFooterItems()).thenReturn(Collections.<String>emptyList());
+        assertThat(svc.renderLine("inbox", null, "本文", null, 0, false)).doesNotContain("<nav class=\"bottom\"");
+
+        // サポート窓口's check page: お問い合わせ内容 + 送信 only
+        assertThat(svc.renderLinePreview("support")).contains("お問い合わせ内容").contains("name=\"body\"")
+                .doesNotContain("name=\"name\"").doesNotContain("name=\"email\"");
     }
 
     @Test

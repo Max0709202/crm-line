@@ -61,6 +61,10 @@ public class UserForm {
     private String memo10;
     /** Which slot (1..10) the reply page should currently render. */
     private Integer activeMemoSlot;
+    /** 専用HTML slots ⑪〜㉚ (slot number → HTML), saved via ReplyHtmlSlotService. Only applied when
+     *  {@link #extraMemosSent} — a form without these textareas must not clear them. */
+    private java.util.Map<Integer, String> extraMemos = new java.util.HashMap<>();
+    private boolean extraMemosSent;
 
     /** Admin-only internal memo. Never shown to the end user. */
     private String internalMemo;
@@ -134,9 +138,13 @@ public class UserForm {
     public void setMemo9(String memo9) { this.memo9 = memo9; }
     public String getMemo10() { return memo10; }
     public void setMemo10(String memo10) { this.memo10 = memo10; }
+    public java.util.Map<Integer, String> getExtraMemos() { return extraMemos; }
+    public void setExtraMemos(java.util.Map<Integer, String> extraMemos) { this.extraMemos = extraMemos; }
+    public boolean isExtraMemosSent() { return extraMemosSent; }
+    public void setExtraMemosSent(boolean extraMemosSent) { this.extraMemosSent = extraMemosSent; }
     public Integer getActiveMemoSlot() { return activeMemoSlot == null ? 1 : activeMemoSlot; }
     public void setActiveMemoSlot(Integer s) {
-        this.activeMemoSlot = (s == null || s < 1 || s > 10) ? 1 : s;
+        this.activeMemoSlot = (s == null || s < 1 || s > com.crm.entity.CrmUser.MAX_MEMO_SLOTS) ? 1 : s;
     }
 
     public String getInternalMemo() { return internalMemo; }

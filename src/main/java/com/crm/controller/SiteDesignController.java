@@ -108,6 +108,9 @@ public class SiteDesignController {
         model.addAttribute("lineHtml", lineHtml);
         model.addAttribute("lineCustomized", lineCustomized);
         model.addAttribute("lineFolders", siteDesignService.getLineFolders());
+        model.addAttribute("lineFooterLabels", SiteDesignService.LINE_FOOTER_LABELS);
+        model.addAttribute("lineFooterItems", siteDesignService.getLineFooterItems());
+        model.addAttribute("lineFooterMax", SiteDesignService.MAX_LINE_FOOTER_ITEMS);
         model.addAttribute("siteBaseUrl", siteBaseUrl());
         return "setting/site-design";
     }
@@ -178,6 +181,15 @@ public class SiteDesignController {
         if (params.containsKey("lineFoldersSent")) {
             String[] lf = request.getParameterValues("lineFolders");
             siteDesignService.saveLineFolders(lf == null ? java.util.Collections.<String>emptyList() : java.util.Arrays.asList(lf));
+        }
+        // LINE用 footer: the checked items only (max SiteDesignService.MAX_LINE_FOOTER_ITEMS)
+        if (params.containsKey("lineFooterSent")) {
+            String[] items = request.getParameterValues("lineFooter");
+            if (items != null && items.length > SiteDesignService.MAX_LINE_FOOTER_ITEMS) {
+                errors.add("LINE用 フッター: 表示できるのは最大" + SiteDesignService.MAX_LINE_FOOTER_ITEMS + "項目です（先頭から"
+                        + SiteDesignService.MAX_LINE_FOOTER_ITEMS + "項目を保存しました）");
+            }
+            siteDesignService.saveLineFooterItems(items == null ? java.util.Collections.<String>emptyList() : java.util.Arrays.asList(items));
         }
         String lineDefault = memberPageService.getDefaultLineTemplate().replace("\r\n", "\n").trim();
         for (Map.Entry<String, String> lp : SiteDesignService.LINE_PAGES.entrySet()) {

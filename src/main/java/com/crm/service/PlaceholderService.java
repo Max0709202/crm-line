@@ -59,6 +59,12 @@ public class PlaceholderService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setAutoLoginService(MemberAutoLoginService autoLoginService) { this.autoLoginService = autoLoginService; }
 
+    /** 全般HTML URLs → per-user (アクセスユーザー); optional so hand-built instances (tests) work without it. */
+    private GeneralHtmlService generalHtmlService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setGeneralHtmlService(GeneralHtmlService generalHtmlService) { this.generalHtmlService = generalHtmlService; }
+
     private static final DateTimeFormatter JP_DATE =
             DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.JAPAN);
 
@@ -96,6 +102,8 @@ public class PlaceholderService {
             out = out.replace(e.getKey(), canLink ? autoLoginService.urlFor(user, e.getValue()) : "");
         }
         out = UNRESOLVED_TAG.matcher(out).replaceAll("");
+        // 全般HTML: its URL in a message becomes this user's own, so the view shows in アクセスユーザー
+        if (generalHtmlService != null) out = generalHtmlService.personalize(out, user);
         return out;
     }
 

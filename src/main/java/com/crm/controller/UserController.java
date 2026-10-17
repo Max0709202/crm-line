@@ -633,6 +633,10 @@ public class UserController {
         com.crm.entity.UserProfile profile = userProfileService.get(id);
         if (!model.containsAttribute("form")) {
             UserForm f = UserForm.from(user.get());
+            String[] slots = replyHtmlSlotService.getUserSlots(user.get());
+            for (int s = com.crm.service.ReplyHtmlSlotService.COLUMN_SLOT_COUNT + 1; s <= slots.length; s++) {
+                f.getExtraMemos().put(s, slots[s - 1]);
+            }
             f.setPref(profile.getPref());
             f.setBlood(profile.getBlood());
             f.setSign(profile.getSign());
@@ -1366,7 +1370,7 @@ public class UserController {
         // Default to the slot the operator marked 使用中; allow ?slot=N override for preview.
         int effSlot = (slot != null && slot >= 1 && slot <= com.crm.service.ReplyHtmlSlotService.SLOT_COUNT)
                 ? slot : user.get().getActiveMemoSlot();
-        String rawMemo = user.get().getMemoSlot(effSlot);
+        String rawMemo = replyHtmlSlotService.getUserSlot(user.get(), effSlot);
         boolean usingDefault = rawMemo == null || rawMemo.trim().isEmpty();
         if (usingDefault) {
             // No per-user HTML for this slot; fall back to the site-wide reply page HTML.

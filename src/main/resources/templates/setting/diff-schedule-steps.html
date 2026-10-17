@@ -218,7 +218,7 @@
                             <div th:id="'typePanelHTML_SWITCH' + ${s.id}" th:class="${s.stepType == 'HTML_SWITCH'} ? 'type-panel active' : 'type-panel'" class="mb-2">
                                 <label class="text-xs text-slate-500">切替先スロット</label>
                                 <select name="memoSlot" class="tw-input">
-                                    <option th:each="i : ${#numbers.sequence(1, 10)}" th:value="${i}"
+                                    <option th:each="i : ${#numbers.sequence(1, 30)}" th:value="${i}"
                                             th:text="'スロット' + ${i}" th:selected="${i == s.memoSlot}"></option>
                                 </select>
                             </div>
@@ -347,7 +347,7 @@
                 <div id="typePanelHTML_SWITCHnew" class="type-panel mb-2">
                     <label class="text-xs text-slate-500">切替先スロット</label>
                     <select name="memoSlot" class="tw-input">
-                        <option th:each="i : ${#numbers.sequence(1, 10)}" th:value="${i}" th:text="'スロット' + ${i}"></option>
+                        <option th:each="i : ${#numbers.sequence(1, 30)}" th:value="${i}" th:text="'スロット' + ${i}"></option>
                     </select>
                 </div>
 

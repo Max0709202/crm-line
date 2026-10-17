@@ -36,4 +36,16 @@ public interface UserAccessLogRepository extends JpaRepository<UserAccessLog, Lo
     @Transactional
     @Query("delete from UserAccessLog l where l.domainHost = :domainHost")
     int deleteByDomainHost(@Param("domainHost") String domainHost);
+
+    /** 全般HTML アクセスユーザー: distinct users with an access row of {@code source} (e.g. GENERAL_HTML_5). */
+    @Query("select distinct l.userId from UserAccessLog l where l.source = :source")
+    List<Long> findDistinctUserIdsBySource(@Param("source") String source);
+
+    @Query("select count(distinct l.userId) from UserAccessLog l where l.source = :source")
+    long countDistinctUserIdsBySource(@Param("source") String source);
+
+    @Modifying
+    @Transactional
+    @Query("delete from UserAccessLog l where l.source = :source")
+    int deleteBySource(@Param("source") String source);
 }

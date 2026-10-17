@@ -215,7 +215,9 @@ public class DiffDefinitionService {
             }
             if (body == null || body.trim().isEmpty()) throw new IllegalArgumentException("本文を入力してください");
         } else if (DiffStep.STEP_HTML_SWITCH.equals(stepType)) {
-            if (memoSlot == null || memoSlot < 1 || memoSlot > 10) throw new IllegalArgumentException("切替先スロット(1〜10)を指定してください");
+            if (memoSlot == null || memoSlot < 1 || memoSlot > ReplyHtmlSlotService.SLOT_COUNT) {
+                throw new IllegalArgumentException("切替先スロット(1〜" + ReplyHtmlSlotService.SLOT_COUNT + ")を指定してください");
+            }
         } else if (DiffStep.STEP_MESSAGE_IMAGE.equals(stepType)) {
             // メール / SMS: 画像添付 (返信画面に📎で表示) — LINE: 画像挿入 (LINEに画像で送信, JPEG・PNG)
             if (!DiffStep.CHANNEL_EMAIL.equals(channel) && !DiffStep.CHANNEL_SMS.equals(channel)
@@ -242,7 +244,7 @@ public class DiffDefinitionService {
 
     private static Integer clampSlot(Integer slot) {
         if (slot == null) return 1;
-        return (slot < 1 || slot > 10) ? 1 : slot;
+        return (slot < 1 || slot > ReplyHtmlSlotService.SLOT_COUNT) ? 1 : slot;
     }
 
     public static class TooManyDefinitionsException extends RuntimeException {

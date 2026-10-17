@@ -160,4 +160,16 @@ class SiteDesignServiceTest {
         svc.saveSlotFolders("inbox", java.util.Collections.emptyList(), null);            // back to 全表示
         assertThat(svc.slotHtmlFor("inbox", "top", "一般")).isEqualTo("<p>上</p>");
     }
+
+    @Test
+    void lineFooterItemsKeepFooterOrderAndAtMostFour() {
+        // never saved: the footer as it always was
+        assertThat(svc.getLineFooterItems()).containsExactly("inbox", "sent", "memo", "points");
+        svc.saveLineFooterItems(java.util.Arrays.asList("support", "bogus", "inbox"));
+        assertThat(svc.getLineFooterItems()).containsExactly("inbox", "support");
+        svc.saveLineFooterItems(java.util.Arrays.asList("inbox", "sent", "memo", "points", "support"));
+        assertThat(svc.getLineFooterItems()).containsExactly("inbox", "sent", "memo", "points");
+        svc.saveLineFooterItems(java.util.Collections.<String>emptyList());
+        assertThat(svc.getLineFooterItems()).isEmpty();
+    }
 }

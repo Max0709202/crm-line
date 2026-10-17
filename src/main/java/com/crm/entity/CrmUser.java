@@ -19,6 +19,12 @@ public class CrmUser {
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_SUSPENDED = "SUSPENDED";
 
+    /** 専用HTML slots stored as columns here (MEMO..MEMO_10); slots up to
+     *  {@link #MAX_MEMO_SLOTS} are CRM_USER_MEMO_SLOT rows (see ReplyHtmlSlotService). */
+    public static final int COLUMN_MEMO_SLOTS = 10;
+    /** Keep in sync with ReplyHtmlSlotService.SLOT_COUNT. */
+    public static final int MAX_MEMO_SLOTS = 30;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -136,7 +142,7 @@ public class CrmUser {
         if (createdAt == null) createdAt = now;
         updatedAt = now;
         if (status == null) status = STATUS_ACTIVE;
-        if (activeMemoSlot == null || activeMemoSlot < 1 || activeMemoSlot > 10) activeMemoSlot = 1;
+        if (activeMemoSlot == null || activeMemoSlot < 1 || activeMemoSlot > MAX_MEMO_SLOTS) activeMemoSlot = 1;
     }
 
     @PreUpdate
@@ -202,16 +208,18 @@ public class CrmUser {
     public void setMemo10(String memo10) { this.memo10 = memo10; }
     public Integer getActiveMemoSlot() { return activeMemoSlot == null ? 1 : activeMemoSlot; }
     public void setActiveMemoSlot(Integer s) {
-        this.activeMemoSlot = (s == null || s < 1 || s > 10) ? 1 : s;
+        this.activeMemoSlot = (s == null || s < 1 || s > MAX_MEMO_SLOTS) ? 1 : s;
     }
 
-    /** Returns the HTML for the slot currently marked 使用中. */
+    /** Returns the HTML for the slot currently marked 使用中 — ①〜⑩ only (null for ⑪〜㉚);
+     *  use ReplyHtmlSlotService#getActiveMemo for every slot. */
     public String getActiveMemo() {
         return getMemoSlot(getActiveMemoSlot());
     }
 
-    /** Read any slot (1..10) by index. */
+    /** Read a column slot (1..10) by index; null for slots beyond {@link #COLUMN_MEMO_SLOTS}. */
     public String getMemoSlot(int n) {
+        if (n > COLUMN_MEMO_SLOTS) return null;
         switch (n) {
             case 2: return memo2;
             case 3: return memo3;
@@ -226,6 +234,7 @@ public class CrmUser {
         }
     }
     public void setMemoSlot(int n, String value) {
+        if (n > COLUMN_MEMO_SLOTS) return;
         switch (n) {
             case 2: this.memo2 = value; break;
             case 3: this.memo3 = value; break;

@@ -91,6 +91,14 @@ public class SettingController {
         this.placeholderService = placeholderService;
     }
 
+    /** 全般HTML (HTML 一括編集's lower section). */
+    private com.crm.service.GeneralHtmlService generalHtmlService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setGeneralHtmlService(com.crm.service.GeneralHtmlService generalHtmlService) {
+        this.generalHtmlService = generalHtmlService;
+    }
+
     /** バックアップ設定 is now part of セキュリティ設定 (SecurityController). */
     @GetMapping("/backup")
     public String backupPage() {
@@ -893,7 +901,7 @@ public class SettingController {
             java.util.Optional<com.crm.entity.CrmUser> uOpt = crmUserService.findById(loadFromUserId);
             if (uOpt.isPresent()) {
                 com.crm.entity.CrmUser u = uOpt.get();
-                for (int s = 1; s <= htmls.length; s++) htmls[s - 1] = u.getMemoSlot(s);
+                htmls = replyHtmlSlotService.getUserSlots(u);
                 activeSlot = u.getActiveMemoSlot();
             }
         } else {
@@ -908,10 +916,52 @@ public class SettingController {
         // 専用HTML URL: one URL for every user — each sees their own 使用中 slot (/member/memo)
         String base = domainSettingService.getReplyBaseUrl();
         model.addAttribute("memoPageUrl", (base == null ? "" : base.trim().replaceAll("/+$", "")) + "/member/memo");
+        // 全般HTML: SLOT_COUNT pages with their own public URL and アクセスユーザー
+        java.util.List<com.crm.entity.GeneralHtml> generalSlots = generalHtmlService.listSlots();
+        java.util.Map<Integer, String> generalUrls = new java.util.LinkedHashMap<>();
+        java.util.Map<Integer, Long> generalAccessCounts = new java.util.LinkedHashMap<>();
+        for (com.crm.entity.GeneralHtml g : generalSlots) {
+            generalUrls.put(g.getSlotNo(), generalHtmlService.urlFor(g));
+            generalAccessCounts.put(g.getSlotNo(), generalHtmlService.countAccessUsers(g.getSlotNo()));
+        }
+        model.addAttribute("generalSlots", generalSlots);
+        model.addAttribute("generalUrls", generalUrls);
+        model.addAttribute("generalAccessCounts", generalAccessCounts);
         return "setting/memo-html-bulk";
     }
 
-    /** Saves the 10 textareas as a draft — decoupled from applying to any folder/user.
+    /** 全般HTML: saves every slot's タイトル + HTML (the URLs stay the same). */
+    @PostMapping("/memo-html-bulk/general")
+    public String generalHtmlSave(@RequestParam java.util.Map<String, String> params, RedirectAttributes ra) {
+        generalHtmlService.saveAll(params);
+        ra.addFlashAttribute("flashSuccess", "全般HTMLを保存しました");
+        return "redirect:/manager/settings/memo-html-bulk#general-html";
+    }
+
+    /** 全般HTML アクセスユーザー: the users who opened slot {@code slot}'s URL. */
+    @GetMapping("/memo-html-bulk/general/{slot}/accesses")
+    public String generalHtmlAccesses(@PathVariable int slot, Model model, RedirectAttributes ra) {
+        java.util.Optional<com.crm.entity.GeneralHtml> g = generalHtmlService.findBySlot(slot);
+        if (!g.isPresent()) {
+            ra.addFlashAttribute("flashError", "全般HTMLが見つかりません");
+            return "redirect:/manager/settings/memo-html-bulk#general-html";
+        }
+        model.addAttribute("general", g.get());
+        model.addAttribute("generalUrl", generalHtmlService.urlFor(g.get()));
+        model.addAttribute("circled", com.crm.service.ReplyHtmlSlotService.circled(slot));
+        model.addAttribute("accessedUsers", generalHtmlService.listAccessUsers(slot));
+        return "setting/general-html-accesses";
+    }
+
+    /** 全般HTML アクセス履歴削除: every recorded view of the slot — アクセス数 drops to 0. */
+    @PostMapping("/memo-html-bulk/general/{slot}/accesses/delete")
+    public String generalHtmlDeleteAccesses(@PathVariable int slot, RedirectAttributes ra) {
+        int deleted = generalHtmlService.deleteAccessHistory(slot);
+        ra.addFlashAttribute("flashSuccess", "アクセス履歴を削除しました (" + deleted + " 件)");
+        return "redirect:/manager/settings/memo-html-bulk/general/" + slot + "/accesses";
+    }
+
+    /** Saves the SLOT_COUNT textareas as a draft — decoupled from applying to any folder/user.
      *  2026-09-10 operator request: there was no way to just persist HTML being drafted here
      *  without immediately overwriting real users via 一括適用. */
     @PostMapping("/memo-html-bulk/draft")

@@ -60,6 +60,14 @@ public class CrmUserService {
     private final CarrierBindingService bindingService;
     private final MemberLoginIdService loginIdService;
 
+    /** 専用HTML slots ⑪〜㉚ saved with ユーザー詳細 (optional so hand-built instances work without it). */
+    private ReplyHtmlSlotService replyHtmlSlotService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setReplyHtmlSlotService(ReplyHtmlSlotService replyHtmlSlotService) {
+        this.replyHtmlSlotService = replyHtmlSlotService;
+    }
+
     /** お知らせ's NEW when the 使用中 slot of the 専用HTML is switched on ユーザー詳細. */
     private com.crm.repository.MemberMemoSeenRepository memoSeenRepository;
 
@@ -153,6 +161,9 @@ public class CrmUserService {
         u.setCarrierDomain(deriveCarrierDomainIfBlank(u.getCarrierDomain(), u.getEmail()));
         if (memoSeenRepository != null && u.getActiveMemoSlot() != oldSlot) {
             memoSeenRepository.markSwitched(java.util.Collections.singletonList(u.getId()));
+        }
+        if (replyHtmlSlotService != null && form.isExtraMemosSent()) {
+            replyHtmlSlotService.saveUserExtraSlots(u.getId(), form.getExtraMemos());
         }
         return repository.save(u);
     }

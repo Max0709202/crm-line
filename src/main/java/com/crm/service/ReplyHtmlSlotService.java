@@ -14,9 +14,11 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Manages the per-user reply-page HTML slots — there are SLOT_COUNT (10) of them per
- * user (CRM_USER.MEMO + MEMO_2..MEMO_10; 7-10 added 2026-09-02, displayed as a 5x2 grid
- * in the admin UI). Each slot gets an operator-supplied display title (global, stored in
+ * Manages the per-user reply-page HTML slots — there are SLOT_COUNT (30) of them per
+ * user: ①〜⑩ in CRM_USER.MEMO + MEMO_2..MEMO_10 (7-10 added 2026-09-02), ⑪〜㉚ in
+ * CRM_USER_MEMO_SLOT (added 2026-10-18 — a separate table so CRM_USER needs no ALTER).
+ * Read / write a user's slots through {@link #getUserSlot} / {@link #setUserSlots}, not
+ * CrmUser#getMemoSlot, which only knows ①〜⑩. Each slot gets an operator-supplied display title (global, stored in
  * CRM_SETTING keyed as memo.slot.N.title).
  *
  * <p>Also drives the bulk-edit page (/manager/settings/memo-html-bulk) that lets an
@@ -25,15 +27,28 @@ import java.util.List;
 @Service
 public class ReplyHtmlSlotService {
 
-    public static final int SLOT_COUNT = 10;
+    public static final int SLOT_COUNT = 30;
 
-    /** ①..⑩ in slot order (index 0 = slot 1) — shared by every template that needs to label
-     *  the 10 reply-HTML slots (user detail, memo-html-bulk). */
+    /** Slots ①〜⑩ are CRM_USER columns; SLOT_COUNT beyond that are CRM_USER_MEMO_SLOT rows. */
+    public static final int COLUMN_SLOT_COUNT = CrmUser.COLUMN_MEMO_SLOTS;
+
+    /** ①..㉚ in slot order (index 0 = slot 1) — shared by every template that needs to label
+     *  the reply-HTML slots (user detail, memo-html-bulk). */
     public static final List<String> CIRCLED_NUMBERS = Collections.unmodifiableList(
-            Arrays.asList("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"));
+            Arrays.asList("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩",
+                    "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳",
+                    "㉑", "㉒", "㉓", "㉔", "㉕", "㉖", "㉗", "㉘", "㉙", "㉚"));
 
     private final CrmSettingRepository settingRepository;
     private final CrmUserRepository userRepository;
+
+    /** Slots ⑪〜㉚ (optional so hand-built instances work without it — those slots are then empty). */
+    private com.crm.repository.CrmUserMemoSlotRepository extraSlotRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setExtraSlotRepository(com.crm.repository.CrmUserMemoSlotRepository extraSlotRepository) {
+        this.extraSlotRepository = extraSlotRepository;
+    }
 
     /** お知らせ's NEW for the users whose 使用中 slot this 一括適用 switched. */
     private com.crm.repository.MemberMemoSeenRepository memoSeenRepository;
@@ -90,7 +105,7 @@ public class ReplyHtmlSlotService {
         return circled(slotNo) + " 返信HTML";
     }
 
-    /** ①..⑩ for slotNo 1..10; falls back to the plain number outside that range. */
+    /** ①..㉚ for slotNo 1..30; falls back to the plain number outside that range. */
     public static String circled(int slotNo) {
         return (slotNo >= 1 && slotNo <= SLOT_COUNT) ? CIRCLED_NUMBERS.get(slotNo - 1) : String.valueOf(slotNo);
     }
@@ -126,8 +141,22 @@ public class ReplyHtmlSlotService {
         for (int i = 0; i < ids.size(); i += chunkSize) {
             List<Long> chunk = ids.subList(i, Math.min(i + chunkSize, ids.size()));
             List<Long> switched = new ArrayList<>();
-            for (CrmUser u : userRepository.findAllById(chunk)) {
-                for (int s = 1; s <= SLOT_COUNT; s++) {
+            List<CrmUser> users = userRepository.findAllById(chunk);
+            if (extraSlotRepository != null && !users.isEmpty()) {
+                // ⑪〜㉚: replace the whole set — drop the chunk's rows, insert the non-blank slots
+                List<Long> found = new ArrayList<>();
+                for (CrmUser u : users) found.add(u.getId());
+                extraSlotRepository.deleteByUserIdIn(found);
+                List<com.crm.entity.CrmUserMemoSlot> rows = new ArrayList<>();
+                for (Long userId : found) {
+                    for (int s = COLUMN_SLOT_COUNT + 1; s <= SLOT_COUNT; s++) {
+                        if (!isBlank(htmls[s - 1])) rows.add(extraRow(userId, s, htmls[s - 1]));
+                    }
+                }
+                if (!rows.isEmpty()) extraSlotRepository.saveAll(rows);
+            }
+            for (CrmUser u : users) {
+                for (int s = 1; s <= COLUMN_SLOT_COUNT; s++) {
                     u.setMemoSlot(s, htmls[s - 1]);
                 }
                 if (u.getActiveMemoSlot() != slot) switched.add(u.getId());
@@ -149,7 +178,7 @@ public class ReplyHtmlSlotService {
 
     private static String draftKey(int slotNo) { return "memo.bulk.draft." + slotNo; }
 
-    /** The 10 draft slots, in order (index 0 = slot 1). Null entries mean "never saved". */
+    /** The SLOT_COUNT draft slots, in order (index 0 = slot 1). Null entries mean "never saved". */
     public String[] listDraftSlots() {
         String[] out = new String[SLOT_COUNT];
         for (int i = 1; i <= SLOT_COUNT; i++) {
@@ -185,5 +214,72 @@ public class ReplyHtmlSlotService {
         if (slotNo < 1 || slotNo > SLOT_COUNT) return null;
         return settingRepository.findBySettingKey(draftKey(slotNo))
                 .map(CrmSetting::getSettingValue).orElse(null);
+    }
+
+    // ---- One user's slots (①〜⑩ CRM_USER columns, ⑪〜㉚ CRM_USER_MEMO_SLOT) ----
+
+    /** User {@code u}'s HTML in slot {@code slotNo} (1..SLOT_COUNT), or null when blank / out of range. */
+    public String getUserSlot(CrmUser u, int slotNo) {
+        if (u == null || slotNo < 1 || slotNo > SLOT_COUNT) return null;
+        if (slotNo <= COLUMN_SLOT_COUNT) return u.getMemoSlot(slotNo);
+        if (extraSlotRepository == null || u.getId() == null) return null;
+        return extraSlotRepository.findByUserIdAndSlotNo(u.getId(), slotNo)
+                .map(com.crm.entity.CrmUserMemoSlot::getHtml).orElse(null);
+    }
+
+    /** The HTML of the slot {@code u} has marked 使用中. */
+    public String getActiveMemo(CrmUser u) {
+        return u == null ? null : getUserSlot(u, u.getActiveMemoSlot());
+    }
+
+    /** All SLOT_COUNT slots of {@code u}, in order (index 0 = slot 1); blank slots are null. */
+    public String[] getUserSlots(CrmUser u) {
+        String[] out = new String[SLOT_COUNT];
+        if (u == null) return out;
+        for (int s = 1; s <= COLUMN_SLOT_COUNT; s++) out[s - 1] = u.getMemoSlot(s);
+        if (extraSlotRepository != null && u.getId() != null) {
+            for (com.crm.entity.CrmUserMemoSlot r : extraSlotRepository.findByUserId(u.getId())) {
+                int s = r.getSlotNo() == null ? 0 : r.getSlotNo();
+                if (s > COLUMN_SLOT_COUNT && s <= SLOT_COUNT) out[s - 1] = r.getHtml();
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Saves slots ⑪〜㉚ of user {@code userId} ({@code htmls}: slot number → HTML; a blank or missing
+     * entry clears that slot). Slots ①〜⑩ are saved with the CrmUser itself.
+     */
+    @Transactional
+    public void saveUserExtraSlots(Long userId, java.util.Map<Integer, String> htmls) {
+        if (extraSlotRepository == null || userId == null) return;
+        for (int s = COLUMN_SLOT_COUNT + 1; s <= SLOT_COUNT; s++) {
+            String html = htmls == null ? null : htmls.get(s);
+            java.util.Optional<com.crm.entity.CrmUserMemoSlot> row = extraSlotRepository.findByUserIdAndSlotNo(userId, s);
+            if (isBlank(html)) {
+                row.ifPresent(extraSlotRepository::delete);
+            } else if (row.isPresent()) {
+                if (!html.equals(row.get().getHtml())) {
+                    row.get().setHtml(html);
+                    row.get().setUpdatedAt(LocalDateTime.now());
+                    extraSlotRepository.save(row.get());
+                }
+            } else {
+                extraSlotRepository.save(extraRow(userId, s, html));
+            }
+        }
+    }
+
+    private static com.crm.entity.CrmUserMemoSlot extraRow(Long userId, int slotNo, String html) {
+        com.crm.entity.CrmUserMemoSlot r = new com.crm.entity.CrmUserMemoSlot();
+        r.setUserId(userId);
+        r.setSlotNo(slotNo);
+        r.setHtml(html);
+        r.setUpdatedAt(LocalDateTime.now());
+        return r;
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }

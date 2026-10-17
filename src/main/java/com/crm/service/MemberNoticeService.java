@@ -30,6 +30,12 @@ public class MemberNoticeService {
         this.placeholderService = placeholderService;
     }
 
+    /** 専用HTML slots ⑪〜㉚ — optional so hand-built instances (tests) work without it (①〜⑩ only). */
+    private ReplyHtmlSlotService replyHtmlSlotService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setReplyHtmlSlotService(ReplyHtmlSlotService replyHtmlSlotService) { this.replyHtmlSlotService = replyHtmlSlotService; }
+
     /** The member's 専用HTML with their 置き換えタグ filled; null when there is none. */
     public String html(CrmUser u) {
         String raw = rawHtml(u);
@@ -57,7 +63,7 @@ public class MemberNoticeService {
     }
 
     private String rawHtml(CrmUser u) {
-        String memo = blankToNull(u.getActiveMemo());
+        String memo = blankToNull(replyHtmlSlotService != null ? replyHtmlSlotService.getActiveMemo(u) : u.getActiveMemo());
         return memo != null ? memo : blankToNull(replyPageSettingService.getOrCreate().getDefaultHeaderHtml());
     }
 

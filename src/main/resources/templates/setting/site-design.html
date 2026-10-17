@@ -322,12 +322,14 @@
                    th:href="@{/manager/settings/site-design/line-preview-frame(page=${lp.key})}" target="_blank"
                    class="px-3 py-1 text-sm rounded-md bg-white font-medium hover:bg-green-50" style="color:#05a548;"
                    th:text="${lp.value}">受信BOX</a>
+                <a th:href="@{/manager/settings/site-design/line-preview-frame(page='support')}" target="_blank"
+                   class="px-3 py-1 text-sm rounded-md bg-white font-medium hover:bg-green-50" style="color:#05a548;">サポート窓口</a>
             </div>
             <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-4">
                 <p class="text-xs text-slate-600 mb-2">
                     LINEから登録したユーザーには会員ページがないため、下でチェックしたフォルダのユーザーは、ログイン後に
                     <strong>LINE用の画面（受信BOX・返信ページ・お知らせ・ポイント購入）</strong>で表示されます（スマホ・PCのブラウザ。ガラケーは通常の画面）。
-                    MENU・友達追加リスト・条件検索などは表示せず、ページ下のメニューは <strong>受信BOX／送信済／お知らせ／手続き</strong> です
+                    MENU・友達追加リスト・条件検索などは表示せず、ページ下のメニュー（フッター）には下の「フッターに表示する項目」でチェックした項目だけが表示されます
                     （お知らせ＝専用HTML、手続き＝ポイント購入）。お知らせは、未読の専用HTMLがあるとき受信BOXと同じように「NEW」が付き、閲覧すると消えます。
                 </p>
                 <p class="text-xs text-slate-600 mb-3">
@@ -348,6 +350,22 @@
                     <span th:if="${folders.empty and lineFolders.empty}" class="text-slate-400 text-xs">フォルダ未設定</span>
                 </div>
                 <p class="text-xs text-slate-500">チェックしたフォルダのユーザーは、%reply_url%（返信URL）を開くと自動でログインし、LINE用の返信ページが表示されます。</p>
+
+                <!-- 2026-10-18 client request: the footer shows only the checked items (max 4), in this order. -->
+                <div class="text-sm font-medium text-slate-700 mt-4 mb-1">
+                    フッターに表示する項目 <span class="text-xs font-normal text-slate-500">（最大<span th:text="${lineFooterMax}">4</span>つ）</span>
+                </div>
+                <input type="hidden" name="lineFooterSent" value="1"/>
+                <div id="lineFooterChecks" class="flex flex-wrap gap-x-4 gap-y-1 text-sm mb-1" th:attr="data-max=${lineFooterMax}">
+                    <label th:each="fi : ${lineFooterLabels}" class="inline-flex items-center gap-1">
+                        <input type="checkbox" name="lineFooter" th:value="${fi.key}" th:checked="${#lists.contains(lineFooterItems, fi.key)}"/>
+                        <span th:text="${fi.value}">受信BOX</span>
+                    </label>
+                </div>
+                <p class="text-xs text-slate-500">
+                    チェックした項目だけが、この順番（左から）でフッターに並びます。チェックが1つならフッターは1項目だけ、0ならフッターは表示しません。
+                    サポート窓口を開くと、お問い合わせ内容の入力欄と送信ボタンだけが表示されます（お名前・メールアドレスは不要）。
+                </p>
             </div>
 
             <div class="bg-white rounded-lg shadow-sm border border-slate-100 p-6 mb-4">
@@ -428,6 +446,21 @@
         ta.addEventListener('input', update);
         update();
     });
+    // LINE用 フッター: at most data-max items — the rest can't be checked until one is unchecked.
+    (function () {
+        var box = document.getElementById('lineFooterChecks');
+        if (!box) return;
+        var max = parseInt(box.getAttribute('data-max'), 10) || 4;
+        var checks = box.querySelectorAll('input[type="checkbox"]');
+        function refresh() {
+            var n = 0;
+            checks.forEach(function (c) { if (c.checked) n++; });
+            checks.forEach(function (c) { c.disabled = !c.checked && n >= max; });
+        }
+        checks.forEach(function (c) { c.addEventListener('change', refresh); });
+        refresh();
+    })();
+
     // LINE用「この画面を確認」: show the HTML in the box as it is now (also before 保存する).
     document.querySelectorAll('a[data-line-draft]').forEach(function (a) {
         a.addEventListener('click', function (e) {

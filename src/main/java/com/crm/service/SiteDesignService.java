@@ -89,6 +89,33 @@ public class SiteDesignService {
         m.put("points", "ポイント購入（手続き）");
         LINE_PAGES = Collections.unmodifiableMap(m);
     }
+    /**
+     * LINE用 footer menu items (2026-10-18 client request): only the items checked on 番組デザイン設定
+     * are shown, left to right in this order, at most {@link #MAX_LINE_FOOTER_ITEMS}. Code → label
+     * on the footer; {@link #LINE_FOOTER_LABELS} is the checkbox text.
+     */
+    public static final Map<String, String> LINE_FOOTER_ITEMS;
+    public static final Map<String, String> LINE_FOOTER_LABELS;
+    static {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("inbox",   "受信BOX");
+        m.put("sent",    "送信済");
+        m.put("memo",    "お知らせ");
+        m.put("points",  "手続き");
+        m.put("support", "サポート窓口");
+        LINE_FOOTER_ITEMS = Collections.unmodifiableMap(m);
+        Map<String, String> l = new LinkedHashMap<>();
+        l.put("inbox",   "受信BOX");
+        l.put("sent",    "送信済（返信ページ）");
+        l.put("memo",    "専用HTML（お知らせ）");
+        l.put("points",  "ポイント購入（手続き）");
+        l.put("support", "サポート窓口");
+        LINE_FOOTER_LABELS = Collections.unmodifiableMap(l);
+    }
+    public static final int MAX_LINE_FOOTER_ITEMS = 4;
+    /** Before anything is saved: the footer as it always was. */
+    private static final java.util.List<String> DEFAULT_LINE_FOOTER = java.util.Arrays.asList("inbox", "sent", "memo", "points");
+    private static final String KEY_LINE_FOOTER = "site.line.footer";
     private static final String KEY_LINE_HTML_PREFIX = "site.line.html.";
     private static final String KEY_LINE_FOLDERS = "site.line.folders";
 
@@ -299,6 +326,27 @@ public class SiteDesignService {
     @Transactional
     public void saveLineFolders(java.util.List<String> folders) {
         save(KEY_LINE_FOLDERS, joinFolders(folders == null ? java.util.Collections.<String>emptyList() : folders));
+    }
+
+    /** LINE用 footer items to show ({@link #LINE_FOOTER_ITEMS} codes, in order); empty = no footer. */
+    public java.util.List<String> getLineFooterItems() {
+        String v = get(KEY_LINE_FOOTER);
+        if (v == null) return DEFAULT_LINE_FOOTER;
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String code : LINE_FOOTER_ITEMS.keySet()) {
+            if (java.util.Arrays.asList(v.split(",")).contains(code) && out.size() < MAX_LINE_FOOTER_ITEMS) out.add(code);
+        }
+        return out;
+    }
+
+    /** Saves the checked footer items — unknown codes dropped, kept in footer order, at most {@link #MAX_LINE_FOOTER_ITEMS}. */
+    @Transactional
+    public void saveLineFooterItems(java.util.Collection<String> codes) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String code : LINE_FOOTER_ITEMS.keySet()) {
+            if (codes != null && codes.contains(code) && out.size() < MAX_LINE_FOOTER_ITEMS) out.add(code);
+        }
+        save(KEY_LINE_FOOTER, String.join(",", out));
     }
 
     /** A member in {@code folder} gets the LINE用 pages (no folder = never). */

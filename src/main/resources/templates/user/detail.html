@@ -176,14 +176,14 @@
                  6→10 slots 2026-09-02 (displayed as a 5x2 grid per operator request). -->
             <div>
                 <label class="block text-xs text-slate-500 mb-1 flex items-center gap-2">
-                    <span>専用HTML <span class="text-slate-400 normal-case">(10スロットまで保存でき、使用中のみが公開ページに反映されます。文字数は推奨20,000文字まで)</span></span>
+                    <span>専用HTML <span class="text-slate-400 normal-case">(30スロットまで保存でき、使用中のみが公開ページに反映されます。文字数は推奨20,000文字まで)</span></span>
                     <a class="ml-auto text-xs text-blue-600 hover:underline"
                        th:href="@{/manager/settings/memo-html-bulk(loadFromUserId=${user.id})}" target="_blank">フォルダ内一括編集 →</a>
                 </label>
                 <div class="border border-slate-200 rounded-md overflow-hidden">
-                    <!-- 5x2 grid: slots 1-5 on row 1, slots 6-10 on row 2. -->
-                    <div class="memo-tab-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); border-bottom:1px solid #e2e8f0; background:#f8fafc;">
-                        <button type="button" th:each="i : ${#numbers.sequence(1, 10)}"
+                    <!-- 10x3 grid: slots ①-⑩ / ⑪-⑳ / ㉑-㉚ (30 slots since 2026-10-18). -->
+                    <div class="memo-tab-grid" style="display:grid; grid-template-columns:repeat(10, 1fr); border-bottom:1px solid #e2e8f0; background:#f8fafc;">
+                        <button type="button" th:each="i : ${#numbers.sequence(1, circledNumbers.size())}"
                                 class="memo-tab px-2 py-1.5 text-left border-r border-b border-slate-200 text-xs"
                                 style="min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:1px;"
                                 th:attr="data-slot=${i}">
@@ -235,6 +235,13 @@
                     <textarea class="tw-input font-mono memo-pane border-0 rounded-none" id="memo10" name="memo10"
                               th:text="${form.memo10}"
                               th:style="${form.activeMemoSlot == 10 ? '' : 'display:none;'}"
+                              style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"></textarea>
+                    <!-- ⑪〜㉚: stored outside CRM_USER (ReplyHtmlSlotService); extraMemosSent marks that this form carries them. -->
+                    <input type="hidden" name="extraMemosSent" value="true"/>
+                    <textarea th:each="i : ${#numbers.sequence(11, circledNumbers.size())}"
+                              class="tw-input font-mono memo-pane border-0 rounded-none" th:id="'memo' + ${i}" th:name="'extraMemos[' + ${i} + ']'"
+                              th:text="${form.extraMemos.get(i)}"
+                              th:style="${form.activeMemoSlot == i ? '' : 'display:none;'}"
                               style="min-height:240px; max-height:60vh; overflow:auto; resize:vertical; white-space:pre; font-size:0.78rem; line-height:1.4;"></textarea>
                 </div>
                 <p class="mt-1 text-xs text-slate-500">タブのラジオボタンが「使用中」マークです。クリックでパネル切替、ラジオで公開反映スロットを変更し、保存後に反映されます。空白で保存すると該当スロットは削除扱いになります。スロットの表示名は<a class="text-blue-600 hover:underline" th:href="@{/manager/settings/memo-html-bulk}" target="_blank">一括編集ページ</a>から変更できます。</p>
@@ -323,7 +330,9 @@
                     // (added 2026-09-02) never got a live character count and clicking their
                     // tab did nothing — none of the 6 known panes matched, so no pane ever
                     // showed for those tabs.
-                    var panes = ['memo1','memo2','memo3','memo4','memo5','memo6','memo7','memo8','memo9','memo10'];
+                    var panes = [];
+                    // memo1..memoN, one per slot tab (30 since 2026-10-18)
+                    for (var n = 1; n <= document.querySelectorAll('.memo-tab').length; n++) panes.push('memo' + n);
                     var MAX_CHARS = 20000;
                     function refreshCounts() {
                         panes.forEach(function (p) {
@@ -370,7 +379,7 @@
                 <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md">保存</button>
                 <a class="inline-flex items-center px-3 py-2 text-sm border border-sky-500 text-sky-700 hover:bg-sky-50 rounded-md"
                    th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'}" target="_blank">専用HTMLプレビュー (現在設定中)</a>
-                <a th:each="i : ${#numbers.sequence(1, 10)}"
+                <a th:each="i : ${#numbers.sequence(1, circledNumbers.size())}"
                    class="inline-flex items-center px-2 py-2 text-xs border border-slate-300 text-slate-600 hover:bg-slate-50 rounded-md"
                    th:classappend="${form.activeMemoSlot == i} ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-bold'"
                    th:href="@{'/manager/users/' + ${user.id} + '/reply-preview'(slot=${i})}" target="_blank"
@@ -555,7 +564,7 @@
                         <td class="px-3 py-2 text-xs text-slate-600" th:text="${#temporals.format(a.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
                         <td class="px-3 py-2">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700"
-                                  th:text="${a.source == 'REPLY_SUBMIT'} ? '返信送信' : (${a.source == 'INBOUND_MAIL'} ? 'メール受信' : (${a.source == 'MEMO_VIEW'} ? '専用HTML閲覧' : 'リンククリック'))"></span>
+                                  th:text="${a.source == 'REPLY_SUBMIT'} ? '返信送信' : (${a.source == 'INBOUND_MAIL'} ? 'メール受信' : (${a.source == 'MEMO_VIEW'} ? '専用HTML閲覧' : (${a.source != null and a.source.startsWith('GENERAL_HTML_')} ? '全般HTML閲覧' : 'リンククリック')))"></span>
                         </td>
                         <td class="px-3 py-2 text-xs text-slate-500" th:text="${a.ipAddress} ?: '-'"></td>
                     </tr>

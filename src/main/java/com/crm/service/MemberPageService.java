@@ -82,6 +82,29 @@ public class MemberPageService {
     public static final String SUPPORT_FORM_TAG = "%support_form%";
     private static final String SUPPORT_MARK = "<!--member-support-form-->";
 
+    /** LINE用 page's footer menu ({@code <nav class="bottom">}) — rebuilt from 番組デザイン設定's checked items. */
+    private static final Pattern LINE_FOOTER_NAV = Pattern.compile("(?is)<nav\\b[^>]*\\bclass=\"[^\"]*\\bbottom\\b[^\"]*\"[^>]*>.*?</nav\\s*>");
+
+    /** One LINE用 footer item per {@link SiteDesignService#LINE_FOOTER_ITEMS} code (icons as in line/layout.html). */
+    private static final Map<String, String> LINE_FOOTER_LINKS;
+    static {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("inbox", "<a href=\"/member/inbox\"><span class=\"bi\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"#4aa6e8\""
+                + " d=\"M3 3h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H10l-5 4.5V17H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z\" />"
+                + "<circle fill=\"#fff\" cx=\"8\" cy=\"10\" r=\"1.5\" /><circle fill=\"#fff\" cx=\"12\" cy=\"10\" r=\"1.5\" />"
+                + "<circle fill=\"#fff\" cx=\"16\" cy=\"10\" r=\"1.5\" /></svg>%unread_badge%</span>受信BOX</a>");
+        m.put("sent", "<a href=\"/member/inbox?tab=sent\"><span class=\"bi\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\">"
+                + "<path fill=\"#9a6ae6\" d=\"M2 21 23 12 2 3v7l15 2-15 2z\" /></svg></span>送信済</a>");
+        m.put("memo", "<a href=\"/member/memo\"><span class=\"bi\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"#f5c84c\""
+                + " d=\"M12 2a6 6 0 0 0-6 6v4.5L4 16v1h16v-1l-2-3.5V8a6 6 0 0 0-6-6zm0 21a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z\" /></svg>%news_new%</span>お知らせ</a>");
+        m.put("points", "<a href=\"/member/points\"><span class=\"bi\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\">"
+                + "<ellipse fill=\"#c9a43e\" cx=\"12\" cy=\"12\" rx=\"11\" ry=\"8\" /><text x=\"12\" y=\"16.2\" fill=\"#fff\" font-size=\"11\""
+                + " font-weight=\"900\" text-anchor=\"middle\" font-family=\"Arial,sans-serif\">P</text></svg></span>手続き</a>");
+        // サポート窓口: the MENU's (TOP) headphone icon
+        m.put("support", "<a href=\"/member/support\"><span class=\"bi\" style=\"line-height:1.1\">🎧</span>サポート窓口</a>");
+        LINE_FOOTER_LINKS = Collections.unmodifiableMap(m);
+    }
+
     private static final String MENU_FREE_AREA = "<div class=\"htmlslot\">%HTML%</div>";
     /** Class on every HTML area's wrapper; the operator's CSS only applies inside it. */
     private static final String SCOPE_CLASS = "member-free";
@@ -158,6 +181,7 @@ public class MemberPageService {
     private String renderLine(String page, String html, Map<String, String> memberValues, String mainHtml, String title,
                               int unread, boolean newsNew, String supportFormHtml) {
         if (html == null || html.trim().isEmpty()) html = getDefaultLineTemplate();
+        html = lineFooter(html);
         // %main% → a marker first, so a member's own value (e.g. a nickname "%main%") is never read as it
         html = html.replace(LINE_MAIN, MAIN_MARK).replace(SUPPORT_FORM_TAG, SUPPORT_MARK)
                 .replace("%title%", esc(title == null ? SiteDesignService.LINE_PAGES.get(page) : title))
@@ -168,6 +192,40 @@ public class MemberPageService {
         html = fillTags(html, memberValues).replace(SUPPORT_MARK, supportFormHtml == null ? "" : supportFormHtml)
                 .replace(MAIN_MARK, mainHtml == null ? "" : mainHtml);
         return com.crm.util.NoZoom.apply(lineHeader(html));
+    }
+
+    /**
+     * LINE用 footer: the page's {@code <nav class="bottom">} (saved HTML or the bundled default) becomes
+     * the items checked on 番組デザイン設定 — 1 to 4 equal-width items, none = no footer. A page whose
+     * HTML has no such nav is left as it is.
+     */
+    private String lineFooter(String html) {
+        Matcher m = LINE_FOOTER_NAV.matcher(html);
+        if (!m.find()) return html;
+        java.util.List<String> items = siteDesignService.getLineFooterItems();
+        String nav;
+        if (items.isEmpty()) {
+            nav = "<style>body{padding-bottom:0!important}</style>";
+        } else {
+            StringBuilder b = new StringBuilder("<nav class=\"bottom\" style=\"grid-template-columns:repeat(")
+                    .append(items.size()).append(",1fr)\">");
+            for (String code : items) b.append(LINE_FOOTER_LINKS.get(code));
+            nav = b.append("</nav>").toString();
+        }
+        return html.substring(0, m.start()) + nav + html.substring(m.end());
+    }
+
+    /**
+     * LINE用 サポート窓口 (/member/support): お問い合わせ内容 + 送信 only — no お名前 / メールアドレス (LINE
+     * members often have no e-mail). {@code sample} (the admin check) never submits.
+     */
+    public static String lineSupportForm(String csrfInput, boolean sample) {
+        return "<form method=\"post\" action=\"/member/support\"" + (sample ? " onsubmit=\"return false\"" : "") + ">"
+                + (csrfInput == null ? "" : csrfInput)
+                + "<div class=\"row\"><div class=\"key\">お問い合わせ内容</div>"
+                + "<div class=\"field\"><textarea name=\"body\" maxlength=\"" + SupportDeskService.BODY_MAX + "\" required></textarea></div></div>"
+                + "<div class=\"actions\"><button class=\"btn\">送信する</button></div>"
+                + "</form>";
     }
 
     /**
@@ -230,13 +288,14 @@ public class MemberPageService {
         m.put("inbox", SiteDesignService.LINE_PAGES.get("inbox"));
         m.put("sent", "送信済");
         for (Map.Entry<String, String> e : SiteDesignService.LINE_PAGES.entrySet()) m.putIfAbsent(e.getKey(), e.getValue());
+        m.put("support", "サポート窓口");
         LINE_PREVIEW_PAGES = Collections.unmodifiableMap(m);
     }
 
     /** 番組デザイン設定 › LINE用 check: one LINE用 page with the saved HTML and sample content. */
     public String renderLinePreview(String page) {
         if (!LINE_PREVIEW_PAGES.containsKey(page)) page = "inbox";
-        return renderLinePreview(page, siteDesignService.getLineHtml("sent".equals(page) ? "inbox" : page));
+        return renderLinePreview(page, siteDesignService.getLineHtml(lineFramePage(page)));
     }
 
     /**
@@ -248,18 +307,26 @@ public class MemberPageService {
         if (!LINE_PREVIEW_PAGES.containsKey(page)) page = "inbox";
         String main = "points".equals(page)
                 ? load("points.html").replace("%plans%", pointPlans(firstLineFolder()))
+                : "support".equals(page) ? "<section class=\"box\"><div class=\"boxline\"></div>" + lineSupportForm("", true)
+                        + "<div class=\"boxline\"></div></section>"
                 : load("line/sample-" + page + ".html");
         String title = "inbox".equals(page) ? "受信BOX" : "sent".equals(page) ? "送信済" : "reply".equals(page) ? "返信"
-                : "memo".equals(page) ? "お知らせ" : "ポイント購入";
-        String out = renderLine("sent".equals(page) ? "inbox" : page, html, null, fillTags(main, null), title, 17, true,
+                : "memo".equals(page) ? "お知らせ" : "support".equals(page) ? "サポート窓口" : "ポイント購入";
+        String out = renderLine(lineFramePage(page), html, null, fillTags(main, null), title, 17, true,
                 supportForm("", "/member/points", true));
         return out.replace("href=\"/member/inbox?tab=sent\"", "href=\"" + LINE_PREVIEW_URL + "sent\"")
                 .replace("href=\"/member/inbox\"", "href=\"" + LINE_PREVIEW_URL + "inbox\"")
                 .replace("href=\"/member/memo\"", "href=\"" + LINE_PREVIEW_URL + "memo\"")
-                .replace("href=\"/member/points\"", "href=\"" + LINE_PREVIEW_URL + "points\"");
+                .replace("href=\"/member/points\"", "href=\"" + LINE_PREVIEW_URL + "points\"")
+                .replace("href=\"/member/support\"", "href=\"" + LINE_PREVIEW_URL + "support\"");
     }
 
     private static final String LINE_PREVIEW_URL = "/manager/settings/site-design/line-preview?page=";
+
+    /** The LINE用 page whose HTML frames a check page: 送信済 and サポート窓口 use 受信BOX's (as the member pages do). */
+    private static String lineFramePage(String page) {
+        return "sent".equals(page) || "support".equals(page) ? "inbox" : page;
+    }
 
     /** The first LINE folder (its ポイント設定 is what a LINE member sees); null = none → 共通. */
     private String firstLineFolder() {

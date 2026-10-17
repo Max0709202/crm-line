@@ -398,7 +398,7 @@ public class MessageController {
         // title is linked directly above the exchange so the operator notices it while
         // replying (2026-09-29/30 client request). Only when the in-use slot has content.
         int activeSlot = user.get().getActiveMemoSlot();
-        String activeMemo = user.get().getMemoSlot(activeSlot);
+        String activeMemo = replyHtmlSlotService.getUserSlot(user.get(), activeSlot);
         if (activeMemo != null && !activeMemo.trim().isEmpty()) {
                 String circled = com.crm.service.ReplyHtmlSlotService.circled(activeSlot);
             String title = replyHtmlSlotService.getSlotTitle(activeSlot);

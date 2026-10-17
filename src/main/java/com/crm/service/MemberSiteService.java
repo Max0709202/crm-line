@@ -641,6 +641,26 @@ public class MemberSiteService {
     }
 
     /**
+     * LINE用 サポート窓口 (footer): only the お問い合わせ内容 — no お名前 / メールアドレス are asked (LINE
+     * members often have no e-mail); the member's own name / address are kept when there are any.
+     */
+    public void supportLine(CrmUser u, String body) {
+        String b = body == null ? "" : body.trim();
+        if (b.isEmpty()) throw new MemberException("お問い合わせ内容を入力してください");
+        if (b.length() > SupportDeskService.BODY_MAX) throw new MemberException("お問い合わせ内容が長すぎます");
+        SupportInquiry q = new SupportInquiry();
+        q.setChannel(SupportInquiry.CHANNEL_WEB);
+        String n = u.getDisplayName();
+        q.setName(n == null ? null : (n.length() > 255 ? n.substring(0, 255) : n));
+        q.setEmail(u.getEmail() == null ? "" : u.getEmail());
+        q.setSubject("会員ページ サポート窓口（LINE）");
+        q.setBody(b);
+        q.setMemberId(u.getId());
+        q.setFormPage("/member/support");
+        supportInquiryRepository.save(q);
+    }
+
+    /**
      * LINE用 page's %support_form% (ID送信): the ID the member entered → サポート窓口. No e-mail is asked
      * (LINE members often have none); the member's own address is kept when there is one.
      */

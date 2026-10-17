@@ -69,6 +69,12 @@ public class ReplyPageController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setCharaLinkService(com.crm.service.CharaLinkService charaLinkService) { this.charaLinkService = charaLinkService; }
 
+    /** 専用HTML slots ⑪〜㉚ — optional so hand-built instances (tests) work without it (①〜⑩ only). */
+    private com.crm.service.ReplyHtmlSlotService replyHtmlSlotService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setReplyHtmlSlotService(com.crm.service.ReplyHtmlSlotService replyHtmlSlotService) { this.replyHtmlSlotService = replyHtmlSlotService; }
+
     /** 番組デザイン設定's LINE用 folders — optional so hand-built instances (tests) work without it. */
     private com.crm.service.SiteDesignService siteDesignService;
 
@@ -226,7 +232,8 @@ public class ReplyPageController {
         String headerHtml = rp == null ? null : blankToNull(rp.getHeaderHtml());
         if (headerHtml == null && user.isPresent()) {
             // Honour the operator's 使用中 slot selection (memo / memo2 / memo3).
-            headerHtml = blankToNull(user.get().getActiveMemo());
+            headerHtml = blankToNull(replyHtmlSlotService != null
+                    ? replyHtmlSlotService.getActiveMemo(user.get()) : user.get().getActiveMemo());
         }
         if (headerHtml == null) headerHtml = blankToNull(settings.getDefaultHeaderHtml());
 

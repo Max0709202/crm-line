@@ -905,12 +905,14 @@ public class MemberSiteController {
                               @RequestParam(name = "email", required = false) String email,
                               @RequestParam(name = "body", required = false) String body,
                               @RequestParam(name = "back", required = false) String back,
-                              HttpSession session, RedirectAttributes ra) {
+                              HttpServletRequest request, HttpSession session, RedirectAttributes ra) {
         CrmUser u = member(session);
         if (u == null) return toLogin();
         if (preview(session)) return previewBlocked();
         try {
-            site.support(u, name, email, body);
+            // LINE用: お問い合わせ内容 only (no お名前 / メールアドレス — LINE members often have no e-mail)
+            if (back == null && line(request, u)) site.supportLine(u, body);
+            else site.support(u, name, email, body);
             ra.addFlashAttribute("memberNote", "お問い合わせを送信しました。担当者からのご連絡をお待ちください。");
         } catch (MemberSiteService.MemberException e) {
             ra.addFlashAttribute("memberNote", e.getMessage());
@@ -945,7 +947,7 @@ public class MemberSiteController {
         boolean fp = fp(request);
         StringBuilder b = new StringBuilder(fp ? "" : "<section class=\"box\"><div class=\"boxline\"></div>");
         if (note != null) b.append(fp ? "<div class=\"row\">" + e(note) + "</div>" : "<div class=\"note\">" + e(note) + "</div>");
-        b.append(supportForm(request, u, fp, null));
+        b.append(line(request, u) ? MemberPageService.lineSupportForm(csrf(request), false) : supportForm(request, u, fp, null));
         if (!fp) b.append("<div class=\"boxline\"></div></section>");
         return b.toString();
     }
