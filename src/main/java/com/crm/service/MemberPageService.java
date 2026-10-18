@@ -465,6 +465,22 @@ public class MemberPageService {
                 .replace("<a href=\"#\">ポイント購入</a>", "<a href=\"/member/points\">ポイント購入</a>");
     }
 
+    /**
+     * サポート窓口 has a reply the member hasn't seen (2026-10-18 client request): NEW on the page's
+     * サポート窓口 links — MENU's tile (as 受信BOX's count badge), ガラケー MENU, and LINE用 footer (as お知らせ's NEW).
+     */
+    public static String supportNew(String html) {
+        if (html == null) return null;
+        return html
+                .replace("<a class=\"tile\" href=\"/member/support\"><span class=\"i\">",
+                        "<a class=\"tile\" href=\"/member/support\"><span class=\"badge\">NEW</span><span class=\"i\">")
+                .replace("<a href=\"/member/support\">4. サポート窓口</a>",
+                        "<a href=\"/member/support\">4. サポート窓口 <span style=\"color:#d00;font-weight:bold\">NEW</span></a>")
+                .replace("<a href=\"/member/support\"><span class=\"bi\" style=\"line-height:1.1\">🎧</span>",
+                        "<a href=\"/member/support\"><span class=\"bi\" style=\"line-height:1.1\">🎧"
+                                + "<i class=\"fb\" style=\"font-size:10px;line-height:1.6;padding:1px 6px;margin-left:2px\">NEW</i></span>");
+    }
+
     /** ポイント購入: each shown payment method (saved order and name) with its plans. */
     private String pointPlans() {
         return pointPlans(null);

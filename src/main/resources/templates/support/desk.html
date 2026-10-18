@@ -613,6 +613,7 @@
         if (single) {
             var x = byId[state.current];
             var ch = CH[x.channel] || CH.mail;
+            var toMemberPage = x.channel === 'web' && !!x.memberId;
             var member = x.memberId ? '<a href="/manager/users/' + esc(x.memberId) + '" target="_blank" rel="noopener">ユーザーID ' + esc(x.memberNo || x.memberId) + '</a>' : '<span>非会員</span>';
             var meta = x.channel === 'mail'
                 ? '<span>差出人 <b>' + esc(x.name) + '</b> &lt;' + esc(x.email) + '&gt;</span><span>宛先 <b>' + esc(x.to || SUPPORT_ADDRESS || '') + '</b></span><span>受信 <b>' + full(x.receivedAt) + '</b></span>' + member
@@ -627,10 +628,13 @@
                 '<article class="msg"><div class="msg-meta"><b>' + esc(x.name) + '</b>' + (x.memberId ? 'ユーザー' : '非会員') + '<time>' + full(x.receivedAt) + ' 受信</time></div>' +
                 '<div class="msg-subj">' + esc(x.subject) + '</div><div class="msg-body">' + esc(x.body) + '</div></article>' +
                 x.replies.map(function (r) {
-                    return '<article class="msg is-reply"><div class="msg-meta"><b>' + esc(r.staff || '管理者') + '</b>メールで返信<time>' + full(r.at) + ' 送信</time></div>' +
+                    return '<article class="msg is-reply"><div class="msg-meta"><b>' + esc(r.staff || '管理者') + '</b>' + (toMemberPage ? '会員ページへ返信' : 'メールで返信') + '<time>' + full(r.at) + ' 送信</time></div>' +
                         (r.subject ? '<div class="msg-subj">' + esc(r.subject) + '</div>' : '') + '<div class="msg-body">' + esc(r.body) + '</div></article>';
                 }).join('');
-            $('replyTo').innerHTML = '宛先 <b>' + esc(x.name) + '</b> ' + esc(x.email) + '<span>（' + (x.channel === 'web' ? 'WEBフォームのお問い合わせにメールで返信' : 'メールで返信') + '）</span>';
+            // 会員のWEBお問い合わせ: 会員ページ（受信BOXのサポート窓口・サポート窓口ページ）に表示、アドレスがあればメールも送信
+            $('replyTo').innerHTML = '宛先 <b>' + esc(x.name) + '</b> ' + esc(x.email) + '<span>（' + (toMemberPage
+                ? '会員ページの受信BOX・サポート窓口に表示' + (x.email ? '＋メールでも送信' : '')
+                : x.channel === 'web' ? 'WEBフォームのお問い合わせにメールで返信' : 'メールで返信') + '）</span>';
             $('btnSend').textContent = '返信する';
         } else {
             $('bulkTitle').textContent = '選択一斉返信（' + state.bulk.length + '件）';

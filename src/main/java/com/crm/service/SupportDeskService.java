@@ -231,6 +231,10 @@ public class SupportDeskService {
      * Mails the reply to every inquiry in {@code ids} from the support address, filling the
      * placeholders per inquiry. Each send is recorded (SENT / FAILED); successful ones are
      * marked 対応済 when {@code markDone}.
+     *
+     * A WEB inquiry of a member (2026-10-18 client request): the SENT reply is shown in that member's
+     * 会員ページ (受信BOX's サポート窓口 and the サポート窓口 page), so it is SENT even without a mail —
+     * no address (LINE用), or the mail failed (kept as the reply's error).
      */
     @Transactional
     public ReplyOutcome reply(List<Long> ids, String subject, String body, boolean markDone, String staffName) {
@@ -238,7 +242,9 @@ public class SupportDeskService {
         if (ids == null || ids.isEmpty()) return out;
         String from = supportAddress();
         for (SupportInquiry q : inquiryRepository.findAllById(ids)) {
-            String subj = isBlank(subject) ? "Re: " + blankToDefault(q.getSubject(), "") : subject.trim();
+            boolean toMemberPage = SupportInquiry.CHANNEL_WEB.equals(q.getChannel()) && q.getMemberId() != null;
+            // 会員ページへの返信: 件名なし = 件名なし (2026-10-18 client request; not「Re: 会員ページ サポート窓口（LINE）」)
+            String subj = !isBlank(subject) ? subject.trim() : toMemberPage ? "" : "Re: " + blankToDefault(q.getSubject(), "");
             String filledSubject = truncate(fill(subj, q), SUBJECT_MAX);
             String filledBody = fill(body, q);
             SupportReply r = new SupportReply();
@@ -247,12 +253,18 @@ public class SupportDeskService {
             r.setSubject(filledSubject);
             r.setBody(filledBody);
             String error = null;
-            if (from == null) {
+            if (toMemberPage && isBlank(q.getEmail())) {
+                // 会員ページ only — nothing to mail
+            } else if (from == null) {
                 error = "受付アドレスが未設定です（ドメイン設定の返信URLを設定してください）";
             } else {
                 OutboundMailService.SendResult res = mailService.send(new OutboundMailService.OutboundRequest(
                         fromWithName(from), q.getEmail(), filledSubject, filledBody, "127.0.0.1", 25, null, null));
                 if (!res.success) error = res.errorMessage == null ? "送信に失敗しました" : res.errorMessage;
+            }
+            if (error != null && toMemberPage) {
+                r.setErrorMessage(truncate("メール未送信（会員ページには表示）: " + error, 1000));
+                error = null;
             }
             if (error == null) {
                 r.setStatus(SupportReply.STATUS_SENT);

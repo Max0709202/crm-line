@@ -785,7 +785,7 @@
                           at=${m.sentAt != null ? m.sentAt : m.createdAt},
                           who=${m.direction == 'OUT'} ? (${m.channel == 'LINE' and m.lineAccountId != null and !#strings.isEmpty(lineAccountNamesById.get(m.lineAccountId))} ? ${lineAccountNamesById.get(m.lineAccountId)} : '運営') : ${uname}"
                  class="msg" th:classappend="${isOut} ? 'is-out' : 'is-in'"
-                 th:data-support="${isOut and supportOutIds.contains(m.id)} ? '1'"
+                 th:data-support="${(isOut and supportOutIds.contains(m.id)) or supportThreadIds.contains(m.id)} ? '1'"
                  th:data-at="${#temporals.format(at, 'yyyy-MM-dd''T''HH:mm')}">
                 <div th:unless="${isOut}" class="msg-av"
                      th:classappend="${ugender == 'male'} ? 'is-male' : (${ugender == 'female'} ? 'is-female' : '')"
@@ -795,7 +795,9 @@
                         <span class="msg-who" th:text="${who}"></span>
                         <th:block th:replace="~{::route(${m.channel})}"/>
                         <span class="msg-time"><b>受信</b> <th:block th:text="${#temporals.format(at, 'M/d H:mm')}"/></span>
-                        <span class="msg-flag" th:if="${latestOutAt == null or m.createdAt.isAfter(latestOutAt)}">未対応</span>
+                        <!-- サポート窓口へのお問い合わせ (会員ページ): 対応は管理画面サポート窓口で — 未対応にしない -->
+                        <span class="msg-flag is-mute" th:if="${supportThreadIds.contains(m.id)}">サポート窓口へ</span>
+                        <span class="msg-flag" th:if="${!supportThreadIds.contains(m.id) and (latestOutAt == null or m.createdAt.isAfter(latestOutAt))}">未対応</span>
                     </div>
                     <div class="msg-meta" th:if="${isOut}" th:classappend="${m.status == 'CANCELLED'} ? 'is-cancelled'">
                         <span class="msg-flag is-ng" th:if="${m.status == 'FAILED'}">NG</span>

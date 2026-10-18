@@ -57,6 +57,12 @@ public class MessageController {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setMemberUnlockService(com.crm.service.MemberUnlockService memberUnlockService) { this.memberUnlockService = memberUnlockService; }
+
+    /** サポート窓口 のお問い合わせ・返信 shown in the user's やり取り (サ). Optional (tests). */
+    private com.crm.service.MemberSiteService memberSiteService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMemberSiteService(com.crm.service.MemberSiteService memberSiteService) { this.memberSiteService = memberSiteService; }
     private final com.crm.service.CharaLinkService charaLinkService;
     private final com.crm.repository.CharaRepository charaRepository;
     private final com.crm.repository.CharaFolderRepository charaFolderRepository;
@@ -250,8 +256,33 @@ public class MessageController {
         }
         java.math.BigDecimal totalPaid = paymentService.sumPaidByUser(userId);
 
+        // サポート窓口 (2026-10-18 client request): the member's お問い合わせ and サポート窓口's replies are
+        // shown in this やり取り as サポート窓口 (サ) — like a キャラ指定なしの一斉送信, in every キャラ's view. Display
+        // only (negative ids, see MemberSiteService#supportThread): not in the left 受信ボックス, the counts, 未対応.
+        List<Message> supportThread = memberSiteService == null ? java.util.Collections.<Message>emptyList()
+                : memberSiteService.supportThreadMessages(user.get());
+        java.util.Set<Long> supportThreadIds = new java.util.HashSet<>();
+        for (Message m : supportThread) supportThreadIds.add(m.getId());
+        List<Message> shownThread = thread;
+        if (!supportThread.isEmpty()) {
+            // newest first, after the 予約 (future) ones that threadFor puts on top
+            shownThread = new java.util.ArrayList<>(thread);
+            for (Message s : supportThread) {
+                int at = s.getCreatedAt() == null ? shownThread.size() : 0;
+                while (at < shownThread.size()) {
+                    Message t = shownThread.get(at);
+                    boolean future = Message.STATUS_QUEUED.equals(t.getStatus()) && t.getScheduledAt() != null
+                            && t.getScheduledAt().isAfter(java.time.LocalDateTime.now());
+                    if (!future && t.getCreatedAt() != null && !t.getCreatedAt().isAfter(s.getCreatedAt())) break;
+                    at++;
+                }
+                shownThread.add(at, s);
+            }
+        }
+
         model.addAttribute("user", user.get());
-        model.addAttribute("thread", thread);
+        model.addAttribute("thread", shownThread);
+        model.addAttribute("supportThreadIds", supportThreadIds);
         model.addAttribute("threadWebReply", threadWebReply);
         model.addAttribute("threadMailReply", threadMailReply);
         model.addAttribute("threadOut", threadOut);
@@ -459,6 +490,8 @@ public class MessageController {
         // 既読 / 未読 (shown in place of 運営): the sent mails the member has opened on the 会員ページ
         java.util.List<Long> sentOutIds = new java.util.ArrayList<>();
         for (Message m : thread) if (Message.DIR_OUT.equals(m.getDirection())) sentOutIds.add(m.getId());
+        // サポート窓口's replies: 既読 = opened on the 会員ページ (受信BOX / サポート窓口)
+        for (Message m : supportThread) if (Message.DIR_OUT.equals(m.getDirection())) sentOutIds.add(m.getId());
         model.addAttribute("memberReadIds", memberUnlockService == null || sentOutIds.isEmpty()
                 ? java.util.Collections.<Long>emptySet()
                 : memberUnlockService.unlocked(userId, com.crm.service.MemberUnlockService.BODY, sentOutIds));
@@ -478,6 +511,7 @@ public class MessageController {
             else outCharaNames.putIfAbsent(m.getId(), lineAccountNamesById.get(m.getLineAccountId()));
         }
         model.addAttribute("outCharaNames", outCharaNames);
+        for (Message m : supportThread) if (Message.DIR_OUT.equals(m.getDirection())) supportOutIds.add(m.getId());
         model.addAttribute("supportOutIds", supportOutIds);
         com.crm.entity.CarrierAddressPool boundPool = bindingService.firstBoundFor(userId).orElse(null);
         model.addAttribute("userHasPool", boundPool != null && !Boolean.FALSE.equals(boundPool.getIsActive()));

@@ -556,8 +556,10 @@ public class MemberSiteController {
         b.append(fpPager);
 
         if (support) {
-            // サポート窓口: 本文の下に サポート窓口 の送信画面 (送信後はこの画面に戻る)
-            b.append(supportForm(request, u, fp, back));
+            // サポート窓口: 本文の下に サポート窓口 の送信画面 (送信後はこの画面に戻る); LINE用: お問い合わせ内容だけ
+            b.append(line(request, u)
+                    ? MemberPageService.lineSupportForm(csrf(request) + "<input type=\"hidden\" name=\"back\" value=\"" + e(back) + "\">", false)
+                    : supportForm(request, u, fp, back));
             if (!fp) b.append("<div class=\"boxline\"></div></section>");
             return render("reply", request, u, b.toString(), null);
         }
@@ -911,7 +913,8 @@ public class MemberSiteController {
         if (preview(session)) return previewBlocked();
         try {
             // LINE用: お問い合わせ内容 only (no お名前 / メールアドレス — LINE members often have no e-mail)
-            if (back == null && line(request, u)) site.supportLine(u, body);
+            // (also from the 受信BOX's サポート窓口 のやり取り, which sends with back)
+            if (line(request, u)) site.supportLine(u, body);
             else site.support(u, name, email, body);
             ra.addFlashAttribute("memberNote", "お問い合わせを送信しました。担当者からのご連絡をお待ちください。");
         } catch (MemberSiteService.MemberException e) {
@@ -947,8 +950,37 @@ public class MemberSiteController {
         boolean fp = fp(request);
         StringBuilder b = new StringBuilder(fp ? "" : "<section class=\"box\"><div class=\"boxline\"></div>");
         if (note != null) b.append(fp ? "<div class=\"row\">" + e(note) + "</div>" : "<div class=\"note\">" + e(note) + "</div>");
+        b.append(supportHistoryHtml(request, u, fp));
         b.append(line(request, u) ? MemberPageService.lineSupportForm(csrf(request), false) : supportForm(request, u, fp, null));
         if (!fp) b.append("<div class=\"boxline\"></div></section>");
+        return b.toString();
+    }
+
+    /**
+     * サポート窓口 page's やり取り履歴 (2026-10-18 client request): the member's お問い合わせ (送信) and サポート窓口's
+     * replies (受信), oldest first, the latest 30 — as the 返信画面 shows a やり取り. A reply not seen yet has
+     * NEW; seeing this page makes it 既読 (also in the 受信BOX). Nothing when there is no お問い合わせ yet.
+     */
+    private String supportHistoryHtml(HttpServletRequest request, CrmUser u, boolean fp) {
+        List<MemberSiteService.ConvItem> conv = site.supportHistory(u);
+        if (conv.isEmpty()) return "";
+        Set<Long> unread = site.unreadSupportReplies(u);
+        if (!unread.isEmpty() && !preview(request.getSession(false))) site.markSupportRepliesRead(u, unread);
+        StringBuilder b = new StringBuilder(fp ? "<div class=\"row\"><b>やり取り履歴</b></div>" : "<div class=\"note\"><b>やり取り履歴</b></div>");
+        for (int i = Math.max(0, conv.size() - 30); i < conv.size(); i++) {
+            MemberSiteService.ConvItem it = conv.get(i);
+            Message m = it.message;
+            String head = when(m) + (it.out ? "　受信" : "　送信") + (!unread.contains(m.getId()) ? ""
+                    : fp ? " <span style=\"color:#d00;font-weight:bold\">NEW</span>" : " <span class=\"new\">NEW</span>");
+            StringBuilder body = new StringBuilder();
+            if (m.getSubject() != null && !m.getSubject().trim().isEmpty()) body.append("<b>").append(e(m.getSubject())).append("</b><br>");
+            body.append("<div style=\"white-space:pre-wrap;word-break:break-word\">").append(e(MemberSiteService.displayBody(m))).append("</div>");
+            if (fp) {
+                b.append("<div class=\"row\"><small>").append(head).append("</small><br>").append(body).append("</div>");
+            } else {
+                b.append("<div class=\"row\"><div class=\"key\">").append(head).append("</div><div class=\"field\">").append(body).append("</div></div>");
+            }
+        }
         return b.toString();
     }
 
@@ -1232,6 +1264,7 @@ public class MemberSiteController {
             String html = pages.renderLine(page, values, mainHtml, title != null ? title : MemberPageService.BAR_TITLES.get(code),
                     site.unreadCount(u), notice != null && notice.isNew(u),
                     MemberPageService.supportForm(csrf(request), request.getRequestURI(), false, done, error));
+            if (!site.unreadSupportReplies(u).isEmpty()) html = MemberPageService.supportNew(html);
             if (preview(request.getSession(false))) html = previewBanner(html, u);
             return html(html);
         }
@@ -1239,6 +1272,8 @@ public class MemberSiteController {
                 site.unreadCount(u), c -> URLS.getOrDefault(c, "/member/menu"));
         // ガラケー footer「戻る」(every page but MENU)
         if (fp(request)) html = html.replace("<a href=\"#back\">", "<a href=\"" + e(fpBack(request)) + "\">");
+        // サポート窓口 の返信 not seen yet → NEW on the サポート窓口 links
+        if (!site.unreadSupportReplies(u).isEmpty()) html = MemberPageService.supportNew(html);
         if (preview(request.getSession(false))) html = previewBanner(html, u);
         return html(html);
     }

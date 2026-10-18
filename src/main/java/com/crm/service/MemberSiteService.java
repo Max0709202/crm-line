@@ -5,10 +5,12 @@ import com.crm.entity.CharaRef;
 import com.crm.entity.CrmUser;
 import com.crm.entity.Message;
 import com.crm.entity.SupportInquiry;
+import com.crm.entity.SupportReply;
 import com.crm.repository.CharaRepository;
 import com.crm.repository.CrmUserRepository;
 import com.crm.repository.MessageRepository;
 import com.crm.repository.SupportInquiryRepository;
+import com.crm.repository.SupportReplyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -19,7 +21,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -160,6 +164,12 @@ public class MemberSiteService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setLineAccountPhotoService(LineAccountPhotoService lineAccountPhotoService) { this.lineAccountPhotoService = lineAccountPhotoService; }
 
+    /** サポート窓口's sent replies, shown in the member's サポート窓口 のやり取り (optional, as above). */
+    private SupportReplyRepository supportReplyRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setSupportReplyRepository(SupportReplyRepository supportReplyRepository) { this.supportReplyRepository = supportReplyRepository; }
+
     /** 表示文字数: the 本文 shown in the 受信BOX / 受信一覧 — as much as the mail itself showed. */
     public int previewLength() {
         return domainSettingService == null ? 30 : domainSettingService.getEmailReplyUrlClipLength();
@@ -212,7 +222,9 @@ public class MemberSiteService {
     /* ===================== 受信BOX ===================== */
 
     private List<Message> inboxMessages(CrmUser u) {
-        return messageRepository.findMemberInbox(u.getId(), PageRequest.of(0, INBOX_MAX));
+        List<Message> msgs = messageRepository.findMemberInbox(u.getId(), PageRequest.of(0, INBOX_MAX));
+        // + サポート窓口's replies (as from サポート窓口, no キャラ — like a 一斉送信 without one)
+        return merged(msgs, supportThread(u, false, true), false);
     }
 
     /** 未読 = a キャラ message whose 本文 the member hasn't opened yet. */
@@ -231,7 +243,9 @@ public class MemberSiteService {
      */
     public List<InboxItem> inbox(CrmUser u, String tab, Long charaId) {
         boolean sentTab = "sent".equals(tab);
-        List<Message> msgs = sentTab ? messageRepository.findMemberSent(u.getId(), PageRequest.of(0, INBOX_MAX)) : inboxMessages(u);
+        List<Message> msgs = sentTab
+                ? merged(messageRepository.findMemberSent(u.getId(), PageRequest.of(0, INBOX_MAX)), supportThread(u, true, false), true)
+                : inboxMessages(u);
         Map<Long, Long> charaByMsg = charaLinkService.charaIdsOfMessages(msgs);
         Map<Long, Chara> charas = charasById(new HashSet<>(charaByMsg.values()));
         Map<Long, Chara> lineSenders = lineSenders(msgs, charaByMsg);
@@ -374,6 +388,8 @@ public class MemberSiteService {
             long key = cid != null ? cid : line != null ? line.getId() : 0L;
             if (charaId == key) mine.add(m);
         }
+        // サポート窓口: + the member's WEB お問い合わせ and サポート窓口's replies, in time order
+        if (charaId == 0) mine = merged(mine, supportThread(u, true, true), true, true);
         List<Long> outIds = new ArrayList<>();
         for (Message m : mine) if (Message.DIR_OUT.equals(m.getDirection())) outIds.add(m.getId());
         Set<Long> read = unlockService.unlocked(u.getId(), MemberUnlockService.BODY, outIds);
@@ -619,6 +635,121 @@ public class MemberSiteService {
 
     /* ===================== サポート窓口 ===================== */
 
+    /*
+     * サポート窓口 のやり取り (2026-10-18 client request): the member's WEB お問い合わせ (送信) and the
+     * 管理画面 サポート窓口's sent replies to them (受信) are shown in the 受信BOX's サポート窓口 (no キャラ,
+     * like a 一斉送信 without one) and on the サポート窓口 page. They stay in SUPPORT_INQUIRY /
+     * SUPPORT_REPLY; here they are display-only (never saved) messages whose ids are negative so they
+     * never meet a MESSAGE.ID — reply −2×ID, inquiry −(2×ID+1). A reply's 既読 is MEMBER_UNLOCK BODY
+     * of that id, as for any message.
+     */
+
+    /** The member's サポート窓口 inquiries ({@code inquiries}) and / or replies ({@code replies}), oldest first. */
+    private List<Message> supportThread(CrmUser u, boolean inquiries, boolean replies) {
+        List<Message> out = new ArrayList<>();
+        if (u == null || u.getId() == null) return out;
+        List<SupportInquiry> qs = supportInquiryRepository.findByMemberIdAndChannelOrderByReceivedAtAsc(u.getId(), SupportInquiry.CHANNEL_WEB);
+        if (qs == null || qs.isEmpty()) return out;
+        Map<Long, List<SupportReply>> byInquiry = new HashMap<>();
+        if (replies && supportReplyRepository != null) {
+            List<Long> ids = new ArrayList<>();
+            for (SupportInquiry q : qs) ids.add(q.getId());
+            for (SupportReply r : supportReplyRepository.findByInquiryIdInOrderByCreatedAtAsc(ids)) {
+                if (SupportReply.STATUS_SENT.equals(r.getStatus())) byInquiry.computeIfAbsent(r.getInquiryId(), k -> new ArrayList<>()).add(r);
+            }
+        }
+        for (SupportInquiry q : qs) {
+            if (inquiries) {
+                out.add(supportMessage(u, -(2 * q.getId() + 1), Message.DIR_IN, Message.CHANNEL_WEB_REPLY,
+                        q.getSubject(), q.getBody(), q.getReceivedAt()));
+            }
+            for (SupportReply r : byInquiry.getOrDefault(q.getId(), Collections.<SupportReply>emptyList())) {
+                // 件名なしで返信 = 件名なし (the 自動件名「Re: 会員ページ サポート窓口…」 of earlier replies is not shown)
+                String subject = r.getSubject();
+                if (subject != null && subject.equals("Re: " + (q.getSubject() == null ? "" : q.getSubject()))) subject = null;
+                out.add(supportMessage(u, -(2 * r.getId()), Message.DIR_OUT, Message.CHANNEL_EMAIL,
+                        subject, r.getBody(), r.getCreatedAt()));
+            }
+        }
+        out.sort(Comparator.comparing(MemberSiteService::shownAt));
+        return out;
+    }
+
+    private static Message supportMessage(CrmUser u, long id, String direction, String channel,
+                                          String subject, String body, LocalDateTime at) {
+        Message m = new Message();
+        m.setId(id);
+        m.setUserId(u.getId());
+        m.setDirection(direction);
+        m.setChannel(channel);
+        m.setSubject(subject);
+        m.setBodyText(body);
+        m.setFromAddress(SUPPORT_NAME);
+        m.setToAddress(SUPPORT_NAME);
+        m.setStatus(Message.STATUS_SENT);
+        m.setSentAt(at);
+        m.setCreatedAt(at);
+        return m;
+    }
+
+    /**
+     * 管理画面 ユーザーのやり取り (/manager/users/{id}/thread, 2026-10-18 client request): the member's
+     * サポート窓口 お問い合わせ and the replies, as サポート窓口 (サ) — like a 一斉送信 without キャラ. Oldest first.
+     */
+    public List<Message> supportThreadMessages(CrmUser u) {
+        return supportThread(u, true, true);
+    }
+
+    /** Is {@code m} one of the {@link #supportThread} messages (not a MESSAGE row)? */
+    public static boolean isSupportThreadMessage(Message m) {
+        return m != null && m.getId() != null && m.getId() < 0;
+    }
+
+    private static LocalDateTime shownAt(Message m) {
+        LocalDateTime t = m.getSentAt() != null ? m.getSentAt() : m.getCreatedAt();
+        return t == null ? LocalDateTime.MIN : t;
+    }
+
+    private static List<Message> merged(List<Message> msgs, List<Message> support, boolean byCreatedAt) {
+        return merged(msgs, support, byCreatedAt, false);
+    }
+
+    /** {@code msgs} (in their order) with {@code support} put in by time: newest first, or {@code oldestFirst}. */
+    private static List<Message> merged(List<Message> msgs, List<Message> support, boolean byCreatedAt, boolean oldestFirst) {
+        if (support.isEmpty()) return msgs;
+        List<Message> out = new ArrayList<>(msgs);
+        out.addAll(support);
+        Comparator<Message> c = byCreatedAt
+                ? Comparator.comparing((Message m) -> m.getCreatedAt() == null ? LocalDateTime.MIN : m.getCreatedAt())
+                : Comparator.comparing(MemberSiteService::shownAt);
+        out.sort(oldestFirst ? c : c.reversed());   // stable: same-time messages keep their order
+        return out;
+    }
+
+    /** サポート窓口 page: the WEB お問い合わせ and their replies, oldest first. */
+    public List<ConvItem> supportHistory(CrmUser u) {
+        List<ConvItem> out = new ArrayList<>();
+        for (Message m : supportThread(u, true, true)) {
+            out.add(new ConvItem(m, Message.DIR_OUT.equals(m.getDirection()), true, Collections.<Long>emptyList()));
+        }
+        return out;
+    }
+
+    /** The サポート窓口 replies not opened yet (NEW on the サポート窓口 page / links). */
+    public Set<Long> unreadSupportReplies(CrmUser u) {
+        List<Long> ids = new ArrayList<>();
+        for (Message m : supportThread(u, false, true)) ids.add(m.getId());
+        Set<Long> out = new HashSet<>(ids);
+        if (!ids.isEmpty()) out.removeAll(unlockService.unlocked(u.getId(), MemberUnlockService.BODY, ids));
+        return out;
+    }
+
+    /** サポート窓口 page seen: its replies become 既読 (also in the 受信BOX). */
+    @Transactional
+    public void markSupportRepliesRead(CrmUser u, Collection<Long> replyIds) {
+        for (Long id : replyIds) unlockService.unlock(u.getId(), MemberUnlockService.BODY, id, 0);
+    }
+
     @Transactional
     public void support(CrmUser u, String name, String email, String body) {
         String b = body == null ? "" : body.trim();
@@ -733,6 +864,8 @@ public class MemberSiteService {
 
     /** A message's text as the member reads it: the 返信URL etc. taken out (they are on this page). */
     public static String displayBody(Message m) {
+        // サポート窓口 のやり取り: as written (a reply's URL is part of the answer, not a 返信URL)
+        if (isSupportThreadMessage(m)) return m.getBodyText() == null ? "" : m.getBodyText();
         String b = MessageBoxService.stripUrls(m.getBodyText());
         return b == null ? "" : b;
     }
